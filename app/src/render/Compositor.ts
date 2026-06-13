@@ -29,10 +29,10 @@ export class Compositor {
 
   /** Default frame renderer; post-FX overrides this with an EffectComposer.render. */
   renderFrame: RenderFrame;
-  /** Per-frame hook for procedural updates and the conductor's beat clocks. */
-  onFrame: FrameHook | null = null;
   /** Notified on resize so post-FX can resize its composer/render targets. */
   onResize: ((w: number, h: number) => void) | null = null;
+
+  private readonly frameListeners = new Set<FrameHook>();
 
   private readonly stageMaterial = new TransitionMaterial('fade');
   private readonly ghostMaterial: THREE.MeshBasicMaterial;
@@ -96,6 +96,12 @@ export class Compositor {
     this.scene.add(mesh);
   }
 
+  /** Register a per-frame listener (procedural updates, post-FX animation, beat clocks). */
+  addFrameListener(fn: FrameHook): () => void {
+    this.frameListeners.add(fn);
+    return () => this.frameListeners.delete(fn);
+  }
+
   get size(): { width: number; height: number } {
     return { width: this.width, height: this.height };
   }
@@ -110,7 +116,8 @@ export class Compositor {
       const dt = (now - this.lastMs) / 1000;
       this.lastMs = now;
       this.advance(now);
-      this.onFrame?.(dt, (now - this.startMs) / 1000);
+      const elapsed = (now - this.startMs) / 1000;
+      for (const fn of this.frameListeners) fn(dt, elapsed);
       this.renderFrame(this.renderer);
       this.rafId = requestAnimationFrame(tick);
     };

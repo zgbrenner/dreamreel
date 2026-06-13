@@ -44,9 +44,9 @@ function HarnessApp() {
     postRef.current = post;
 
     const procs = KINDS.map((k) => ({ kind: k, src: getProceduralTexture(k, 'harness') }));
-    comp.onFrame = (_dt, elapsed) => {
+    comp.addFrameListener((_dt, elapsed) => {
       for (const p of procs) p.src.update(elapsed);
-    };
+    });
 
     let i = 0;
     let ti = 0;

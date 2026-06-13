@@ -119,12 +119,8 @@ export class PostFX {
 
     // Route the compositor's single rAF render through the composer.
     compositor.renderFrame = () => this.composer.render();
-    // Drive per-frame film animation from the compositor's frame hook chain.
-    const prev = compositor.onFrame;
-    compositor.onFrame = (dt, elapsed) => {
-      prev?.(dt, elapsed);
-      this.update(dt, elapsed);
-    };
+    // Drive per-frame film animation from the compositor's frame listeners.
+    compositor.addFrameListener((dt, elapsed) => this.update(dt, elapsed));
     this.applyParams();
   }
 
