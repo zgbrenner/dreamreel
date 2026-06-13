@@ -1,0 +1,93 @@
+/* Fonts — bundled via Fontsource so we ship them rather than hotlinking. */
+@import '@fontsource/bodoni-moda/400.css';
+@import '@fontsource/bodoni-moda/600.css';
+@import '@fontsource/eb-garamond/400.css';
+@import '@fontsource/eb-garamond/400-italic.css';
+@import '@fontsource/courier-prime/400.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+  body {
+    background-color: theme('colors.ink');
+    color: theme('colors.bone');
+    font-family: theme('fontFamily.drift');
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  /* Visible focus rings for keyboard a11y. */
+  :focus-visible {
+    outline: 2px solid theme('colors.amber');
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .text-shadow-glow {
+    text-shadow:
+      0 0 12px rgba(232, 200, 135, 0.35),
+      0 0 2px rgba(232, 200, 135, 0.5);
+  }
+}
+
+@layer components {
+  /* Drifting whisper: a slow fade-and-rise as each new line arrives. */
+  .dr-whisper {
+    animation: dr-drift 1.6s ease-out;
+  }
+  @keyframes dr-drift {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Projector slider, on-palette. */
+  .dr-range {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 2px;
+    background: rgba(200, 163, 94, 0.35);
+    border-radius: 2px;
+    cursor: pointer;
+  }
+  .dr-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: theme('colors.lamp');
+    box-shadow: 0 0 8px rgba(232, 200, 135, 0.6);
+  }
+  .dr-range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: none;
+    border-radius: 50%;
+    background: theme('colors.lamp');
+    box-shadow: 0 0 8px rgba(232, 200, 135, 0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-flicker,
+  .dr-whisper {
+    animation: none !important;
+  }
+}

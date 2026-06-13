@@ -1,0 +1,22 @@
+# Cloudflare Pages + R2 configuration for DREAMREEL.
+#
+# The SPA is served by Pages from app/dist; media + the versioned manifest live in R2 and are
+# served over a public R2 custom domain / CDN. The app reads the manifest URL from the
+# VITE_MANIFEST_URL build var and falls back to the bundled seed manifest if it is unset or
+# fails to load.
+#
+# Deploy (from repo root):
+#   cd app && VITE_MANIFEST_URL="$DREAMREEL_MANIFEST_URL" npm run build
+#   npx wrangler pages deploy app/dist --project-name dreamreel
+#
+# Secrets/IDs come from the environment or `wrangler` login — never commit them.
+
+name = "dreamreel"
+pages_build_output_dir = "../app/dist"
+compatibility_date = "2024-11-01"
+
+# R2 bucket that holds media + manifests. Bucket is NOT publicly writable; public read is via
+# a bound custom domain configured in the Cloudflare dashboard.
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "dreamreel-media"

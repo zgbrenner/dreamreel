@@ -1,0 +1,25 @@
+DREAMREEL — third-party notices
+================================
+
+This product includes original GLSL transition shaders whose interface follows the
+gl-transitions specification.
+
+  gl-transitions (https://github.com/gl-transitions/gl-transitions)
+  License: MIT
+  The gl-transitions collection and specification are released under the MIT License.
+  DREAMREEL's transition shaders (app/src/render/transitions.ts) are original
+  implementations conforming to that specification; no shader source was copied verbatim.
+
+Runtime dependencies and their licenses are enforced by the CI license check
+(see Phase 3 / .github/workflows). Ship-safe licenses only: MIT, BSD, Apache-2.0,
+Zlib, ISC, CC0, public domain, and CC-BY (with rendered attribution).
+
+  three.js .......... MIT
+  postprocessing .... Zlib
+  tone.js ........... MIT
+  zustand ........... MIT
+  zod ............... MIT
+  react / react-dom . MIT
+
+Media assets in the shipped corpus each carry license, source, and (where required)
+attribution metadata in the manifest, and CC-BY attributions are rendered on screen.

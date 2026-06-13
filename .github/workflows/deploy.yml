@@ -1,0 +1,39 @@
+name: Deploy (Cloudflare Pages)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    name: build + publish to Pages
+    runs-on: ubuntu-latest
+    # Requires repo secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, and (optional)
+    # DREAMREEL_MANIFEST_URL pointing at the R2/CDN manifest. If the manifest var is unset the
+    # app falls back to the bundled seed manifest.
+    if: ${{ github.repository_owner != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Build SPA
+        working-directory: app
+        env:
+          VITE_MANIFEST_URL: ${{ secrets.DREAMREEL_MANIFEST_URL }}
+        run: |
+          npm ci
+          npm run build
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy app/dist --project-name dreamreel --branch main
