@@ -1,0 +1,10 @@
+# Hashed build assets are immutable; cache hard.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The bundled seed manifest is a fallback; keep it short-lived.
+/manifest.seed.json
+  Cache-Control: public, max-age=300
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
