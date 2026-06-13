@@ -268,6 +268,9 @@ export class DreamConductor implements DreamRuntime {
   }
 
   private applyMoodToFilm(mood: Record<MoodAxis, number>, asset: Asset): void {
+    // Surreality opens up the dreamier, less photographic treatments (bloom, haze, leaks,
+    // colour drift, fringing) so a high-surreality reel reads as a proper dream, not a film.
+    const s = this.surreality;
     this.postfx.setParams({
       vignette: 0.42 + mood.ominous * 0.32,
       grain: 0.16 + (1 - mood.tender) * 0.16 + mood.mechanical * 0.06,
@@ -275,8 +278,32 @@ export class DreamConductor implements DreamRuntime {
       desat: 0.28 + mood.melancholy * 0.22,
       halation: 0.25 + mood.tender * 0.32,
       scanline: 0.08 + mood.mechanical * 0.16,
+      bloom: 0.3 + mood.tender * 0.5 + s * 0.4,
+      haze: 0.14 + mood.melancholy * 0.24 + mood.nostalgic * 0.16 + s * 0.18,
+      lightLeak: 0.18 + mood.nostalgic * 0.3 + s * 0.3,
+      tint: 0.18 + mood.uncanny * 0.3 + s * 0.2,
+      chroma: 0.15 + mood.uncanny * 0.5 + s * 0.35,
+      exposure: 1 + mood.tender * 0.06,
+      breathe: 0.4 + s * 0.5,
     });
     this.postfx.setGradeSepia(parseGrade(asset.grade));
+
+    // Punctuate the cut with an occasional one-shot dream swell; more likely as surreality
+    // rises. Uncanny moods lean toward colour-fringe surges, tender ones toward soft blooms.
+    if (this.presRng.next() < 0.18 + s * 0.4) {
+      const roll = this.presRng.next();
+      const target =
+        roll < 0.25 + mood.uncanny * 0.3
+          ? 'chroma'
+          : roll < 0.5
+            ? 'bleach'
+            : roll < 0.75
+              ? 'bloom'
+              : roll < 0.9
+                ? 'leak'
+                : 'tint';
+      this.postfx.triggerDreamSurge(target, 0.5 + this.presRng.next() * 0.6);
+    }
   }
 
   private crossfadeMs(): number {
