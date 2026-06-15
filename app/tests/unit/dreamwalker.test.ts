@@ -20,20 +20,30 @@ function imageSequence(seedStr: string, surreality: number, n: number): string[]
   return Array.from({ length: n }, () => w.next('image', 1).asset.id);
 }
 
-/** Mean Shannon entropy (bits) of the softmax selection distribution over `n` image picks. */
-function meanSelectionEntropy(seedStr: string, surreality: number, n: number): number {
+/**
+ * Mean Shannon entropy (bits) of the softmax selection distribution over `n` image picks,
+ * alongside the mean *maximum* entropy log2(candidateCount). The ratio meanH/meanMaxH is the
+ * "how close to uniform" measure: ~1 is near-uniform, lower is more peaked toward the argmax.
+ */
+function meanSelectionStats(
+  seedStr: string,
+  surreality: number,
+  n: number,
+): { meanH: number; meanMaxH: number; uniformity: number } {
   let total = 0;
+  let totalMax = 0;
   let count = 0;
   const w = createDreamwalker(pools, { seed: seedStr, surreality }, {
-    onSelect: (layer: DreamLayer, h: number) => {
+    onSelect: (layer: DreamLayer, h: number, candidateCount: number) => {
       if (layer === 'image') {
         total += h;
+        totalMax += Math.log2(candidateCount);
         count++;
       }
     },
   });
   for (let i = 0; i < n; i++) w.next('image', 1);
-  return total / count;
+  return { meanH: total / count, meanMaxH: totalMax / count, uniformity: total / totalMax };
 }
 
 describe('Dreamwalker determinism', () => {
@@ -60,11 +70,21 @@ describe('Dreamwalker determinism', () => {
 });
 
 describe('Dreamwalker surreality controls entropy', () => {
-  it('surreality 0 is near-argmax (low selection entropy); surreality 1 is near-uniform', () => {
-    const calm = meanSelectionEntropy('mood', 0, 400);
-    const wild = meanSelectionEntropy('mood', 1, 400);
-    // The softmax temperature IS the surreality control: low surreality => peaked picks.
-    expect(wild).toBeGreaterThan(calm + 0.5);
+  it('surreality 0 is measurably more peaked than surreality 1, which is near-uniform', () => {
+    const calm = meanSelectionStats('mood', 0, 400);
+    const mid = meanSelectionStats('mood', 0.5, 400);
+    const wild = meanSelectionStats('mood', 1, 400);
+
+    // The softmax temperature IS the surreality control: low surreality => peaked picks,
+    // high surreality => the distribution flattens out toward uniform.
+    expect(wild.meanH).toBeGreaterThan(calm.meanH + 0.5); // clearly higher entropy when wild
+    expect(mid.meanH).toBeGreaterThan(calm.meanH); // monotone-ish across the range
+    expect(wild.meanH).toBeGreaterThan(mid.meanH - 1e-9);
+
+    // surreality 1 sits right up against the maximum possible entropy (near-uniform picks).
+    expect(wild.uniformity).toBeGreaterThan(0.9);
+    // surreality 0 is concentrated well below uniform (argmax-leaning).
+    expect(calm.uniformity).toBeLessThan(0.8);
   });
 });
 
@@ -88,6 +108,40 @@ describe('Dreamwalker layers', () => {
     for (let i = 0; i < 20; i++) {
       expect(textIds.has(w.next('text', 1).asset.id)).toBe(true);
       expect(visualIds.has(w.next('ghost', 1).asset.id)).toBe(true);
+    }
+  });
+
+  it('interjects title cards sourced from the titlecard texts, never repeating in-window', () => {
+    const cardTags = new Set(['card', 'intertitle', 'titlecard']);
+    const cardIds = new Set(
+      manifest.texts.filter((t) => t.tags.some((x) => cardTags.has(x))).map((t) => t.id),
+    );
+    expect(cardIds.size).toBeGreaterThan(0); // seed manifest carries intertitle cards
+
+    // High surreality maximises the card-interjection probability.
+    const w = createDreamwalker(pools, { seed: 'cards', surreality: 1 });
+    const ids: string[] = [];
+    let cardBeats = 0;
+    for (let i = 0; i < 600; i++) {
+      const beat = w.next('image', 1);
+      ids.push(beat.asset.id);
+      if (beat.titleCard) {
+        cardBeats++;
+        // a title-card beat must be one of the card texts and carry its text
+        expect(cardIds.has(beat.asset.id)).toBe(true);
+        expect(typeof beat.asset.text).toBe('string');
+        expect((beat.asset.text ?? '').length).toBeGreaterThan(0);
+      } else {
+        // non-card image beats never draw from the card pool
+        expect(cardIds.has(beat.asset.id)).toBe(false);
+      }
+    }
+    expect(cardBeats).toBeGreaterThan(0); // cards do get interjected over a long run
+
+    // Cards participate in the same anti-repeat window as picks.
+    for (let i = 0; i < ids.length; i++) {
+      const window = ids.slice(Math.max(0, i - 5), i);
+      expect(window).not.toContain(ids[i]);
     }
   });
 
