@@ -1,6 +1,8 @@
 // app/src/render/filmParams.ts
 // Single home for every film-treatment parameter, so the audio/mood layer (prompt 6) and
-// the conductor (prompt 8) drive the look from one place.
+// the conductor (prompt 8) drive the look from one place. These are the *base* levels; the
+// PostFX dream-event engine layers slow LFOs and one-shot swells on top each frame, so the
+// reel keeps breathing even when the mood holds steady.
 
 export interface FilmParams {
   grain: number; // animated grain strength 0..1
@@ -13,6 +15,15 @@ export interface FilmParams {
   flicker: number; // brightness flicker depth 0..1
   spliceFlash: number; // transient white splice flash 0..1 (decays in JS)
   gradeSepia: number; // per-asset sepia override from Asset.grade, additive
+  // --- dreamlike layer (base levels; the dream-event engine modulates around these) ---
+  exposure: number; // base exposure multiplier (1 = neutral); dream blowouts swell above
+  bloom: number; // soft over-exposed glow intensity (postprocessing BloomEffect)
+  haze: number; // gauzy soft-focus veil that lifts shadows toward lamp-glow 0..1
+  lightLeak: number; // drifting colored light-leak bleed 0..1
+  tint: number; // slow color-temperature drift toward palette colors 0..1
+  chroma: number; // chromatic aberration / color-fringing 0..1
+  bleach: number; // transient over-exposure blowout 0..1 (decays in JS, like spliceFlash)
+  breathe: number; // depth of the slow vignette/exposure "breathing" 0..1
   reduceMotion: boolean;
 }
 
@@ -28,6 +39,14 @@ export function defaultFilmParams(): FilmParams {
     flicker: 0.06,
     spliceFlash: 0,
     gradeSepia: 0,
+    exposure: 1,
+    bloom: 0.45,
+    haze: 0.22,
+    lightLeak: 0.3,
+    tint: 0.25,
+    chroma: 0.3,
+    bleach: 0,
+    breathe: 0.5,
     reduceMotion: false,
   };
 }

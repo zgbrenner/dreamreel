@@ -69,10 +69,55 @@ const wipe: TransitionDef = {
   `,
 };
 
+// A dream-dissolve: the outgoing frame swirls and drifts outward while the incoming frame
+// melts in through a soft luminance threshold — the picture seems to come apart like a
+// half-remembered image rather than cutting.
+const dreamWarp: TransitionDef = {
+  name: 'dreamWarp',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec2 c = uv - 0.5;
+      float r = length(c);
+      float ang = atan(c.y, c.x);
+      // outgoing frame swirls + drifts outward as it leaves
+      float swirl = (1.0 - progress) * 0.0 + progress * 1.6;
+      float fa = ang + swirl * (0.6 - r);
+      vec2 fromUv = 0.5 + vec2(cos(fa), sin(fa)) * r * (1.0 + progress * 0.18);
+      // incoming frame eases in from a gentle inward drift
+      vec2 toUv = 0.5 + c * (1.0 + (1.0 - progress) * 0.12);
+      vec4 from = getFromColor(clamp(fromUv, 0.0, 1.0));
+      vec4 to = getToColor(clamp(toUv, 0.0, 1.0));
+      // luminance-led melt so brighter regions of the new frame bloom in first
+      float lum = dot(to.rgb, vec3(0.299, 0.587, 0.114));
+      float t = smoothstep(0.0, 1.0, progress * 1.3 - (1.0 - lum) * 0.3);
+      return mix(from, to, clamp(t, 0.0, 1.0));
+    }
+  `,
+};
+
+// A halation flash: the frame blooms to warm white at the midpoint, then resolves on the new
+// image — like a projector lamp surging during a splice. Quintessential dream punctuation.
+const lightFlash: TransitionDef = {
+  name: 'lightFlash',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec4 from = getFromColor(uv);
+      vec4 to = getToColor(uv);
+      vec4 base = mix(from, to, smoothstep(0.25, 0.75, progress));
+      // a warm bloom that peaks at the crossover and falls away
+      float flash = sin(progress * 3.14159);
+      vec3 bloom = vec3(1.0, 0.92, 0.78) * flash * flash;
+      return vec4(base.rgb + bloom, base.a);
+    }
+  `,
+};
+
 export const TRANSITIONS: Record<string, TransitionDef> = {
   fade,
   filmBurn,
   wipe,
+  dreamWarp,
+  lightFlash,
 };
 
 export const TRANSITION_NAMES = Object.keys(TRANSITIONS);
