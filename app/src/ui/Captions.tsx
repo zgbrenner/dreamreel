@@ -7,12 +7,17 @@ import { requiresAttribution } from '../manifest/attribution';
  * current drifting line as an EB Garamond italic whisper. When an asset's license starts
  * with CC-BY the attribution is rendered here — this is mandatory.
  */
-export function Captions() {
+export function Captions({ panelOpen = true }: { panelOpen?: boolean }) {
   const caption = useStore((s) => s.caption);
   const isCcBy = requiresAttribution(caption.license);
 
+  // Lift the caption strip clear of the control drawer when it's open; drop it down when hidden.
+  const bottomPad = panelOpen ? 'pb-28 sm:pb-24' : 'pb-12';
+
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 px-6 pb-24 sm:pb-20">
+    <div
+      className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 px-6 ${bottomPad}`}
+    >
       {caption.whisper && (
         <p
           key={caption.whisper}
