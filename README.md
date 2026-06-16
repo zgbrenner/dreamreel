@@ -1,5 +1,7 @@
 # DREAMREEL
 
+*"bababadalgharaghtakamminarronnkonnbronntonnerronntuonnthunntrovarrhounawnskawntoohoohoordenenthurnuk!"* - *Finnegans Wake* by James Joyce
+
 A surreal **dream-sequence generator**. Press play and watch a seamless, ever-changing mashup
 of public-domain media — vintage film, photographs, art, maps, title cards — with drifting
 stream-of-consciousness text and a generative ambient audio bed, all under an old-cinema
