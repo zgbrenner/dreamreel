@@ -8,12 +8,20 @@ and listed below.
 
 | Source | Assets | Licenses |
 | --- | --: | --- |
-| DREAMREEL / original | 12 | CC0 |
+| DREAMREEL / original | 36 | CC0 |
 | DREAMREEL / procedural | 9 | CC0 |
-| Wikimedia Commons / Hokusai | 1 | PD |
-| Wikimedia Commons / van Gogh | 1 | PD |
+| Wikimedia Commons / van Gogh | 3 | PD |
+| Wikimedia Commons / Hokusai | 2 | PD |
+| Wikimedia Commons / Bruegel | 2 | PD |
 | Wikimedia Commons / C.D. Friedrich | 1 | PD |
-| Wikimedia Commons / Bruegel | 1 | PD |
+| Wikimedia Commons / Botticelli | 1 | PD |
+| Wikimedia Commons / Vermeer | 1 | PD |
+| Wikimedia Commons / Bosch | 1 | PD |
+| Wikimedia Commons / Munch | 1 | PD |
+| Wikimedia Commons / Goya | 1 | PD |
+| Wikimedia Commons / Fuseli | 1 | PD |
+| Wikimedia Commons / Millais | 1 | PD |
+| Wikimedia Commons / Rousseau | 1 | PD |
 
 ## CC-BY attributions (0)
 

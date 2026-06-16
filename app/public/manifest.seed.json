@@ -467,6 +467,410 @@
       "grade": "sepia 0.3",
       "source": "Wikimedia Commons / Bruegel",
       "license": "PD"
+    },
+    {
+      "id": "img-birth-venus",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/Sandro_Botticelli_-_La_nascita_di_Venere_-_Google_Art_Project_-_edited.jpg",
+      "embedding": [
+        0.409852415662848,
+        0,
+        0.6147786234942719,
+        0,
+        0,
+        0.409852415662848,
+        0.51231551957856,
+        0.15369465587356798
+      ],
+      "mood": {
+        "melancholy": 0.582,
+        "uncanny": 0.637,
+        "nostalgic": 0.847,
+        "ominous": 0.374,
+        "tender": 0.83,
+        "mechanical": 0.357
+      },
+      "tags": [
+        "venus",
+        "figure",
+        "sea",
+        "myth",
+        "botanical"
+      ],
+      "dwellBase": 6,
+      "grade": "sepia 0.3",
+      "source": "Wikimedia Commons / Botticelli",
+      "license": "PD"
+    },
+    {
+      "id": "img-pearl-earring",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/Johannes_Vermeer_-_Het_meisje_met_de_parel_-_Google_Art_Project.jpg",
+      "embedding": [
+        0,
+        0,
+        0.8581163303210331,
+        0,
+        0,
+        0,
+        0.4767312946227961,
+        0.19069251784911845
+      ],
+      "mood": {
+        "melancholy": 0.609,
+        "uncanny": 0.752,
+        "nostalgic": 0.826,
+        "ominous": 0.381,
+        "tender": 0.807,
+        "mechanical": 0.45
+      },
+      "tags": [
+        "face",
+        "portrait",
+        "girl",
+        "light"
+      ],
+      "dwellBase": 6,
+      "grade": "sepia 0.3",
+      "source": "Wikimedia Commons / Vermeer",
+      "license": "PD"
+    },
+    {
+      "id": "img-garden-delights",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/Hieronymus_Bosch_-_The_Garden_of_Earthly_Delights_-_Prado_in_Google_Earth.jpg",
+      "embedding": [
+        0.10425720702853739,
+        0.20851441405707477,
+        0.5212860351426869,
+        0.41702882811414954,
+        0.10425720702853739,
+        0.5212860351426869,
+        0.20851441405707477,
+        0.41702882811414954
+      ],
+      "mood": {
+        "melancholy": 0.75,
+        "uncanny": 0.755,
+        "nostalgic": 0.854,
+        "ominous": 0.6,
+        "tender": 0.707,
+        "mechanical": 0.446
+      },
+      "tags": [
+        "bosch",
+        "triptych",
+        "figures",
+        "uncanny",
+        "garden"
+      ],
+      "dwellBase": 7,
+      "grade": "sepia 0.25",
+      "source": "Wikimedia Commons / Bosch",
+      "license": "PD"
+    },
+    {
+      "id": "img-the-scream",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg",
+      "embedding": [
+        0.317999364001908,
+        0,
+        0.741998516004452,
+        0.105999788000636,
+        0.105999788000636,
+        0,
+        0.211999576001272,
+        0.52999894000318
+      ],
+      "mood": {
+        "melancholy": 0.795,
+        "uncanny": 0.838,
+        "nostalgic": 0.863,
+        "ominous": 0.628,
+        "tender": 0.687,
+        "mechanical": 0.391
+      },
+      "tags": [
+        "scream",
+        "figure",
+        "anguish",
+        "sky"
+      ],
+      "dwellBase": 5,
+      "grade": "sepia 0.4",
+      "source": "Wikimedia Commons / Munch",
+      "license": "PD"
+    },
+    {
+      "id": "img-saturn-goya",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/Francisco_de_Goya%2C_Saturno_devorando_a_su_hijo_(1819-1823).jpg",
+      "embedding": [
+        0,
+        0,
+        0.6188527477552761,
+        0.30942637387763805,
+        0,
+        0,
+        0,
+        0.7219948723811553
+      ],
+      "mood": {
+        "melancholy": 0.851,
+        "uncanny": 0.847,
+        "nostalgic": 0.854,
+        "ominous": 0.713,
+        "tender": 0.572,
+        "mechanical": 0.415
+      },
+      "tags": [
+        "goya",
+        "myth",
+        "dark",
+        "figure",
+        "horror"
+      ],
+      "dwellBase": 5,
+      "grade": "sepia 0.5",
+      "source": "Wikimedia Commons / Goya",
+      "license": "PD"
+    },
+    {
+      "id": "img-the-nightmare",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/John_Henry_Fuseli_-_The_Nightmare.JPG",
+      "embedding": [
+        0,
+        0.12126781251816648,
+        0.7276068751089989,
+        0.24253562503633297,
+        0.12126781251816648,
+        0,
+        0.12126781251816648,
+        0.6063390625908324
+      ],
+      "mood": {
+        "melancholy": 0.812,
+        "uncanny": 0.862,
+        "nostalgic": 0.848,
+        "ominous": 0.665,
+        "tender": 0.63,
+        "mechanical": 0.475
+      },
+      "tags": [
+        "fuseli",
+        "nightmare",
+        "figure",
+        "incubus"
+      ],
+      "dwellBase": 5,
+      "grade": "sepia 0.45",
+      "source": "Wikimedia Commons / Fuseli",
+      "license": "PD"
+    },
+    {
+      "id": "img-ophelia",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/John_Everett_Millais_-_Ophelia_-_Google_Art_Project.jpg",
+      "embedding": [
+        0.46373889576016825,
+        0,
+        0.46373889576016825,
+        0.09274777915203365,
+        0,
+        0.6492344540642355,
+        0.1854955583040673,
+        0.32461722703211776
+      ],
+      "mood": {
+        "melancholy": 0.697,
+        "uncanny": 0.643,
+        "nostalgic": 0.849,
+        "ominous": 0.498,
+        "tender": 0.764,
+        "mechanical": 0.289
+      },
+      "tags": [
+        "ophelia",
+        "water",
+        "flowers",
+        "drowning",
+        "pre-raphaelite"
+      ],
+      "dwellBase": 7,
+      "grade": "sepia 0.3",
+      "source": "Wikimedia Commons / Millais",
+      "license": "PD"
+    },
+    {
+      "id": "img-wheatfield-crows",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/Vincent_van_Gogh_-_Wheatfield_with_crows_-_Google_Art_Project.jpg",
+      "embedding": [
+        0.10140402531267877,
+        0,
+        0,
+        0.20280805062535753,
+        0.20280805062535753,
+        0.8112322025014301,
+        0.20280805062535753,
+        0.4563181139070544
+      ],
+      "mood": {
+        "melancholy": 0.639,
+        "uncanny": 0.541,
+        "nostalgic": 0.808,
+        "ominous": 0.511,
+        "tender": 0.71,
+        "mechanical": 0.334
+      },
+      "tags": [
+        "wheatfield",
+        "crows",
+        "sky",
+        "vangogh",
+        "foreboding"
+      ],
+      "dwellBase": 6,
+      "grade": "sepia 0.3",
+      "source": "Wikimedia Commons / van Gogh",
+      "license": "PD"
+    },
+    {
+      "id": "img-red-fuji",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/Red_Fuji_southern_wind_clear_morning.jpg",
+      "embedding": [
+        0.25607375986579195,
+        0,
+        0,
+        0.25607375986579195,
+        0.38411063979868787,
+        0.25607375986579195,
+        0.7682212795973757,
+        0.25607375986579195
+      ],
+      "mood": {
+        "melancholy": 0.518,
+        "uncanny": 0.569,
+        "nostalgic": 0.804,
+        "ominous": 0.483,
+        "tender": 0.743,
+        "mechanical": 0.5
+      },
+      "tags": [
+        "fuji",
+        "mountain",
+        "ukiyo-e",
+        "dawn"
+      ],
+      "dwellBase": 6,
+      "grade": "sepia 0.3",
+      "source": "Wikimedia Commons / Hokusai",
+      "license": "PD"
+    },
+    {
+      "id": "img-sleeping-gypsy",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/Henri_Rousseau_-_The_Sleeping_Gypsy.jpg",
+      "embedding": [
+        0.21566554640687682,
+        0,
+        0.539163866017192,
+        0,
+        0.6469966392206304,
+        0.10783277320343841,
+        0.43133109281375365,
+        0.21566554640687682
+      ],
+      "mood": {
+        "melancholy": 0.622,
+        "uncanny": 0.782,
+        "nostalgic": 0.797,
+        "ominous": 0.514,
+        "tender": 0.771,
+        "mechanical": 0.433
+      },
+      "tags": [
+        "rousseau",
+        "moon",
+        "desert",
+        "sleep",
+        "lion"
+      ],
+      "dwellBase": 7,
+      "grade": "sepia 0.35",
+      "source": "Wikimedia Commons / Rousseau",
+      "license": "PD"
+    },
+    {
+      "id": "img-hunters-snow",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/Pieter_Bruegel_the_Elder_-_The_Hunters_in_the_Snow_(Winter)_-_Google_Art_Project.jpg",
+      "embedding": [
+        0.14285714285714285,
+        0,
+        0.4285714285714285,
+        0.2857142857142857,
+        0.14285714285714285,
+        0.4285714285714285,
+        0.4285714285714285,
+        0.5714285714285714
+      ],
+      "mood": {
+        "melancholy": 0.732,
+        "uncanny": 0.728,
+        "nostalgic": 0.887,
+        "ominous": 0.55,
+        "tender": 0.756,
+        "mechanical": 0.383
+      },
+      "tags": [
+        "bruegel",
+        "winter",
+        "snow",
+        "hunters",
+        "village"
+      ],
+      "dwellBase": 7,
+      "grade": "sepia 0.35",
+      "source": "Wikimedia Commons / Bruegel",
+      "license": "PD"
+    },
+    {
+      "id": "img-cafe-terrace",
+      "type": "image",
+      "src": "https://commons.wikimedia.org/wiki/Special:FilePath/Vincent_van_Gogh_-_Caf%C3%A9_Terrace_at_Night_(Yorck).jpg",
+      "embedding": [
+        0,
+        0.09491579957524991,
+        0.18983159915049982,
+        0.09491579957524991,
+        0.5694947974514994,
+        0.09491579957524991,
+        0.7593263966019993,
+        0.18983159915049982
+      ],
+      "mood": {
+        "melancholy": 0.461,
+        "uncanny": 0.658,
+        "nostalgic": 0.759,
+        "ominous": 0.429,
+        "tender": 0.76,
+        "mechanical": 0.579
+      },
+      "tags": [
+        "vangogh",
+        "night",
+        "cafe",
+        "stars",
+        "light"
+      ],
+      "dwellBase": 6,
+      "grade": "sepia 0.25",
+      "source": "Wikimedia Commons / van Gogh",
+      "license": "PD"
     }
   ],
   "texts": [
@@ -771,6 +1175,546 @@
       "license": "CC0"
     },
     {
+      "id": "txt-drift-10",
+      "type": "titlecard",
+      "text": "the staircase keeps a record of everyone who hesitated",
+      "embedding": [
+        0,
+        0.2309401076758503,
+        0.4618802153517006,
+        0.5773502691896257,
+        0,
+        0.11547005383792515,
+        0.2309401076758503,
+        0.5773502691896257
+      ],
+      "mood": {
+        "melancholy": 0.804,
+        "uncanny": 0.809,
+        "nostalgic": 0.847,
+        "ominous": 0.71,
+        "tender": 0.571,
+        "mechanical": 0.56
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-11",
+      "type": "titlecard",
+      "text": "we mistook the lighthouse for a question and answered anyway",
+      "embedding": [
+        0.5970223141259935,
+        0.09950371902099893,
+        0.09950371902099893,
+        0.09950371902099893,
+        0.19900743804199786,
+        0,
+        0.6965260331469924,
+        0.29851115706299675
+      ],
+      "mood": {
+        "melancholy": 0.564,
+        "uncanny": 0.636,
+        "nostalgic": 0.79,
+        "ominous": 0.548,
+        "tender": 0.661,
+        "mechanical": 0.536
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-12",
+      "type": "titlecard",
+      "text": "every mirror in the house is rehearsing your absence",
+      "embedding": [
+        0,
+        0.11250879009260241,
+        0.7875615306482168,
+        0.22501758018520482,
+        0,
+        0,
+        0.3375263702778072,
+        0.45003516037040964
+      ],
+      "mood": {
+        "melancholy": 0.743,
+        "uncanny": 0.822,
+        "nostalgic": 0.854,
+        "ominous": 0.554,
+        "tender": 0.713,
+        "mechanical": 0.494
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-13",
+      "type": "titlecard",
+      "text": "the orchard counts its ghosts by the weight of fallen fruit",
+      "embedding": [
+        0,
+        0,
+        0.2970442628930023,
+        0.2970442628930023,
+        0,
+        0.7921180343813394,
+        0.19802950859533486,
+        0.3960590171906697
+      ],
+      "mood": {
+        "melancholy": 0.676,
+        "uncanny": 0.585,
+        "nostalgic": 0.842,
+        "ominous": 0.474,
+        "tender": 0.76,
+        "mechanical": 0.327
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-14",
+      "type": "titlecard",
+      "text": "a telegram arrives from a year that was never built",
+      "embedding": [
+        0,
+        0.6063390625908324,
+        0.24253562503633297,
+        0.36380343755449945,
+        0.12126781251816648,
+        0,
+        0.24253562503633297,
+        0.6063390625908324
+      ],
+      "mood": {
+        "melancholy": 0.72,
+        "uncanny": 0.82,
+        "nostalgic": 0.746,
+        "ominous": 0.723,
+        "tender": 0.426,
+        "mechanical": 0.748
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-15",
+      "type": "titlecard",
+      "text": "the snow keeps drafting letters it will never sign",
+      "embedding": [
+        0.2917299829957891,
+        0,
+        0.2917299829957891,
+        0.2917299829957891,
+        0.14586499149789456,
+        0.4375949744936836,
+        0.4375949744936836,
+        0.5834599659915782
+      ],
+      "mood": {
+        "melancholy": 0.731,
+        "uncanny": 0.7,
+        "nostalgic": 0.882,
+        "ominous": 0.583,
+        "tender": 0.726,
+        "mechanical": 0.381
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-16",
+      "type": "titlecard",
+      "text": "somewhere the ocean is practicing your name in salt",
+      "embedding": [
+        0.9091372900969896,
+        0,
+        0.20203050891044216,
+        0.10101525445522108,
+        0.10101525445522108,
+        0.10101525445522108,
+        0.10101525445522108,
+        0.3030457633656632
+      ],
+      "mood": {
+        "melancholy": 0.744,
+        "uncanny": 0.691,
+        "nostalgic": 0.768,
+        "ominous": 0.705,
+        "tender": 0.54,
+        "mechanical": 0.366
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-17",
+      "type": "titlecard",
+      "text": "the chandelier dreams in the dialect of drowned ships",
+      "embedding": [
+        0.5521576303742327,
+        0.2208630521496931,
+        0,
+        0.2208630521496931,
+        0.2208630521496931,
+        0,
+        0.6625891564490792,
+        0.3312945782245396
+      ],
+      "mood": {
+        "melancholy": 0.581,
+        "uncanny": 0.65,
+        "nostalgic": 0.771,
+        "ominous": 0.61,
+        "tender": 0.591,
+        "mechanical": 0.608
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-18",
+      "type": "titlecard",
+      "text": "all the trains agreed to arrive only in our sleep",
+      "embedding": [
+        0,
+        0.792593923901217,
+        0.22645540682891915,
+        0.22645540682891915,
+        0.11322770341445958,
+        0,
+        0.22645540682891915,
+        0.4529108136578383
+      ],
+      "mood": {
+        "melancholy": 0.628,
+        "uncanny": 0.801,
+        "nostalgic": 0.656,
+        "ominous": 0.677,
+        "tender": 0.402,
+        "mechanical": 0.809
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-19",
+      "type": "titlecard",
+      "text": "the wallpaper memorizes us so the house can forget",
+      "embedding": [
+        0,
+        0.1125087900926024,
+        0.6750527405556143,
+        0.33752637027780713,
+        0,
+        0.2250175801852048,
+        0.2250175801852048,
+        0.562543950463012
+      ],
+      "mood": {
+        "melancholy": 0.788,
+        "uncanny": 0.811,
+        "nostalgic": 0.871,
+        "ominous": 0.607,
+        "tender": 0.693,
+        "mechanical": 0.447
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-20",
+      "type": "titlecard",
+      "text": "a comet leaves its forwarding address in the dark",
+      "embedding": [
+        0,
+        0,
+        0.09853292781642932,
+        0.09853292781642932,
+        0.8867963503478639,
+        0,
+        0.3941317112657173,
+        0.19706585563285864
+      ],
+      "mood": {
+        "melancholy": 0.559,
+        "uncanny": 0.727,
+        "nostalgic": 0.679,
+        "ominous": 0.582,
+        "tender": 0.655,
+        "mechanical": 0.526
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-21",
+      "type": "titlecard",
+      "text": "the field hums the frequency of everyone who walked away",
+      "embedding": [
+        0.10976425998969035,
+        0.2195285199793807,
+        0.2195285199793807,
+        0.2195285199793807,
+        0.10976425998969035,
+        0.7683498199278324,
+        0.2195285199793807,
+        0.4390570399587614
+      ],
+      "mood": {
+        "melancholy": 0.653,
+        "uncanny": 0.627,
+        "nostalgic": 0.819,
+        "ominous": 0.514,
+        "tender": 0.709,
+        "mechanical": 0.42
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-22",
+      "type": "titlecard",
+      "text": "the clocktower confesses it has been counting the wrong stars",
+      "embedding": [
+        0,
+        0.5423261445466404,
+        0.1084652289093281,
+        0.32539568672798425,
+        0.5423261445466404,
+        0,
+        0.32539568672798425,
+        0.4338609156373124
+      ],
+      "mood": {
+        "melancholy": 0.646,
+        "uncanny": 0.806,
+        "nostalgic": 0.691,
+        "ominous": 0.711,
+        "tender": 0.467,
+        "mechanical": 0.748
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-23",
+      "type": "titlecard",
+      "text": "rain rehearses the names of streets that drowned",
+      "embedding": [
+        0.7504787743864564,
+        0.1072112534837795,
+        0.1072112534837795,
+        0.32163376045133846,
+        0,
+        0.1072112534837795,
+        0.1072112534837795,
+        0.5360562674188974
+      ],
+      "mood": {
+        "melancholy": 0.801,
+        "uncanny": 0.725,
+        "nostalgic": 0.803,
+        "ominous": 0.773,
+        "tender": 0.458,
+        "mechanical": 0.439
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-24",
+      "type": "titlecard",
+      "text": "the museum keeps one room for the weather we lost",
+      "embedding": [
+        0.3611575592573076,
+        0.1203858530857692,
+        0.3611575592573076,
+        0.4815434123430768,
+        0.1203858530857692,
+        0.2407717061715384,
+        0.2407717061715384,
+        0.601929265428846
+      ],
+      "mood": {
+        "melancholy": 0.817,
+        "uncanny": 0.79,
+        "nostalgic": 0.868,
+        "ominous": 0.73,
+        "tender": 0.599,
+        "mechanical": 0.45
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-25",
+      "type": "titlecard",
+      "text": "every photograph is a window someone forgot to close",
+      "embedding": [
+        0.24253562503633297,
+        0.12126781251816648,
+        0.6063390625908324,
+        0.24253562503633297,
+        0.12126781251816648,
+        0.12126781251816648,
+        0.48507125007266594,
+        0.48507125007266594
+      ],
+      "mood": {
+        "melancholy": 0.729,
+        "uncanny": 0.796,
+        "nostalgic": 0.873,
+        "ominous": 0.574,
+        "tender": 0.728,
+        "mechanical": 0.481
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-26",
+      "type": "titlecard",
+      "text": "the moths are translating the lamp into something kinder",
+      "embedding": [
+        0,
+        0.10976425998969033,
+        0.10976425998969033,
+        0,
+        0.21952851997938067,
+        0.32929277996907097,
+        0.8781140799175227,
+        0.21952851997938067
+      ],
+      "mood": {
+        "melancholy": 0.376,
+        "uncanny": 0.512,
+        "nostalgic": 0.782,
+        "ominous": 0.303,
+        "tender": 0.804,
+        "mechanical": 0.551
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-drift-27",
+      "type": "titlecard",
+      "text": "the garden left its gate open for a century, just in case",
+      "embedding": [
+        0,
+        0,
+        0.19802950859533486,
+        0.2970442628930023,
+        0,
+        0.7921180343813394,
+        0.2970442628930023,
+        0.3960590171906697
+      ],
+      "mood": {
+        "melancholy": 0.638,
+        "uncanny": 0.543,
+        "nostalgic": 0.84,
+        "ominous": 0.452,
+        "tender": 0.763,
+        "mechanical": 0.345
+      },
+      "tags": [
+        "drift",
+        "whisper"
+      ],
+      "dwellBase": 4,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
       "id": "txt-card-0",
       "type": "titlecard",
       "text": "AND THEN THE LIGHT REMEMBERED US",
@@ -821,6 +1765,186 @@
         "ominous": 0.754,
         "tender": 0.433,
         "mechanical": 0.686
+      },
+      "tags": [
+        "intertitle",
+        "card"
+      ],
+      "dwellBase": 5,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-card-2",
+      "type": "titlecard",
+      "text": "A MEMORY YOU WERE NEVER ISSUED",
+      "embedding": [
+        0,
+        0.25,
+        0.5,
+        0.37499999999999994,
+        0.125,
+        0,
+        0.37499999999999994,
+        0.625
+      ],
+      "mood": {
+        "melancholy": 0.765,
+        "uncanny": 0.831,
+        "nostalgic": 0.848,
+        "ominous": 0.664,
+        "tender": 0.608,
+        "mechanical": 0.59
+      },
+      "tags": [
+        "intertitle",
+        "card"
+      ],
+      "dwellBase": 5,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-card-3",
+      "type": "titlecard",
+      "text": "THE PROJECTIONIST HAS FALLEN ASLEEP",
+      "embedding": [
+        0,
+        0.5892556509887895,
+        0.23570226039551584,
+        0.11785113019775792,
+        0.11785113019775792,
+        0,
+        0.5892556509887895,
+        0.4714045207910317
+      ],
+      "mood": {
+        "melancholy": 0.544,
+        "uncanny": 0.749,
+        "nostalgic": 0.74,
+        "ominous": 0.541,
+        "tender": 0.567,
+        "mechanical": 0.765
+      },
+      "tags": [
+        "intertitle",
+        "card"
+      ],
+      "dwellBase": 5,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-card-4",
+      "type": "titlecard",
+      "text": "EVERYTHING HERE IS ALREADY REMEMBERING YOU",
+      "embedding": [
+        0,
+        0.1203858530857692,
+        0.601929265428846,
+        0.2407717061715384,
+        0.2407717061715384,
+        0.1203858530857692,
+        0.601929265428846,
+        0.3611575592573076
+      ],
+      "mood": {
+        "melancholy": 0.646,
+        "uncanny": 0.772,
+        "nostalgic": 0.853,
+        "ominous": 0.489,
+        "tender": 0.774,
+        "mechanical": 0.525
+      },
+      "tags": [
+        "intertitle",
+        "card"
+      ],
+      "dwellBase": 5,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-card-5",
+      "type": "titlecard",
+      "text": "INTERMISSION FOR THE TIDES",
+      "embedding": [
+        0.8888888888888888,
+        0,
+        0.1111111111111111,
+        0.1111111111111111,
+        0.1111111111111111,
+        0.1111111111111111,
+        0.2222222222222222,
+        0.33333333333333326
+      ],
+      "mood": {
+        "melancholy": 0.716,
+        "uncanny": 0.662,
+        "nostalgic": 0.777,
+        "ominous": 0.686,
+        "tender": 0.554,
+        "mechanical": 0.386
+      },
+      "tags": [
+        "intertitle",
+        "card"
+      ],
+      "dwellBase": 5,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-card-6",
+      "type": "titlecard",
+      "text": "REEL TWO — THE HOUR WITHOUT A NUMBER",
+      "embedding": [
+        0,
+        0.48154341234307685,
+        0.12038585308576921,
+        0.3611575592573076,
+        0.3611575592573076,
+        0,
+        0.3611575592573076,
+        0.6019292654288461
+      ],
+      "mood": {
+        "melancholy": 0.695,
+        "uncanny": 0.807,
+        "nostalgic": 0.754,
+        "ominous": 0.718,
+        "tender": 0.468,
+        "mechanical": 0.722
+      },
+      "tags": [
+        "intertitle",
+        "card"
+      ],
+      "dwellBase": 5,
+      "source": "DREAMREEL / original",
+      "license": "CC0"
+    },
+    {
+      "id": "txt-card-7",
+      "type": "titlecard",
+      "text": "WE NOW RETURN YOU TO YOUR SLEEP",
+      "embedding": [
+        0,
+        0.26261286571944514,
+        0.3939192985791677,
+        0.13130643285972257,
+        0.3939192985791677,
+        0.13130643285972257,
+        0.6565321642986128,
+        0.3939192985791677
+      ],
+      "mood": {
+        "melancholy": 0.572,
+        "uncanny": 0.756,
+        "nostalgic": 0.814,
+        "ominous": 0.488,
+        "tender": 0.735,
+        "mechanical": 0.608
       },
       "tags": [
         "intertitle",
