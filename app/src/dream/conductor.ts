@@ -12,6 +12,7 @@ import type { Compositor } from '../render/Compositor';
 import type { PostFX } from '../render/postfx';
 import { getProceduralTexture, type ProceduralSource } from '../render/procedural';
 import { parseGrade } from '../render/filmParams';
+import { attributionFor } from '../manifest/attribution';
 import { TRANSITION_NAMES } from '../render/transitions';
 import type { AudioEngine } from '../audio/engine';
 import type { DreamRuntime } from '../state/runtime';
@@ -370,7 +371,7 @@ function reelLabel(asset: Asset): string {
 }
 
 function ccByAttribution(asset: Asset): string | undefined {
-  return asset.license.toUpperCase().startsWith('CC-BY') ? asset.attribution : undefined;
+  return attributionFor(asset);
 }
 
 function wrapWords(words: string[], maxChars: number): string[] {
