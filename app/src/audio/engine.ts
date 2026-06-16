@@ -7,16 +7,20 @@
 //   start(), setMood(), setVolume(), setTempo(), suspend(), resume(), dispose().
 
 import * as Tone from 'tone';
-import type { MoodAxis } from '../manifest/types';
-
-type Mood = Record<MoodAxis, number>;
+import { bedParamsFor, bellShotFor, type Mood } from './params';
 
 const PENTATONIC = ['C', 'D', 'E', 'G', 'A'];
 const RAMP = 1.5; // seconds for smooth parameter glides
 
-function clamp01(v: number): number {
-  return Math.max(0, Math.min(1, v));
-}
+// Neutral mood used to drive the tick rate before any real mood has been set.
+const NEUTRAL_MOOD: Mood = {
+  melancholy: 0.5,
+  uncanny: 0.5,
+  nostalgic: 0.5,
+  ominous: 0.5,
+  tender: 0.5,
+  mechanical: 0.3,
+};
 
 export class AudioEngine {
   private started = false;
@@ -107,11 +111,9 @@ export class AudioEngine {
 
     // Scheduled generative events.
     this.bellLoop = new Tone.Loop((time) => {
-      const tenderness = this.mood ? this.mood.tender : 0.5;
-      const p = 0.18 + tenderness * 0.4;
-      if (Math.random() < p) {
+      const { prob, octave } = bellShotFor(this.mood ? this.mood.tender : 0.5);
+      if (Math.random() < prob) {
         const note = PENTATONIC[Math.floor(Math.random() * PENTATONIC.length)];
-        const octave = 3 + Math.round(tenderness * 2); // tender => higher register
         this.bell?.triggerAttackRelease(`${note}${octave}`, '2n', time, 0.4 + Math.random() * 0.3);
       }
     }, '2n').start(0);
@@ -128,34 +130,27 @@ export class AudioEngine {
     this.mood = mood;
     if (!this.started) return;
 
-    const ominous = clamp01(mood.ominous);
-    const tender = clamp01(mood.tender);
-    const mechanical = clamp01(mood.mechanical);
-    const melancholy = clamp01(mood.melancholy);
-    const uncanny = clamp01(mood.uncanny);
+    // All targets come from the pure mood->params map; here we only ramp toward them.
+    const p = bedParamsFor(mood, this.tempoMul);
 
-    // Drone pitch: down for ominous/melancholy, up a little for tender.
-    const root = 46 + tender * 18 - ominous * 8 - melancholy * 4; // Hz
-    this.oscA?.frequency.rampTo(root, RAMP);
-    this.oscB?.frequency.rampTo(root * 1.5, RAMP); // a fifth above, detuned
-    this.oscB?.detune.rampTo(6 + uncanny * 22, RAMP); // uncanny => more beating
-
-    // Drone filter brightness.
-    const cutoff = 380 + tender * 1400 + mechanical * 600 - ominous * 150;
-    this.droneFilter?.frequency.rampTo(Math.max(200, cutoff), RAMP);
+    // Drone: pitch down for ominous/melancholy, up for tender; uncanny widens the beating.
+    this.oscA?.frequency.rampTo(p.droneRootHz, RAMP);
+    this.oscB?.frequency.rampTo(p.droneFifthHz, RAMP);
+    this.oscB?.detune.rampTo(p.beatDetune, RAMP);
+    this.droneFilter?.frequency.rampTo(p.droneCutoffHz, RAMP);
 
     // Hiss: more for ominous + mechanical, brighter for mechanical.
-    this.hissGain?.gain.rampTo(0.03 + ominous * 0.1 + mechanical * 0.06, RAMP);
-    this.noiseFilter?.frequency.rampTo(1400 + mechanical * 5000, RAMP);
+    this.hissGain?.gain.rampTo(p.hissGain, RAMP);
+    this.noiseFilter?.frequency.rampTo(p.hissCutoffHz, RAMP);
 
-    // Bells brightness via gain.
-    this.bellGain?.gain.rampTo(0.08 + tender * 0.22, RAMP);
+    // Bells brighten with tenderness.
+    this.bellGain?.gain.rampTo(p.bellGain, RAMP);
 
     // Reverb wetness: more dreamlike when tender/uncanny.
-    this.reverb?.wet.rampTo(0.4 + tender * 0.25 + uncanny * 0.15, RAMP);
+    this.reverb?.wet.rampTo(p.reverbWet, RAMP);
 
     // Ticks louder/faster with mechanical.
-    this.tickGain?.gain.rampTo(mechanical * 0.12, RAMP);
+    this.tickGain?.gain.rampTo(p.tickGain, RAMP);
     this.updateTickRate();
   }
 
@@ -166,10 +161,7 @@ export class AudioEngine {
 
   private updateTickRate(): void {
     if (!this.tickLoop) return;
-    const mechanical = this.mood ? clamp01(this.mood.mechanical) : 0.3;
-    // base every quarter; mechanical + tempo shorten the interval.
-    const seconds = 0.6 / (this.tempoMul * (0.6 + mechanical * 1.4));
-    this.tickLoop.interval = Math.max(0.08, seconds);
+    this.tickLoop.interval = bedParamsFor(this.mood ?? NEUTRAL_MOOD, this.tempoMul).tickIntervalSec;
   }
 
   /** Mute/unmute with a ramp (no clicks). */
