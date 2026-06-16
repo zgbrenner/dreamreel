@@ -1,5 +1,6 @@
 // app/src/ui/Captions.tsx
 import { useStore } from '../state/store';
+import { requiresAttribution } from '../manifest/attribution';
 
 /**
  * Archival caption strip: Courier Prime metadata (reel label, source, license) plus the
@@ -8,7 +9,7 @@ import { useStore } from '../state/store';
  */
 export function Captions() {
   const caption = useStore((s) => s.caption);
-  const isCcBy = (caption.license ?? '').toUpperCase().startsWith('CC-BY');
+  const isCcBy = requiresAttribution(caption.license);
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 px-6 pb-24 sm:pb-20">
