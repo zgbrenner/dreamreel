@@ -3,10 +3,15 @@
 Production path uses img2dataset for scale; here we also provide a dependency-light fallback
 (requests + Pillow) so a small corpus can be fetched without the heavy toolchain. Either way
 we cap the longest side at ~1600px and record only successfully-fetched assets.
+
+CLI (the link between ingest and embed):
+    python -m embed.download --candidates out/candidates.jsonl --out out/
+writes out/fetched.jsonl, which build_manifest reads to produce the real image assets.
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -70,3 +75,29 @@ def download(candidates: Iterable[Candidate], out_dir: Path) -> list[dict]:
             f.write(json.dumps(row) + "\n")
     print(f"downloaded {len(fetched)} images -> {img_dir}")
     return fetched
+
+
+def load_candidates(path: Path) -> list[Candidate]:
+    """Read the ingest step's candidates.jsonl into Candidate models."""
+    rows: list[Candidate] = []
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(Candidate.model_validate_json(line))
+    return rows
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="DREAMREEL media download (candidates -> fetched)")
+    ap.add_argument("--candidates", type=Path, default=Path("out/candidates.jsonl"))
+    ap.add_argument("--out", type=Path, default=Path("out"))
+    args = ap.parse_args()
+    if not args.candidates.exists():
+        raise SystemExit(f"no candidates file at {args.candidates}; run `python -m ingest.run` first")
+    cands = load_candidates(args.candidates)
+    download(cands, args.out)
+
+
+if __name__ == "__main__":
+    main()
