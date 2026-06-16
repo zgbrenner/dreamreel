@@ -1,6 +1,6 @@
 # DREAMREEL
 
-*"bababadalgharaghtakamminarronnkonnbronntonnerronntuonnthunntrovarrhounawnskawntoohoohoordenenthurnuk!"*
+*bababadalgharaghtakamminarronnkonnbronntonnerronntuonnthunntrovarrhounawnskawntoohoohoordenenthurnuk!*
 
 A surreal **dream-sequence generator**. Press play and watch a seamless, ever-changing mashup
 of public-domain media — vintage film, photographs, art, maps, title cards — with drifting
