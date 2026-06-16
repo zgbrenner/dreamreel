@@ -117,7 +117,15 @@ export class Compositor {
       this.lastMs = now;
       this.advance(now);
       const elapsed = (now - this.startMs) / 1000;
-      for (const fn of this.frameListeners) fn(dt, elapsed);
+      // Isolate each listener: a throw in one (e.g. a best-effort audio ramp) must never
+      // stop the single rAF loop and freeze the whole dream. Log once per distinct message.
+      for (const fn of this.frameListeners) {
+        try {
+          fn(dt, elapsed);
+        } catch (err) {
+          this.reportFrameError(err);
+        }
+      }
       this.renderFrame(this.renderer);
       this.rafId = requestAnimationFrame(tick);
     };
@@ -128,6 +136,15 @@ export class Compositor {
     this.running = false;
     if (this.rafId) cancelAnimationFrame(this.rafId);
     this.rafId = 0;
+  }
+
+  private lastFrameError = '';
+  /** Surface a frame-listener exception once per distinct message (no per-frame spam). */
+  private reportFrameError(err: unknown): void {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === this.lastFrameError) return;
+    this.lastFrameError = msg;
+    console.error('[compositor] frame listener error (loop continues):', err);
   }
 
   /** Resolve an image URL to a texture, downscaled, with a fallback signal on failure. */
