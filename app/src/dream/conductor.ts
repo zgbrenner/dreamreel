@@ -89,7 +89,16 @@ export class DreamConductor implements DreamRuntime {
 
   pause(): void {
     this.playing = false;
-    this.audio.suspend();
+    this.safeAudio(() => this.audio.suspend());
+  }
+
+  /** Audio is best-effort: a failing audio call must never break the dream (see CLAUDE.md). */
+  private safeAudio(fn: () => void): void {
+    try {
+      fn();
+    } catch {
+      // swallow — the visual dream plays regardless of the audio bed
+    }
   }
 
   setSurreality(v: number): void {
@@ -99,11 +108,11 @@ export class DreamConductor implements DreamRuntime {
 
   setTempo(v: number): void {
     this.tempoMul = v;
-    this.audio.setTempo(v);
+    this.safeAudio(() => this.audio.setTempo(v));
   }
 
   setSound(on: boolean): void {
-    this.audio.setVolume(on);
+    this.safeAudio(() => this.audio.setVolume(on));
   }
 
   setArchive(on: boolean): void {
@@ -119,7 +128,7 @@ export class DreamConductor implements DreamRuntime {
     this.tempoMul = tempoMul;
     this.presRng = makeRng(`${seed}:pres`);
     this.walker = this.buildWalker();
-    this.audio.setTempo(tempoMul);
+    this.safeAudio(() => this.audio.setTempo(tempoMul));
     this.hardCut();
   }
 
@@ -178,7 +187,7 @@ export class DreamConductor implements DreamRuntime {
     const beat = this.walker.next('image', this.tempoMul);
     const mood = this.walker.currentMood();
     this.hooks.setMood(mood);
-    this.audio.setMood(mood);
+    this.safeAudio(() => this.audio.setMood(mood));
     this.applyMoodToFilm(mood, beat.asset);
 
     const transition = TRANSITION_NAMES[this.presRng.int(TRANSITION_NAMES.length)];
