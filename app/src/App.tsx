@@ -8,10 +8,30 @@ import { Captions } from './ui/Captions';
 
 const MANIFEST_URL = import.meta.env.VITE_MANIFEST_URL || '/manifest.seed.json';
 
+const PANEL_PREF_KEY = 'dreamreel.panelOpen';
+
+function readPanelPref(): boolean {
+  try {
+    return localStorage.getItem(PANEL_PREF_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+
 export default function App() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(readPanelPref);
   const togglePlay = useStore((s) => s.togglePlay);
+
+  // Remember the control-drawer preference (a non-essential UI pref, so localStorage is allowed).
+  useEffect(() => {
+    try {
+      localStorage.setItem(PANEL_PREF_KEY, panelOpen ? '1' : '0');
+    } catch {
+      /* storage unavailable — ignore */
+    }
+  }, [panelOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,8 +93,8 @@ export default function App() {
   return (
     <main className="relative h-full w-full overflow-hidden bg-ink">
       <Gate manifest={manifest} />
-      <Captions />
-      <ProjectorPanel />
+      <Captions panelOpen={panelOpen} />
+      <ProjectorPanel open={panelOpen} onToggle={() => setPanelOpen((o) => !o)} />
     </main>
   );
 }
