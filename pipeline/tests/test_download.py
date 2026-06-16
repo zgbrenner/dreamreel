@@ -7,6 +7,7 @@ fetched.jsonl that build_manifest consumes.
 
 from __future__ import annotations
 
+import base64
 import json
 import sys
 from pathlib import Path
@@ -16,6 +17,11 @@ import requests
 
 from embed import download as dl
 from ingest.normalize import make_candidate
+
+# A real 1x1 PNG, so _resize_in_place succeeds when Pillow is installed (as it is in CI).
+_PNG_1x1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGOojrIBAAJlARLq63acAAAAAElFTkSuQmCC"
+)
 
 
 class FakeResp:
@@ -51,7 +57,7 @@ def _candidates_file(tmp_path: Path):
 def _fake_get(url, headers=None, timeout=None):
     if url.endswith("bad.jpg"):
         return FakeResp(b"", 404)
-    return FakeResp(b"\xff\xd8\xff\xe0fakejpeg", 200)
+    return FakeResp(_PNG_1x1, 200)
 
 
 def test_download_records_only_successful_images(tmp_path, monkeypatch):
