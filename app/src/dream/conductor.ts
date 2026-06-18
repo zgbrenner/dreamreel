@@ -10,6 +10,7 @@ import { createDreamwalker, type Dreamwalker } from './dreamwalker';
 import { makeRng, type Rng } from './prng';
 import { createIntensityEngine, type IntensityEngine } from './intensity';
 import { coherenceForTrough } from './coherence';
+import { filterStrengths } from './filterDirector';
 import { planLayers, MAX_LAYERS, type LayerPlan } from './layerPlan';
 import { LayerStack } from '../render/LayerStack';
 import type { Compositor } from '../render/Compositor';
@@ -50,6 +51,7 @@ export class DreamConductor implements DreamRuntime {
   private layerCursor = 0;
   private activeTrough = -1;
   private nextSwapAt = 0;
+  private lastWakeMood: Record<MoodAxis, number> | null = null;
   // The discrete layer "recipe" (count + per-layer blends + feedback/warp). Recomputed only
   // when a swap fires, then held steady between swaps so density/blends don't strobe per frame.
   private currentPlan: LayerPlan | null = null;
@@ -151,6 +153,7 @@ export class DreamConductor implements DreamRuntime {
     this.activeTrough = -1;
     this.layerCursor = 0;
     this.currentPlan = null;
+    this.lastWakeMood = null;
     this.safeAudio(() => this.audio.setTempo(tempoMul));
     this.hardCut();
   }
@@ -243,6 +246,12 @@ export class DreamConductor implements DreamRuntime {
       bloom: 0.16 + intensity * 0.3,
     });
 
+    if (this.lastWakeMood) {
+      const fs = filterStrengths(this.lastWakeMood, s.intensity, s.inTrough);
+      this.postfx.setFilterStrengths(fs);
+      stack.setFeedback(fs.feedback);
+    }
+
     // coherence at troughs: on entering a NEW trough, decide what surfaces; on leaving, release.
     if (s.inTrough && s.troughId !== this.activeTrough) {
       this.activeTrough = s.troughId;
@@ -285,6 +294,7 @@ export class DreamConductor implements DreamRuntime {
 
     const beat = this.walker.next('image', this.tempoMul);
     const mood = this.walker.currentMood();
+    this.lastWakeMood = mood;
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
 
