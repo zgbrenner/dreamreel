@@ -8,10 +8,14 @@ import * as THREE from 'three';
 import type { Manifest, Asset, MoodAxis, ProceduralKind } from '../manifest/types';
 import { createDreamwalker, type Dreamwalker } from './dreamwalker';
 import { makeRng, type Rng } from './prng';
+import { createIntensityEngine, type IntensityEngine } from './intensity';
+import { coherenceForTrough } from './coherence';
+import { planLayers, MAX_LAYERS } from './layerPlan';
+import { LayerStack } from '../render/LayerStack';
 import type { Compositor } from '../render/Compositor';
 import type { PostFX } from '../render/postfx';
 import { getProceduralTexture, type ProceduralSource } from '../render/procedural';
-import { parseGrade } from '../render/filmParams';
+import { parseGrade, type FilmParams } from '../render/filmParams';
 import { attributionFor } from '../manifest/attribution';
 import { TRANSITION_NAMES } from '../render/transitions';
 import type { AudioEngine } from '../audio/engine';
@@ -39,6 +43,14 @@ export class DreamConductor implements DreamRuntime {
   private tempoMul: number;
   private archiveOn = true;
 
+  // --- wake mode (intensity-driven chaos scheduler) ---
+  private readonly wake: boolean;
+  private intensity: IntensityEngine;
+  private layerStack: LayerStack | null;
+  private layerCursor = 0;
+  private activeTrough = -1;
+  private nextSwapAt = 0;
+
   private playing = false;
   private clock = 0; // internal seconds, advanced only while playing
   private nextImageAt = 0;
@@ -57,7 +69,7 @@ export class DreamConductor implements DreamRuntime {
     postfx: PostFX,
     audio: AudioEngine,
     hooks: ConductorHooks,
-    init: { seed: string; surreality: number; tempoMul: number; archiveOn: boolean },
+    init: { seed: string; surreality: number; tempoMul: number; archiveOn: boolean; wake?: boolean },
   ) {
     this.manifest = manifest;
     this.compositor = compositor;
@@ -70,6 +82,10 @@ export class DreamConductor implements DreamRuntime {
     this.archiveOn = init.archiveOn;
     this.presRng = makeRng(`${this.seed}:pres`);
     this.walker = this.buildWalker();
+    this.wake = init.wake ?? false;
+    this.intensity = createIntensityEngine(this.seed);
+    this.layerStack = this.wake ? new LayerStack(compositor) : null;
+    if (this.postfx.params.reduceMotion) this.intensity.setMaxIntensity(0.45);
     this.unsub = compositor.addFrameListener((dt) => this.tick(dt));
   }
 
@@ -128,12 +144,16 @@ export class DreamConductor implements DreamRuntime {
     this.tempoMul = tempoMul;
     this.presRng = makeRng(`${seed}:pres`);
     this.walker = this.buildWalker();
+    this.intensity.reseed(seed);
+    this.activeTrough = -1;
+    this.layerCursor = 0;
     this.safeAudio(() => this.audio.setTempo(tempoMul));
     this.hardCut();
   }
 
   dispose(): void {
     this.unsub?.();
+    this.layerStack?.dispose();
     for (const p of this.procCache.values()) p.dispose();
     this.procCache.clear();
     this.textCardTex?.dispose();
@@ -157,6 +177,7 @@ export class DreamConductor implements DreamRuntime {
     this.nextImageAt = this.clock;
     this.nextGhostAt = this.clock + 0.5;
     this.nextTextAt = this.clock + 0.2;
+    this.nextSwapAt = this.clock; // wake mode: swap a fresh layer promptly on a hard cut
     this.postfx.triggerSplice(1);
     this.playedLeader = true; // skip the academy leader on reseeds; only the first play shows it
   }
@@ -167,9 +188,131 @@ export class DreamConductor implements DreamRuntime {
     // keep any live procedural sources animating on the internal clock
     for (const p of this.liveProcs) p.update(this.clock);
 
+    if (this.wake) {
+      this.wakeTick();
+      return;
+    }
+
     if (this.clock >= this.nextImageAt) this.imageBeat();
     if (this.clock >= this.nextGhostAt) this.ghostBeat();
     if (this.clock >= this.nextTextAt) this.textBeat();
+  }
+
+  // --- wake mode ---
+
+  /**
+   * The intensity-driven scheduler. Each tick samples a seeded IntensityEngine on the logical
+   * (tempo-scaled) clock and drives: an N-layer LayerStack whose density/blends come from
+   * planLayers(intensity), intensity-scaled warp/grade/chroma/bloom on the post-FX, and
+   * coherence behaviour at troughs (rhyme tightens the walker; phrase surfaces a legible line).
+   * Layers are swapped sporadically — faster as intensity rises — for a fluid, dense collage.
+   */
+  private wakeTick(): void {
+    const stack = this.layerStack;
+    if (!stack) return;
+
+    const logical = this.clock * this.tempoMul;
+    const s = this.intensity.sample(logical);
+    const intensity = s.intensity;
+
+    // density / blend recipe -> the layer fan
+    const plan = planLayers(intensity, this.presRng);
+    stack.applyPlan(plan);
+    stack.captureFeedback(this.compositor.renderer);
+
+    // intensity-scaled film: a calm base, warped + graded by the heartbeat. setParams merges,
+    // so we only push the channels we own here; the post-FX dream-event engine layers on top.
+    this.postfx.setParams({
+      ...baseWakeFilm(),
+      filmGrade: 0.85 - intensity * 0.6,
+      warp: plan.warp,
+      chroma: 0.2 + intensity * 0.6,
+      bloom: 0.3 + intensity * 0.5,
+    });
+
+    // coherence at troughs: on entering a NEW trough, decide what surfaces; on leaving, release.
+    if (s.inTrough && s.troughId !== this.activeTrough) {
+      this.activeTrough = s.troughId;
+      const kind = coherenceForTrough(this.seed, s.troughId);
+      this.walker.setConvergence(kind === 'rhyme');
+      if (kind === 'phrase') {
+        const beat = this.walker.next('text', this.tempoMul);
+        this.hooks.setCaption({ whisper: beat.asset.text ?? '' });
+      }
+    } else if (!s.inTrough && this.activeTrough !== -1) {
+      // single-sample exit: we already know this tick is outside any trough.
+      this.walker.setConvergence(false);
+      this.activeTrough = -1;
+    }
+
+    // sporadic layer swap; the interval shrinks as intensity rises (and with faster tempo).
+    if (this.clock >= this.nextSwapAt) {
+      this.swapWakeLayer();
+      const interval = (0.12 + (1 - intensity) * 0.9) / Math.max(0.5, this.tempoMul);
+      this.nextSwapAt = this.clock + interval;
+    }
+  }
+
+  /**
+   * Advance the image walk one beat and bind the resolved texture into the next layer slot.
+   * Mirrors imageBeat's mood/audio/caption side-effects so the wake reel still drives the
+   * audio bed and on-screen metadata, but composites into the layer fan instead of crossfading.
+   */
+  private swapWakeLayer(): void {
+    const stack = this.layerStack;
+    if (!stack) return;
+
+    const beat = this.walker.next('image', this.tempoMul);
+    const mood = this.walker.currentMood();
+    this.hooks.setMood(mood);
+    this.safeAudio(() => this.audio.setMood(mood));
+
+    const slot = this.layerCursor++ % MAX_LAYERS;
+    const asset = beat.asset;
+
+    if (beat.titleCard || asset.type === 'titlecard') {
+      const tex = this.makeTitleCard(asset.text ?? '');
+      stack.setLayerTexture(slot, tex);
+      this.hooks.setCaption({
+        reel: beat.titleCard ? 'INTERTITLE' : reelLabel(asset),
+        source: asset.source,
+        whisper: asset.text ?? '',
+        license: asset.license,
+        attribution: ccByAttribution(asset),
+        attributionUrl: asset.attributionUrl,
+      });
+      return;
+    }
+
+    if (asset.type === 'procedural') {
+      const src = this.proc(asset.id, asset.kind ?? 'fog');
+      this.markLive(src);
+      stack.setLayerTexture(slot, src.texture);
+    } else if (asset.type === 'image' && asset.src) {
+      void this.compositor.showImage(asset.src, asset.grade).then((res) => {
+        if (res.ok) {
+          stack.setLayerTexture(slot, res.texture);
+        } else {
+          // deterministic procedural fallback so the slot is never empty
+          const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
+          const src = this.proc(`fallback:${asset.id}`, kind);
+          this.markLive(src);
+          stack.setLayerTexture(slot, src.texture);
+        }
+      });
+    } else {
+      // image with no src, or any other shape -> a Bodoni card so the slot still shows something
+      const tex = this.makeTitleCard(asset.text ?? '');
+      stack.setLayerTexture(slot, tex);
+    }
+
+    this.hooks.setCaption({
+      reel: reelLabel(asset),
+      source: asset.source,
+      license: asset.license,
+      attribution: ccByAttribution(asset),
+      attributionUrl: asset.attributionUrl,
+    });
   }
 
   private imageBeat(): void {
@@ -381,6 +524,23 @@ function reelLabel(asset: Asset): string {
 
 function ccByAttribution(asset: Asset): string | undefined {
   return attributionFor(asset);
+}
+
+/**
+ * Calm base film levels for wake mode: the old-cinema treatment is dialled back (low vignette /
+ * grain / sepia / scanline) so the intensity-scaled filmGrade/warp/chroma/bloom — added by the
+ * per-tick setParams patch — and the dense layer fan carry the look. setParams merges, so any
+ * params not named here keep their previous value (mood may still nudge them).
+ */
+function baseWakeFilm(): Partial<FilmParams> {
+  return {
+    vignette: 0.3,
+    grain: 0.12,
+    sepia: 0.2,
+    scanline: 0.05,
+    desat: 0.18,
+    halation: 0.2,
+  };
 }
 
 function wrapWords(words: string[], maxChars: number): string[] {

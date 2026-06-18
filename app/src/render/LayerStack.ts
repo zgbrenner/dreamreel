@@ -35,8 +35,11 @@ export class LayerStack {
   private fbA: THREE.WebGLRenderTarget;
   private fbB: THREE.WebGLRenderTarget;
   private readonly fbMat: THREE.MeshBasicMaterial;
+  private readonly fbMesh: THREE.Mesh;
+  private readonly compositor: Compositor;
 
   constructor(compositor: Compositor) {
+    this.compositor = compositor;
     const { width, height } = compositor.size;
     this.fbA = new THREE.WebGLRenderTarget(half(width), half(height));
     this.fbB = new THREE.WebGLRenderTarget(half(width), half(height));
@@ -69,6 +72,7 @@ export class LayerStack {
     const fbMesh = new THREE.Mesh(this.quad, this.fbMat);
     fbMesh.frustumCulled = false;
     fbMesh.renderOrder = 9;
+    this.fbMesh = fbMesh;
     compositor.addOverlay(fbMesh);
   }
 
@@ -114,6 +118,11 @@ export class LayerStack {
    * is accepted but unused here.
    */
   captureFeedback(_renderer: THREE.WebGLRenderer): void {
+    // TODO(feedback): wire render-to-target trail accumulation. Real accumulating feedback
+    // requires rendering the current frame into fbB through the postfx EffectComposer pipeline,
+    // which is entangled with that pass chain. Deferred (Task 7 scope guard): the dense
+    // multi-layer + warp already delivers the fluid/chaotic feel; this stays an inert no-op
+    // (the feedback quad has no captured texture, so it composites nothing) until tuned.
     if (this.feedback <= 0.01) return;
     const tmp = this.fbA;
     this.fbA = this.fbB;
@@ -123,6 +132,10 @@ export class LayerStack {
   }
 
   dispose(): void {
+    // Detach the layer + feedback meshes from the compositor scene so dispose() doesn't leave
+    // dead meshes rendering (Compositor has no removeOverlay otherwise — added in Task 7).
+    for (const mesh of this.layers) this.compositor.removeOverlay(mesh);
+    this.compositor.removeOverlay(this.fbMesh);
     for (const m of this.mats) {
       if (m.map && m.map.userData.ownedByCompositor) m.map.dispose();
       m.dispose();

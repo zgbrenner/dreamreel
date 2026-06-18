@@ -96,6 +96,11 @@ export class Compositor {
     this.scene.add(mesh);
   }
 
+  /** Detach an overlay mesh from the stage scene (mirror of addOverlay; used by LayerStack.dispose). */
+  removeOverlay(mesh: THREE.Object3D): void {
+    this.scene.remove(mesh);
+  }
+
   /** Register a per-frame listener (procedural updates, post-FX animation, beat clocks). */
   addFrameListener(fn: FrameHook): () => void {
     this.frameListeners.add(fn);
