@@ -30,6 +30,8 @@ import type { Compositor } from './Compositor';
 import { DustField } from './dust';
 import { defaultFilmParams, type FilmParams } from './filmParams';
 import { makeRng, type Rng } from '../dream/prng';
+import { DreamFilter } from './DreamFilter';
+import type { FilterStrengths } from '../dream/filterDirector';
 
 const FILM_FRAG = /* glsl */ `
 uniform float uTime;
@@ -193,6 +195,7 @@ export class PostFX {
   readonly composer: EffectComposer;
   readonly params: FilmParams = defaultFilmParams();
   private readonly effect = new FilmEffect();
+  private readonly dreamFilter = new DreamFilter();
   private readonly bloom = new BloomEffect({
     intensity: 0.45,
     luminanceThreshold: 0.62,
@@ -225,7 +228,7 @@ export class PostFX {
     // Film grade + bloom merge into one pass; chromatic aberration is a convolution effect
     // (it reads neighbouring texels) and conflicts with the film effect's mainUv weave, so
     // it gets its own pass.
-    this.composer.addPass(new EffectPass(compositor.camera, this.effect, this.bloom));
+    this.composer.addPass(new EffectPass(compositor.camera, this.dreamFilter, this.effect, this.bloom));
     this.composer.addPass(new EffectPass(compositor.camera, this.chroma));
 
     const { width, height } = compositor.size;
@@ -247,6 +250,11 @@ export class PostFX {
   setParams(patch: Partial<FilmParams>): void {
     Object.assign(this.params, patch);
     this.applyParams();
+  }
+
+  /** Drive the dream-filter catalog (the 5 fragment filters). feedback is handled by LayerStack. */
+  setFilterStrengths(s: FilterStrengths): void {
+    this.dreamFilter.setStrengths(s);
   }
 
   /** Per-asset grade hint -> additive sepia for the current beat. */
@@ -311,6 +319,7 @@ export class PostFX {
     const motion = p.reduceMotion ? 0.25 : 1;
 
     this.effect.setTime(elapsed);
+    this.dreamFilter.setTime(elapsed);
 
     // --- advance the dream-event engine ---
     for (let i = this.events.length - 1; i >= 0; i--) {
