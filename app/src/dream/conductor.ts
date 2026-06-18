@@ -10,7 +10,7 @@ import { createDreamwalker, type Dreamwalker } from './dreamwalker';
 import { makeRng, type Rng } from './prng';
 import { createIntensityEngine, type IntensityEngine } from './intensity';
 import { coherenceForTrough } from './coherence';
-import { planLayers, MAX_LAYERS } from './layerPlan';
+import { planLayers, MAX_LAYERS, type LayerPlan } from './layerPlan';
 import { LayerStack } from '../render/LayerStack';
 import type { Compositor } from '../render/Compositor';
 import type { PostFX } from '../render/postfx';
@@ -50,6 +50,9 @@ export class DreamConductor implements DreamRuntime {
   private layerCursor = 0;
   private activeTrough = -1;
   private nextSwapAt = 0;
+  // The discrete layer "recipe" (count + per-layer blends + feedback/warp). Recomputed only
+  // when a swap fires, then held steady between swaps so density/blends don't strobe per frame.
+  private currentPlan: LayerPlan | null = null;
 
   private playing = false;
   private clock = 0; // internal seconds, advanced only while playing
@@ -147,6 +150,7 @@ export class DreamConductor implements DreamRuntime {
     this.intensity.reseed(seed);
     this.activeTrough = -1;
     this.layerCursor = 0;
+    this.currentPlan = null;
     this.safeAudio(() => this.audio.setTempo(tempoMul));
     this.hardCut();
   }
@@ -178,6 +182,7 @@ export class DreamConductor implements DreamRuntime {
     this.nextGhostAt = this.clock + 0.5;
     this.nextTextAt = this.clock + 0.2;
     this.nextSwapAt = this.clock; // wake mode: swap a fresh layer promptly on a hard cut
+    this.currentPlan = null; // force a fresh recipe to be rolled on the prompt swap
     this.postfx.triggerSplice(1);
     this.playedLeader = true; // skip the academy leader on reseeds; only the first play shows it
   }
@@ -202,10 +207,12 @@ export class DreamConductor implements DreamRuntime {
 
   /**
    * The intensity-driven scheduler. Each tick samples a seeded IntensityEngine on the logical
-   * (tempo-scaled) clock and drives: an N-layer LayerStack whose density/blends come from
-   * planLayers(intensity), intensity-scaled warp/grade/chroma/bloom on the post-FX, and
-   * coherence behaviour at troughs (rhyme tightens the walker; phrase surfaces a legible line).
-   * Layers are swapped sporadically — faster as intensity rises — for a fluid, dense collage.
+   * (tempo-scaled) clock and drives the CONTINUOUS look — intensity-scaled warp/grade/chroma/
+   * bloom on the post-FX — plus coherence behaviour at troughs (rhyme tightens the walker;
+   * phrase surfaces a legible line). The DISCRETE recipe (layer count + per-layer blends via
+   * planLayers) is recomputed only when a swap fires (see swapWakeLayer) and held steady between
+   * swaps, so density/blends don't strobe per frame. Swaps fire sporadically — faster as
+   * intensity rises — for a fluid, dense collage.
    */
   private wakeTick(): void {
     const stack = this.layerStack;
@@ -215,17 +222,21 @@ export class DreamConductor implements DreamRuntime {
     const s = this.intensity.sample(logical);
     const intensity = s.intensity;
 
-    // density / blend recipe -> the layer fan
-    const plan = planLayers(intensity, this.presRng);
-    stack.applyPlan(plan);
+    // Discrete recipe (layer count + per-layer blends + feedback) is held steady between swaps:
+    // it's re-rolled only in swapWakeLayer(), so density/blends don't strobe per frame. Re-apply
+    // the stored plan each frame (cheap, no re-roll) so toggled layer visibility tracks the maps.
+    if (this.currentPlan) stack.applyPlan(this.currentPlan);
     stack.captureFeedback(this.compositor.renderer);
 
-    // intensity-scaled film: a calm base, warped + graded by the heartbeat. setParams merges,
-    // so we only push the channels we own here; the post-FX dream-event engine layers on top.
+    // intensity-scaled film: a calm base, warped + graded by the heartbeat. These are the
+    // CONTINUOUS params — they keep tracking the freshly sampled intensity every frame. setParams
+    // merges, so we only push the channels we own here; the post-FX dream-event engine layers on
+    // top. warp is derived directly from intensity (layerPlan's curve: min(1, i*i*0.9)) since the
+    // recipe's plan.warp is no longer recomputed per frame.
     this.postfx.setParams({
       ...baseWakeFilm(),
       filmGrade: 0.85 - intensity * 0.6,
-      warp: plan.warp,
+      warp: Math.min(1, intensity * intensity * 0.9),
       chroma: 0.2 + intensity * 0.6,
       bloom: 0.3 + intensity * 0.5,
     });
@@ -261,6 +272,14 @@ export class DreamConductor implements DreamRuntime {
   private swapWakeLayer(): void {
     const stack = this.layerStack;
     if (!stack) return;
+
+    // Re-roll the discrete recipe ONLY here, when a swap actually fires (a few times/second),
+    // then hold it steady between swaps. This advances presRng per-swap (not per-frame) and is
+    // what keeps the layer count + blend modes from strobing. Sample intensity on the logical
+    // clock so the recipe's density band matches the current heartbeat.
+    const intensity = this.intensity.sample(this.clock * this.tempoMul).intensity;
+    this.currentPlan = planLayers(intensity, this.presRng);
+    stack.applyPlan(this.currentPlan);
 
     const beat = this.walker.next('image', this.tempoMul);
     const mood = this.walker.currentMood();
