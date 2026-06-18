@@ -6,6 +6,7 @@ import { Compositor } from '../render/Compositor';
 import { PostFX } from '../render/postfx';
 import { AudioEngine } from '../audio/engine';
 import { DreamConductor } from '../dream/conductor';
+import { readShareState } from '../state/url';
 
 /**
  * The luminous projection gate: hosts the compositor canvas and the idle screen. On mount it
@@ -39,7 +40,7 @@ export function Gate({ manifest }: { manifest: Manifest }) {
       postfx,
       audio,
       { setCaption: s._setCaption, setMood: s._setMood },
-      { seed: s.seed, surreality: s.surreality, tempoMul: s.tempoMul, archiveOn: s.archiveOn },
+      { seed: s.seed, surreality: s.surreality, tempoMul: s.tempoMul, archiveOn: s.archiveOn, wake: readShareState().wake },
     );
     useStore.getState().attachRuntime(conductor);
     // Render a held first frame even before play.

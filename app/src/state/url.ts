@@ -6,6 +6,7 @@ export interface ShareState {
   seed: string;
   surreality: number;
   tempo: number;
+  wake?: boolean;
 }
 
 export function randomSeed(): string {
@@ -17,7 +18,8 @@ export function readShareState(): ShareState {
   const seed = q.get('seed') || randomSeed();
   const surreality = clampNum(parseFloat(q.get('s') ?? ''), 0, 1, 0.45);
   const tempo = clampNum(parseFloat(q.get('t') ?? ''), 0.5, 2, 1);
-  return { seed, surreality, tempo };
+  const wake = q.get('wake') === '1' || q.get('wake') === 'true';
+  return { seed, surreality, tempo, wake };
 }
 
 export function writeShareState(s: ShareState): void {
