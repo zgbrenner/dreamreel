@@ -16,7 +16,7 @@ uniform float uSolarize;
 uniform float uMelt;
 uniform float uPosterize;
 
-const vec3 LUMA = vec3(0.299, 0.587, 0.114);
+const vec3 DF_LUMA = vec3(0.299, 0.587, 0.114);
 
 void mainUv(inout vec2 uv) {
   vec2 w = vec2(sin(uv.y * 8.0 + uTime * 0.6), cos(uv.x * 9.0 + uTime * 0.5));
@@ -41,7 +41,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   vec3 post = floor(col * levels) / levels;
   col = mix(col, post, uPosterize);
 
-  float l = dot(col, LUMA);
+  float l = dot(col, DF_LUMA);
   vec3 melted = clamp(l + (col - l) * 1.8, 0.0, 1.0);
   melted += vec3(0.08, 0.05, 0.0) * smoothstep(0.5, 1.0, l);
   col = mix(col, melted, uMelt);
