@@ -108,6 +108,14 @@ film grade rises and falls with the wake intensity signal, and warp/density vary
 - The projection-gate-in-a-dark-booth and the cinema grain/weave/flicker/dust/vignette
   remain available signatures, but they are one mode among many — modulated by intensity,
   not the permanent unifying treatment over every source.
+- **Mood-mapped filter catalog (wake mode):** the look is a rotating library of treatments —
+  kaleidoscope, liquid warp, solarize/x-ray, melt/bloom-bleed, posterize, and feedback
+  echo-trails — selected by the dominant CLIP **mood axis** (melancholy→feedback,
+  uncanny→solarize, nostalgic→liquid, ominous→kaleidoscope, tender→melt, mechanical→posterize).
+  The intensity heartbeat scales filter strength; filters ease off at coherence troughs so the
+  lucid image reads. Deterministic per seed; identity (no filter) by default so the classic
+  reel is unchanged. See `dream/filterDirector.ts`, `render/DreamFilter.ts`, and the LayerStack
+  feedback RT.
 - Respect `prefers-reduced-motion`: dampen weave/flicker/dust, keep dissolves slow.
 
 ## Coding conventions

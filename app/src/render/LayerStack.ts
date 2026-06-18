@@ -5,8 +5,8 @@
 // plumbing — the LayerPlan that drives it is computed elsewhere (dream/layerPlan.ts).
 //
 // Wired into the compositor by the conductor's wake scheduler (dream/conductor.ts), which
-// computes the LayerPlan and drives applyPlan/setLayerTexture each swap. The full
-// render-to-target feedback ping-pong remains a deferred TODO (see captureFeedback below).
+// computes the LayerPlan and drives applyPlan/setLayerTexture each swap. The feedback
+// render-to-target ping-pong (melancholy echo-trails) is implemented in captureFeedback below.
 // Verified against three.js 0.169.0: NormalBlending / AdditiveBlending / MultiplyBlending
 // and the WebGLRenderTarget (.texture getter, .setSize) APIs all exist in that version.
 
@@ -32,7 +32,7 @@ export class LayerStack {
   private readonly quad = new THREE.PlaneGeometry(2, 2);
   private readonly layers: THREE.Mesh[] = [];
   private readonly mats: THREE.MeshBasicMaterial[] = [];
-  private feedback = 0;
+  private feedbackTrail = 0; // melancholy echo-trail strength, 0..1 (set by the conductor)
   // Per-slot write order, so applyPlan can show the MOST RECENT images (the newest is the
   // opaque "hero"; older ones fan behind it) rather than a fixed slot range — otherwise a
   // freshly-swapped image often lands in a hidden slot and the media never reads.
@@ -82,6 +82,11 @@ export class LayerStack {
     compositor.addOverlay(fbMesh);
   }
 
+  /** Echo-trail strength for the melancholy "feedback" filter (0 = off). */
+  setFeedback(amount: number): void {
+    this.feedbackTrail = Math.max(0, Math.min(1, amount));
+  }
+
   /**
    * Bind a texture to layer `index`. If the previous texture was compositor-owned and is
    * being replaced, recycle it (procedural/shared textures are owned elsewhere — left alone).
@@ -102,8 +107,8 @@ export class LayerStack {
    * older ones fan behind it, additively/blended and fading with age, for the dense collage.
    */
   applyPlan(plan: LayerPlan): void {
-    this.feedback = plan.feedback;
-    this.fbMat.opacity = plan.feedback * 0.9;
+    // Feedback trail strength is owned solely by setFeedback() now (the director's single source
+    // of truth), so applyPlan no longer touches fbMat — two sources must not fight over it.
 
     // Slots that hold a texture, newest first.
     const ranked = [];
@@ -132,21 +137,24 @@ export class LayerStack {
   }
 
   /**
-   * Advance the feedback ping-pong: swap the read/write targets and point the feedback quad
-   * at the freshly-read target so trails persist across frames.
-   *
-   * NOTE: this simplified version only swaps targets and rebinds the texture. The full
-   * render-to-target capture (rendering the current frame into `fbB` via the renderer, so
-   * the trail actually accumulates GPU-side) is a deferred TODO — hence `_renderer` is
-   * accepted but unused here.
+   * Advance the feedback ping-pong. Renders the composited scene into the write target (fbB) and
+   * binds the previous capture (fbA) onto the feedback quad. Because fbMesh (renderOrder 9) is
+   * itself in the scene, each capture folds last frame's echo back in — that recursion IS the
+   * accumulating trail. Called inside wakeTick, which runs as a frame listener BEFORE the
+   * compositor's renderFrame (the post-FX composer.render); we save/restore the active render
+   * target so the composer pass is unaffected. When trail strength is 0 the quad is hidden and
+   * no extra render happens, so the output is byte-identical to feedback-off / classic mode.
    */
-  captureFeedback(_renderer: THREE.WebGLRenderer): void {
-    // TODO(feedback): wire render-to-target trail accumulation. Real accumulating feedback
-    // requires rendering the current frame into fbB through the postfx EffectComposer pipeline,
-    // which is entangled with that pass chain. Deferred: the dense multi-layer + warp already
-    // delivers the fluid/chaotic feel; this stays an inert no-op (the feedback quad has no
-    // captured texture, so it composites nothing) until tuned.
-    if (this.feedback <= 0.01) return;
+  captureFeedback(renderer: THREE.WebGLRenderer): void {
+    this.fbMat.opacity = this.feedbackTrail * 0.85;
+    this.fbMesh.visible = this.feedbackTrail > 0.01;
+    if (this.feedbackTrail <= 0.01) return;
+
+    const prevTarget = renderer.getRenderTarget();
+    renderer.setRenderTarget(this.fbB);
+    renderer.render(this.compositor.scene, this.compositor.camera);
+    renderer.setRenderTarget(prevTarget);
+
     const tmp = this.fbA;
     this.fbA = this.fbB;
     this.fbB = tmp;
