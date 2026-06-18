@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ingest import themes
+from ingest import openverse, museums, themes
 
 
 def test_anchors_are_present_in_openverse_themes():
@@ -24,9 +24,6 @@ def test_anchors_are_the_only_familiar_themes():
     # anchors are exactly the kept-familiar set, and none of them appear in a vein
     vein_terms = set(themes.CLINICAL) | set(themes.OCCULT) | set(themes.LIMINAL)
     assert not (set(themes.ANCHOR_THEMES) & vein_terms)
-
-
-from ingest import openverse, museums
 
 
 def test_ingesters_default_to_the_uncanny_catalog():

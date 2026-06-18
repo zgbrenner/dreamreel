@@ -7,6 +7,8 @@ mood-score curation filter (embed/curate.py) so a floor of recognizable imagery 
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 # Familiar imagery kept for contrast; exempt from mood curation.
 ANCHOR_THEMES: tuple[str, ...] = ("ruins", "faces", "antique photograph")
 
@@ -38,7 +40,7 @@ LIMINAL: tuple[str, ...] = (
 )
 
 
-def _dedup(seq) -> list[str]:
+def _dedup(seq: Iterable[str]) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
     for item in seq:

@@ -53,7 +53,7 @@ def test_image_assets_carry_license_metadata_through(tmp_path: Path):
         type="image",
         source="Openverse / Flickr Commons",
         raw_license="cc0",
-        tags=["antique photograph"],
+        tags=["antique photograph"],  # anchor theme — exempt from mood curation so this carry-through asset survives
         query_theme="antique photograph",
     )
     assert ccby is not None and cc0 is not None

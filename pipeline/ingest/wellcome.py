@@ -78,6 +78,7 @@ def ingest(
                     query_theme=theme,
                     foreign_landing_url=f"{WORKS}/{work_id}" if work_id else None,
                 )
+            # counts API results (not yielded candidates), mirroring openverse.py
             fetched += len(results)
             page += 1
             time.sleep(1.0)  # be polite
