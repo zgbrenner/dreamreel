@@ -33,6 +33,11 @@ export class LayerStack {
   private readonly layers: THREE.Mesh[] = [];
   private readonly mats: THREE.MeshBasicMaterial[] = [];
   private feedback = 0;
+  // Per-slot write order, so applyPlan can show the MOST RECENT images (the newest is the
+  // opaque "hero"; older ones fan behind it) rather than a fixed slot range — otherwise a
+  // freshly-swapped image often lands in a hidden slot and the media never reads.
+  private readonly writeSeq = new Array<number>(MAX_LAYERS).fill(0);
+  private seqCounter = 0;
   private fbA: THREE.WebGLRenderTarget;
   private fbB: THREE.WebGLRenderTarget;
   private readonly fbMat: THREE.MeshBasicMaterial;
@@ -88,18 +93,35 @@ export class LayerStack {
     if (prev && prev !== tex && prev.userData.ownedByCompositor) prev.dispose();
     mat.map = tex;
     mat.needsUpdate = true;
+    this.writeSeq[index] = ++this.seqCounter;
   }
 
-  /** Apply a LayerPlan: toggle/visibility, blend mode, opacity falloff, and trail strength. */
+  /**
+   * Apply a LayerPlan. Shows the `layerCount` MOST-RECENTLY-written layers (by writeSeq): the
+   * newest is a near-opaque NormalBlending "hero" so the current image always reads clearly;
+   * older ones fan behind it, additively/blended and fading with age, for the dense collage.
+   */
   applyPlan(plan: LayerPlan): void {
     this.feedback = plan.feedback;
     this.fbMat.opacity = plan.feedback * 0.9;
-    for (let i = 0; i < MAX_LAYERS; i++) {
-      const on = i < plan.layerCount;
-      this.layers[i].visible = on && this.mats[i].map !== null;
-      if (on) {
-        this.mats[i].blending = BLEND_MAP[plan.blends[i] ?? 'screen'];
-        this.mats[i].opacity = i === 0 ? 0.95 : Math.max(0.25, 0.8 - i * 0.08);
+
+    // Slots that hold a texture, newest first.
+    const ranked = [];
+    for (let i = 0; i < MAX_LAYERS; i++) if (this.mats[i].map !== null) ranked.push(i);
+    ranked.sort((a, b) => this.writeSeq[b] - this.writeSeq[a]);
+
+    const visibleCount = Math.min(plan.layerCount, ranked.length);
+    for (let i = 0; i < MAX_LAYERS; i++) this.layers[i].visible = false;
+    for (let rank = 0; rank < visibleCount; rank++) {
+      const slot = ranked[rank];
+      this.layers[slot].visible = true;
+      const mat = this.mats[slot];
+      if (rank === 0) {
+        mat.blending = THREE.NormalBlending; // hero: the current image, mostly opaque
+        mat.opacity = 0.92;
+      } else {
+        mat.blending = BLEND_MAP[plan.blends[rank] ?? 'screen'];
+        mat.opacity = Math.max(0.18, 0.6 - rank * 0.09);
       }
     }
   }

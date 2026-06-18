@@ -235,10 +235,12 @@ export class DreamConductor implements DreamRuntime {
     // recipe's plan.warp is no longer recomputed per frame.
     this.postfx.setParams({
       ...baseWakeFilm(),
-      filmGrade: 0.85 - intensity * 0.6,
+      // Keep the media readable: a lighter grade floor and much less bloom so imagery isn't
+      // washed to milk; warp/chroma still surge with the heartbeat.
+      filmGrade: 0.62 - intensity * 0.4,
       warp: Math.min(1, intensity * intensity * 0.9),
-      chroma: 0.2 + intensity * 0.6,
-      bloom: 0.3 + intensity * 0.5,
+      chroma: 0.12 + intensity * 0.45,
+      bloom: 0.16 + intensity * 0.3,
     });
 
     // coherence at troughs: on entering a NEW trough, decide what surfaces; on leaving, release.
@@ -555,10 +557,11 @@ function baseWakeFilm(): Partial<FilmParams> {
   return {
     vignette: 0.3,
     grain: 0.12,
-    sepia: 0.2,
+    sepia: 0.16,
     scanline: 0.05,
-    desat: 0.18,
-    halation: 0.2,
+    desat: 0.14,
+    halation: 0.1,
+    haze: 0.05,
   };
 }
 
