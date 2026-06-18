@@ -31,6 +31,7 @@ export type DreamLayer = 'image' | 'ghost' | 'text';
 export interface Dreamwalker {
   next(layer: DreamLayer, tempoMul: number): Beat;
   setSurreality(v: number): void;
+  setConvergence(on: boolean): void;
   reseed(seed: string): void;
   currentMood(): Record<MoodAxis, number>;
 }
@@ -86,6 +87,7 @@ class DreamwalkerImpl implements Dreamwalker {
   private ghost!: LayerState;
   private text!: LayerState;
   private lastLeaped = false;
+  private converging = false;
 
   constructor(pools: DreamwalkerPools, config: DreamwalkerConfig, hooks?: DreamwalkerHooks) {
     this.hooks = hooks;
@@ -120,6 +122,12 @@ class DreamwalkerImpl implements Dreamwalker {
     this.surreality = clamp01(v);
   }
 
+  // Convergence is walker-wide: while on, all three layers (image/ghost/text) tighten together,
+  // so a "rhyme" moment coheres across the whole frame, not just the front image.
+  setConvergence(on: boolean): void {
+    this.converging = on;
+  }
+
   reseed(seed: string): void {
     this.seed = seed;
     this.resetState();
@@ -144,16 +152,18 @@ class DreamwalkerImpl implements Dreamwalker {
   }
 
   private temperature(): number {
-    return 0.12 + this.surreality * 1.1;
+    const base = 0.12 + this.surreality * 1.1;
+    return this.converging ? base * 0.25 : base;
   }
 
   /** Drift this layer's point; occasionally leap to a random asset's embedding. */
   private advancePoint(st: LayerState, pool: Asset[]): boolean {
-    const driftScale = 0.12 + this.surreality * 0.6;
+    const driftScale = (0.12 + this.surreality * 0.6) * (this.converging ? 0.3 : 1);
     const e = st.e.slice();
     for (let i = 0; i < this.dim; i++) e[i] += st.rng.gaussian() * driftScale;
     let leaped = false;
-    if (st.rng.next() < this.surreality * 0.28) {
+    const leapP = this.converging ? 0 : this.surreality * 0.28;
+    if (st.rng.next() < leapP) {
       const j = st.rng.int(pool.length);
       st.e = [...pool[j].embedding];
       leaped = true;
@@ -198,6 +208,9 @@ class DreamwalkerImpl implements Dreamwalker {
     const chosen = candidates[idx];
     st.recent.push(chosen.id);
     if (st.recent.length > RECENT_WINDOW) st.recent.shift();
+    // Rhyme moments: snap the walk onto the chosen embedding so the next pick stays near it,
+    // producing a tight thematic cluster. Drift/temperature alone don't converge fast enough.
+    if (this.converging) st.e = chosen.embedding.slice();
     return chosen;
   }
 

@@ -28,6 +28,23 @@ DRIFT_LINES = [
     "the map folds itself into a bird and forgets the country",
     "an orchestra of clocks tunes itself to the wrong evening",
     "the photograph keeps smiling long after the room is gone",
+    # — new lines —
+    "the corridor ends before the walking does",
+    "water holds the shape of every stone it passed through",
+    "a spool of silence unwinds into the next room",
+    "the film burns slowly from the inside of its own noon",
+    "doors remember being trees and still feel the wind",
+    "the lens clouded over and kept what it saw private",
+    "somewhere under the floorboards a tide is keeping time",
+    "the reel answers but no one recalls asking the question",
+    "fog arrives with the address of someone who moved away",
+    "clocks without hands count only the hours they refuse",
+    "a candle argues with its own shadow until morning",
+    "the room has memorised all its former furniture",
+    "ink decides to become water and forgets the letter",
+    "a bell tower dreams of the bell it no longer carries",
+    "the projector gate holds one frame forever between pulses",
+    "glass recalls light the way bone recalls the cold",
 ]
 
 # Original intertitle cards (Bodoni, caps).
@@ -38,6 +55,11 @@ INTERTITLES = [
     "WHAT THE WATER KEPT",
     "INTERMISSION FOR THE DROWNED ORCHESTRA",
     "WE NEVER LEFT THE THEATRE",
+    # — new cards —
+    "THE GATE HOLDS ONE FRAME",
+    "ALL CLOCKS SET TO ELSEWHERE",
+    "THE AUDIENCE HAS BECOME THE SCREEN",
+    "FILM ENDS WHERE THE DARK BEGINS",
 ]
 
 

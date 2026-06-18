@@ -42,3 +42,13 @@ describe('shareable URL state', () => {
     expect(read.seed.length).toBeGreaterThan(0);
   });
 });
+
+describe('wake flag', () => {
+  it('readShareState reads ?wake=1 as true and defaults false', async () => {
+    installWindow('?wake=1');
+    const { readShareState } = await import('../../src/state/url');
+    expect(readShareState().wake).toBe(true);
+    installWindow();
+    expect(readShareState().wake).toBe(false);
+  });
+});

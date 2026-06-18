@@ -4,6 +4,7 @@ import {
   type DreamwalkerPools,
   type DreamLayer,
 } from '../../src/dream/dreamwalker';
+import { cosine } from '../../src/dream/mood';
 import { parseManifest } from '../../src/manifest/loader';
 import seed from '../../public/manifest.seed.json';
 
@@ -155,5 +156,31 @@ describe('Dreamwalker layers', () => {
       expect(v).toBeGreaterThanOrEqual(0);
       expect(v).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('Dreamwalker convergence', () => {
+  function meanAdjacentSimilarity(convergence: boolean, n: number): number {
+    const w = createDreamwalker(pools, { seed: 'converge', surreality: 0.8 });
+    w.setConvergence(convergence);
+    const embs = Array.from({ length: n }, () => w.next('image', 1).asset.embedding);
+    let s = 0;
+    for (let i = 1; i < embs.length; i++) s += cosine(embs[i - 1], embs[i]);
+    return s / (embs.length - 1);
+  }
+
+  it('convergence makes successive image picks more similar than the chaotic walk', () => {
+    const chaotic = meanAdjacentSimilarity(false, 80);
+    const converged = meanAdjacentSimilarity(true, 80);
+    expect(converged).toBeGreaterThan(chaotic + 0.05);
+  });
+
+  it('toggling convergence off restores the chaotic walk and stays deterministic', () => {
+    const a = createDreamwalker(pools, { seed: 'z', surreality: 0.6 });
+    const b = createDreamwalker(pools, { seed: 'z', surreality: 0.6 });
+    a.setConvergence(true); a.setConvergence(false);
+    const seqA = Array.from({ length: 30 }, () => a.next('image', 1).asset.id);
+    const seqB = Array.from({ length: 30 }, () => b.next('image', 1).asset.id);
+    expect(seqA).toEqual(seqB);
   });
 });

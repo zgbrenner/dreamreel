@@ -22,10 +22,18 @@ spend is the one-time offline tagging pass.
   The Surreality control is that temperature plus the leap probability. Reference: the
   Infinite Jukebox / Remixatron family. Reimplement the algorithm; do not copy code.
 - **Determinism.** Given the same seed and surreality, the *sequence of assets and text*
-  (the "dream script") is identical, even if frame timing varies. Seeds are shareable via
+  (the "dream script") — and, in wake mode, the sequence of coherence troughs and
+  layer-swap events — is identical, even if frame timing varies. Seeds are shareable via
   URL (`?seed=...&s=...&t=...`).
-- **Three desynced layer clocks** (image, ghost/double-exposure, text) advance
-  independently so layers recombine.
+- **Two compositing modes, both seeded and deterministic.**
+  - *Classic clocks:* three desynced layer clocks (image, ghost/double-exposure, text)
+    advance independently so layers recombine.
+  - *Wake mode (the new default-intended experience):* a single seeded **intensity**
+    signal drives the reel instead of independent clocks — sporadic fast layer-swaps,
+    breathing N-layer density (the LayerStack compositor fanning out and collapsing), and
+    rare **coherence troughs** where the walk briefly converges before dissolving again.
+    The per-seed sequence of assets, text, layer events, and coherence troughs is preserved
+    (timing may vary). Reachable today via `?wake=1`.
 - **Live WebGL compositing** is the primary renderer. Offline pre-render (editly) is an
   optional secondary path, behind a flag, not the default.
 
@@ -84,14 +92,22 @@ dreamreel/
 See `app/src/manifest/types.ts`, `app/src/dream/dreamwalker.ts`, and
 `app/src/state/store.ts`. Field names are frozen; do not rename.
 
-## Aesthetic tokens (the look is fixed; do not redesign)
+## Aesthetic tokens (available palette/type/grain — not a single mandated treatment)
+
+These are the design tokens the app draws on. The intended look is **chaotic, fluid,
+multi-modal, and densely layered**, with varied and dynamic filtering — not one uniform,
+always-on old-cinema grade. The old-cinema treatment (grain, gate-weave, flicker, dust,
+vignette) is now **intensity-modulated** rather than applied as a constant master: the
+film grade rises and falls with the wake intensity signal, and warp/density vary with it.
 
 - Palette: ink `#0E0B08`, tungsten amber `#C8A35E`, lamp glow `#E8C887`, silver-bone
-  `#D8D2C4`, sepia `#6B5640`, verdigris `#4A6B66` (sparingly).
+  `#D8D2C4`, sepia `#6B5640`, verdigris `#4A6B66` (sparingly). Use as an available palette,
+  not a fixed wash.
 - Type: **Bodoni Moda** for intertitles/title cards (caps, wide tracking), **EB Garamond**
   for the drifting text, **Courier Prime** for archival captions/metadata.
-- Signature: a single luminous projection gate floating in a dark booth, with constant
-  grain, gate-weave, flicker, dust, and vignette unifying all sources into one decayed reel.
+- The projection-gate-in-a-dark-booth and the cinema grain/weave/flicker/dust/vignette
+  remain available signatures, but they are one mode among many — modulated by intensity,
+  not the permanent unifying treatment over every source.
 - Respect `prefers-reduced-motion`: dampen weave/flicker/dust, keep dissolves slow.
 
 ## Coding conventions

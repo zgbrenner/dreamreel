@@ -24,6 +24,8 @@ export interface FilmParams {
   chroma: number; // chromatic aberration / color-fringing 0..1
   bleach: number; // transient over-exposure blowout 0..1 (decays in JS, like spliceFlash)
   breathe: number; // depth of the slow vignette/exposure "breathing" 0..1
+  warp: number; // intensity-driven UV displacement 0..1 (dream fluidity)
+  filmGrade: number; // master scale for the whole old-cinema treatment 0..1 (1 = full, 0 = off)
   reduceMotion: boolean;
 }
 
@@ -47,6 +49,8 @@ export function defaultFilmParams(): FilmParams {
     chroma: 0.3,
     bleach: 0,
     breathe: 0.5,
+    warp: 0,
+    filmGrade: 1,
     reduceMotion: false,
   };
 }
