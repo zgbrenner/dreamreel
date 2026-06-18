@@ -122,6 +122,8 @@ class DreamwalkerImpl implements Dreamwalker {
     this.surreality = clamp01(v);
   }
 
+  // Convergence is walker-wide: while on, all three layers (image/ghost/text) tighten together,
+  // so a "rhyme" moment coheres across the whole frame, not just the front image.
   setConvergence(on: boolean): void {
     this.converging = on;
   }
@@ -206,6 +208,8 @@ class DreamwalkerImpl implements Dreamwalker {
     const chosen = candidates[idx];
     st.recent.push(chosen.id);
     if (st.recent.length > RECENT_WINDOW) st.recent.shift();
+    // Rhyme moments: snap the walk onto the chosen embedding so the next pick stays near it,
+    // producing a tight thematic cluster. Drift/temperature alone don't converge fast enough.
     if (this.converging) st.e = chosen.embedding.slice();
     return chosen;
   }
