@@ -1,7 +1,7 @@
 """Run all ingesters, apply the license gate, and write candidates + a rejections report.
 
 Usage:
-    python -m ingest.run --out out/ [--no-archive] [--museums]
+    python -m ingest.run --out out/ [--no-archive] [--no-wellcome] [--no-museums]
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from . import archive_org, museums, openverse
+from . import archive_org, museums, openverse, wellcome
 from .normalize import Candidate, Rejection, write_candidates, write_rejections
 
 
@@ -18,7 +18,8 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=Path("out"))
     ap.add_argument("--no-openverse", action="store_true")
     ap.add_argument("--no-archive", action="store_true")
-    ap.add_argument("--museums", action="store_true", help="include Met/Smithsonian CC0")
+    ap.add_argument("--no-wellcome", action="store_true")
+    ap.add_argument("--no-museums", action="store_true", help="skip Met/Smithsonian CC0")
     ap.add_argument("--per-theme", type=int, default=60)
     args = ap.parse_args()
 
@@ -37,10 +38,13 @@ def main() -> None:
         drain(openverse.ingest(per_theme=args.per_theme, media="images"))
         print("ingesting Openverse audio…")
         drain(openverse.ingest(per_theme=max(10, args.per_theme // 3), media="audio"))
+    if not args.no_wellcome:
+        print("ingesting Wellcome Collection images…")
+        drain(wellcome.ingest())
     if not args.no_archive:
         print("ingesting Archive.org film…")
         drain(archive_org.ingest())
-    if args.museums:
+    if not args.no_museums:
         print("ingesting Met + Smithsonian CC0…")
         drain(museums.ingest_met())
         drain(museums.ingest_smithsonian())

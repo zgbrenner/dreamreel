@@ -18,6 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from .clip_backend import get_embedder, l2_normalize
+from .curate import DEFAULT_CUTOFF, curate
 from .embed_images import embed_image_paths
 from .embed_texts import build_texts, procedural_seed_embeddings
 from .mood_axes import MOOD_AXES, build_axes, project_mood
@@ -50,12 +51,23 @@ def _dwell_for(type_: str, tags: list[str]) -> float:
     return 6.0
 
 
+def curate_image_assets(image_assets: list[dict]) -> list[dict]:
+    """Drop off-target image assets by mood score (anchors exempt); log the counts."""
+    kept, dropped = curate(image_assets, cutoff=DEFAULT_CUTOFF)
+    print(
+        f"[build_manifest] curation: kept {len(kept)}/{len(image_assets)} image assets "
+        f"(dropped {len(dropped)} below cutoff {DEFAULT_CUTOFF}; anchors exempt)"
+    )
+    return kept
+
+
 def build(out_dir: Path, fetched_path: Path | None) -> Path:
     embedder = get_embedder()
     print(f"[build_manifest] embedder backend: {embedder.backend}, dim={embedder.dim}")
     axes = build_axes(embedder)
 
     assets: list[dict] = []
+    image_assets: list[dict] = []
 
     # --- image assets from the download step ---
     rows: list[dict] = []
@@ -68,7 +80,7 @@ def build(out_dir: Path, fetched_path: Path | None) -> Path:
         for i, (r, emb) in enumerate(zip(rows, embs)):
             c = r["candidate"]
             emb = l2_normalize(emb.reshape(1, -1))[0]
-            assets.append(
+            image_assets.append(
                 {
                     "id": f"img-{i:04d}",
                     "type": "image",
@@ -83,6 +95,8 @@ def build(out_dir: Path, fetched_path: Path | None) -> Path:
                     **({"attributionUrl": c["attribution_url"]} if c.get("attribution_url") else {}),
                 }
             )
+
+    assets.extend(curate_image_assets(image_assets))
 
     # --- procedural placeholder assets (runtime needs these for archive-off) ---
     proc_emb = procedural_seed_embeddings(embedder)

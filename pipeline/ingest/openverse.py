@@ -18,21 +18,13 @@ from typing import Iterator
 import requests
 
 from .normalize import Candidate, Rejection, make_candidate
+from .themes import OPENVERSE_THEMES
 
 API = "https://api.openverse.org/v1"
 USER_AGENT = "DREAMREEL-corpus/0.1 (+https://dreamreel.example; respectful crawler)"
 
-THEMES = [
-    "sea",
-    "machinery",
-    "faces",
-    "ruins",
-    "maps",
-    "botanical",
-    "cosmos",
-    "vintage film",
-    "antique photograph",
-]
+# Default query catalog: the uncanny veins + anchors (see ingest/themes.py).
+THEMES = OPENVERSE_THEMES
 
 
 def _token() -> str | None:

@@ -26,7 +26,8 @@ embed:
 publish:
 	$(PY) -m publish.run --out $(OUT)
 
-# full corpus build. Add UPLOAD=1 to push to R2 (requires R2_* env).
+# full corpus build (openverse + wellcome + archive + museums by default).
+# Add UPLOAD=1 to push to R2 (requires R2_* env).
 corpus: ingest download embed publish
 ifeq ($(UPLOAD),1)
 	$(PY) -m publish.run --out $(OUT) --upload

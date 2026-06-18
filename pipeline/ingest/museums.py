@@ -13,13 +13,15 @@ from typing import Iterator
 import requests
 
 from .normalize import Candidate, Rejection, make_candidate
+from .themes import MUSEUM_THEMES
 
 MET_SEARCH = "https://collectionapi.metmuseum.org/public/collection/v1/search"
 MET_OBJECT = "https://collectionapi.metmuseum.org/public/collection/v1/objects"
 SI_SEARCH = "https://api.si.edu/openaccess/api/v1.0/search"
 USER_AGENT = "DREAMREEL-corpus/0.1 (+https://dreamreel.example)"
 
-THEMES = ["landscape", "portrait", "still life", "ruins", "celestial"]
+# Museum search vocabulary skews to objects/plates (see ingest/themes.py).
+THEMES = MUSEUM_THEMES
 
 
 def ingest_met(themes: list[str] | None = None, per_theme: int = 20) -> Iterator[
