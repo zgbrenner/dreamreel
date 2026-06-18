@@ -34,6 +34,64 @@ is wired to it.
    Filters: kaleidoscope, liquid warp, solarize, melt, posterize, and feedback echo-trails (which
    completes round 1's deferred render-to-target). Default-0 = identity, so classic is unchanged.
 
+## Round 1 corpus — uncanny re-curation (machinery done, owner runs rebuild+upload)
+
+Tasks 1–7 (branch `feat/uncanny-corpus`) re-targeted the offline pipeline toward a genuinely
+uncanny corpus. **The pipeline code is complete and merged; the owner must run the rebuild+upload
+once torch + R2 credentials are available.**
+
+### What was built
+
+- **Shared uncanny theme catalog** (`pipeline/ingest/themes.py`): 3 veins — `CLINICAL`
+  (anatomical, dissection, skeleton, x-ray, specimen, phrenology, taxidermy), `OCCULT` (death
+  mask, memento mori, occult symbol, alchemical, spirit photography, ritual mask), `LIMINAL`
+  (deep sea, fungus, cave, decay, moth, abandoned) — plus 3 `ANCHOR_THEMES` (ruins, faces,
+  antique photograph) kept for dream-logic contrast.
+- **Retargeted ingesters**: Openverse + museums now query the uncanny theme list. A new **Wellcome
+  Collection** ingester (`pipeline/ingest/wellcome.py`) pulls from the IIIF/search API. Museums
+  (Met + Smithsonian) and Wellcome are **on by default** in `ingest/run.py`.
+- **Mood-score curation filter** (`pipeline/embed/curate.py`): drops image assets whose
+  `max(uncanny, ominous) < DEFAULT_CUTOFF` (0.55). Anchors are always kept regardless of score.
+  The cutoff is a tuning knob — lower it to widen the net; raise it to tighten.
+- **Live-ingest verification** (Task 7, 2026-06-18): ran
+  `python -m ingest.run --out /tmp/uncanny-check --no-archive --per-theme 6`.
+  Result: **713 candidates kept, 65 rejected** (30 non-commercial/restricted inc, 19 CC-BY without
+  attribution, 16 CC-BY-NC). Source mix: Wellcome 439 / Openverse 209 / Met 65. All licenses are
+  in {CC0, PD, CC-BY, CC-BY-2.0, CC-BY-3.0, CC-BY-4.0} — ship-safe. Spot-checked Flickr,
+  Wikipedia, Wellcome IIIF, and Met image URLs: all returned HTTP 200.
+
+### Under-returning veins (query-tuning follow-up)
+
+With `--per-theme 6`, the weakest themes were: **alchemical diagram** (5), **spirit photography**
+(6), **specimen** (7), **deep sea creature** (9). These are thin in Openverse and the museums'
+search APIs. Consider: adding synonyms (`alchemical manuscript`, `ghost photograph`, `marine
+specimen`, `deep-sea fish`) or targeting an Archive.org collection directly. Not a blocker —
+the three anchor themes and the high-returning CLINICAL veins provide a solid core.
+
+### To ship — owner runs rebuild+upload
+
+```bash
+# 1. Install embed + publish extras (requires torch + open_clip + boto3)
+cd pipeline && pip install -e '.[embed,publish]'
+
+# 2. Run the full build + upload (set R2_* env vars first)
+export R2_BUCKET=dreamreel-media
+export R2_ACCESS_KEY_ID=<your-key>
+export R2_SECRET_ACCESS_KEY=<your-secret>
+export R2_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
+make corpus UPLOAD=1
+
+# Or, if using wrangler instead of boto3:
+#   wrangler r2 object put dreamreel-media/media/<name>.webp --file ... --remote
+#   wrangler r2 object put dreamreel-media/manifest/latest.json --file ... --remote
+
+# 3. Verify: open https://dreamreel.pages.dev/?wake=1 and confirm new uncanny imagery loads.
+```
+
+The curation log line in `embed/build_manifest.py` will report kept/dropped counts (no silent
+truncation). Adjust `DEFAULT_CUTOFF` in `embed/curate.py` (currently 0.55) if the resulting
+corpus is too sparse or too broad.
+
 ## The 6-round roadmap
 
 | # | Work-stream | Status |
@@ -43,7 +101,7 @@ is wired to it.
 | 2 | **Dream-filter catalog (not one old-TV look)** | ✅ Round 2 (merged) |
 | 4 | **Moving image (video)** | ⬜ not started |
 | 5 | **Spoken-word / "audiobook" voices** | ⬜ not started |
-| 1 | **Weirder/scarier corpus** | ⬜ not started |
+| 1 | **Weirder/scarier corpus** | ✅ machinery built (owner runs rebuild+upload) |
 | — | **Photosensitivity hardening** | ⬜ deferred (clamp seam exists in `IntensityEngine`) |
 
 ## What's left to do
