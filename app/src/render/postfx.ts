@@ -49,6 +49,8 @@ uniform vec3  uLeakColor;  // light-leak colour
 uniform float uTint;       // colour-temperature drift amount
 uniform vec3  uTintColor;  // multiplicative tint target (near white)
 uniform float uVigFringe;  // cool colour fringe near the vignette edge
+uniform float uWarp;       // intensity-driven UV displacement 0..1 (dream fluidity)
+uniform float uFilmGrade;  // master scale for the old-cinema treatment (1 = full, 0 = bypass)
 
 const vec3 LUMA = vec3(0.299, 0.587, 0.114);
 const vec3 HAZE_COLOR = vec3(0.91, 0.78, 0.53); // lamp glow #E8C887
@@ -60,8 +62,15 @@ float hash21(vec2 p) {
 }
 
 // Warp the sampling UV for gate-weave (sub-pixel jitter) before the input is read.
+// On top of the weave, an intensity-driven flowing displacement gives the frame a liquid,
+// dreamlike drift. At uWarp = 0 the offset is exactly zero (identical to today's weave-only).
 void mainUv(inout vec2 uv) {
   uv += uWeave;
+  vec2 w = vec2(
+    sin(uv.y * 9.0 + uTime * 0.7),
+    cos(uv.x * 11.0 + uTime * 0.5)
+  );
+  uv += w * uWarp * 0.004;
 }
 
 void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
@@ -117,6 +126,11 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   // global brightness (flicker + splice flash)
   col *= uBright;
 
+  // master film-grade scale: lerp between the untreated sampled colour and the fully-graded
+  // colour. At uFilmGrade = 1 this is exactly the graded col (identical to today); at 0 the
+  // whole old-cinema treatment is bypassed and the raw image passes through.
+  col = mix(inputColor.rgb, col, uFilmGrade);
+
   outputColor = vec4(clamp(col, 0.0, 1.0), inputColor.a);
 }
 `;
@@ -142,6 +156,8 @@ class FilmEffect extends Effect {
         ['uTint', new THREE.Uniform(0.25)],
         ['uTintColor', new THREE.Uniform(new THREE.Color(1, 0.98, 0.9))],
         ['uVigFringe', new THREE.Uniform(0.25)],
+        ['uWarp', new THREE.Uniform(0)],
+        ['uFilmGrade', new THREE.Uniform(1)],
       ]),
     });
   }
@@ -268,6 +284,8 @@ export class PostFX {
     // dynamic uniforms (vignette/exposure/bloom/leak/tint/chroma) are written in update();
     // seed them here so a paused first frame still looks composed.
     this.effect.u('uHaze').value = p.haze;
+    this.effect.u('uWarp').value = p.warp;
+    this.effect.u('uFilmGrade').value = p.filmGrade;
     this.bloom.intensity = p.bloom;
   }
 
