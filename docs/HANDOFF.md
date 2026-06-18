@@ -74,11 +74,13 @@ the three anchor themes and the high-returning CLINICAL veins provide a solid co
 # 1. Install embed + publish extras (requires torch + open_clip + boto3)
 cd pipeline && pip install -e '.[embed,publish]'
 
-# 2. Run the full build + upload (set R2_* env vars first)
+# 2. Run the full build + upload. publish/upload_r2.py reads exactly these 5 env vars
+#    (the S3 endpoint is derived from R2_ACCOUNT_ID; there is no R2_ENDPOINT_URL):
+export R2_ACCOUNT_ID=e1377b90aa5f91b18522fc40df57afc3
 export R2_BUCKET=dreamreel-media
-export R2_ACCESS_KEY_ID=<your-key>
-export R2_SECRET_ACCESS_KEY=<your-secret>
-export R2_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
+export R2_PUBLIC_BASE=https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev
+export R2_ACCESS_KEY_ID=<your-R2-access-key-id>
+export R2_SECRET_ACCESS_KEY=<your-R2-secret-access-key>
 make corpus UPLOAD=1
 
 # Or, if using wrangler instead of boto3:
