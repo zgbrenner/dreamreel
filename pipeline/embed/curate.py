@@ -11,7 +11,7 @@ from typing import Sequence
 
 from ingest.themes import ANCHOR_THEMES
 
-DEFAULT_CUTOFF = 0.55
+DEFAULT_CUTOFF = 0.52
 
 
 def _is_anchor(asset: dict, anchors: Sequence[str]) -> bool:

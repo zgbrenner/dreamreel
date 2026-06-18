@@ -13,7 +13,9 @@ import json
 import math
 from pathlib import Path
 
+import embed.build_manifest as build_manifest
 from embed.build_manifest import build
+from embed.clip_backend import _HashEmbedder
 from ingest.normalize import Candidate, make_candidate
 
 
@@ -36,7 +38,12 @@ def _write_fetched(tmp_path: Path, candidates: list[Candidate]) -> Path:
     return fpath
 
 
-def test_image_assets_carry_license_metadata_through(tmp_path: Path):
+def test_image_assets_carry_license_metadata_through(tmp_path: Path, monkeypatch):
+    # Force the deterministic hash embedder so this test is environment-independent: the fake
+    # image bytes below aren't decodable by the real open_clip backend (which is selected
+    # whenever torch happens to be installed).
+    monkeypatch.setattr(build_manifest, "get_embedder", lambda: _HashEmbedder())
+
     ccby, _ = make_candidate(
         source_url="https://media.example/by.jpg",
         type="image",
