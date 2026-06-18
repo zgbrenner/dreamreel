@@ -4,10 +4,11 @@
 // blended quads plus a feedback buffer for trails, driven by a LayerPlan. Pure render
 // plumbing — the LayerPlan that drives it is computed elsewhere (dream/layerPlan.ts).
 //
-// This module is standalone for now: wiring it into Compositor/conductor (including the
-// full render-to-target feedback ping-pong) happens in Task 7. Verified against three.js
-// 0.169.0: NormalBlending / AdditiveBlending / MultiplyBlending and the WebGLRenderTarget
-// (.texture getter, .setSize) APIs all exist in that version.
+// Wired into the compositor by the conductor's wake scheduler (dream/conductor.ts), which
+// computes the LayerPlan and drives applyPlan/setLayerTexture each swap. The full
+// render-to-target feedback ping-pong remains a deferred TODO (see captureFeedback below).
+// Verified against three.js 0.169.0: NormalBlending / AdditiveBlending / MultiplyBlending
+// and the WebGLRenderTarget (.texture getter, .setSize) APIs all exist in that version.
 
 import * as THREE from 'three';
 import { MAX_LAYERS, type LayerPlan, type BlendName } from '../dream/layerPlan';
@@ -114,15 +115,15 @@ export class LayerStack {
    *
    * NOTE: this simplified version only swaps targets and rebinds the texture. The full
    * render-to-target capture (rendering the current frame into `fbB` via the renderer, so
-   * the trail actually accumulates GPU-side) is wired in Task 7 tuning — hence `_renderer`
-   * is accepted but unused here.
+   * the trail actually accumulates GPU-side) is a deferred TODO — hence `_renderer` is
+   * accepted but unused here.
    */
   captureFeedback(_renderer: THREE.WebGLRenderer): void {
     // TODO(feedback): wire render-to-target trail accumulation. Real accumulating feedback
     // requires rendering the current frame into fbB through the postfx EffectComposer pipeline,
-    // which is entangled with that pass chain. Deferred (Task 7 scope guard): the dense
-    // multi-layer + warp already delivers the fluid/chaotic feel; this stays an inert no-op
-    // (the feedback quad has no captured texture, so it composites nothing) until tuned.
+    // which is entangled with that pass chain. Deferred: the dense multi-layer + warp already
+    // delivers the fluid/chaotic feel; this stays an inert no-op (the feedback quad has no
+    // captured texture, so it composites nothing) until tuned.
     if (this.feedback <= 0.01) return;
     const tmp = this.fbA;
     this.fbA = this.fbB;
