@@ -82,15 +82,15 @@ export class LayerStack {
     compositor.addOverlay(fbMesh);
   }
 
-  /**
-   * Bind a texture to layer `index`. If the previous texture was compositor-owned and is
-   * being replaced, recycle it (procedural/shared textures are owned elsewhere — left alone).
-   */
   /** Echo-trail strength for the melancholy "feedback" filter (0 = off). */
   setFeedback(amount: number): void {
     this.feedbackTrail = Math.max(0, Math.min(1, amount));
   }
 
+  /**
+   * Bind a texture to layer `index`. If the previous texture was compositor-owned and is
+   * being replaced, recycle it (procedural/shared textures are owned elsewhere — left alone).
+   */
   setLayerTexture(index: number, tex: THREE.Texture): void {
     if (index < 0 || index >= MAX_LAYERS) return;
     const mat = this.mats[index];
