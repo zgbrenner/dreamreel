@@ -5,7 +5,8 @@ describe('filmParams new fields', () => {
   it('exposes warp and filmGrade with sane defaults', () => {
     const p = defaultFilmParams();
     expect(p.warp).toBe(0);
-    expect(p.filmGrade).toBeGreaterThan(0);
-    expect(p.filmGrade).toBeLessThanOrEqual(1);
+    // filmGrade MUST default to exactly 1 — that identity keeps the non-wake reel
+    // byte-identical to before (mix(raw, graded, 1) === graded).
+    expect(p.filmGrade).toBe(1);
   });
 });
