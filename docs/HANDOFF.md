@@ -1,6 +1,6 @@
 # DREAMREEL — Handoff / Pick-Up Doc
 
-_Last updated: 2026-06-17. Read this first when resuming._
+_Last updated: 2026-06-19. Read this first when resuming._
 
 ## TL;DR — where we are
 
@@ -13,8 +13,9 @@ is wired to it.
 - Live app: **https://dreamreel.pages.dev** (classic reel by default; add **`?wake=1`** to see the
   new engine).
 - Production manifest: `VITE_MANIFEST_URL` on Cloudflare Pages (prod **and** preview) →
-  `https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json` (135 real CLIP-embedded
-  public-domain images on R2).
+  `https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json`. **Now serving the
+  uncanny corpus: 223 CLIP-embedded public-domain images** (version `2026.06.18-2208`), shipped
+  2026-06-18 — see "Round 1 corpus" below.
 
 ## What's been done this session
 
@@ -34,11 +35,35 @@ is wired to it.
    Filters: kaleidoscope, liquid warp, solarize, melt, posterize, and feedback echo-trails (which
    completes round 1's deferred render-to-target). Default-0 = identity, so classic is unchanged.
 
-## Round 1 corpus — uncanny re-curation (machinery done, owner runs rebuild+upload)
+## Round 1 corpus — uncanny re-curation (✅ SHIPPED 2026-06-18, PR #16 merged)
 
-Tasks 1–7 (branch `feat/uncanny-corpus`) re-targeted the offline pipeline toward a genuinely
-uncanny corpus. **The pipeline code is complete and merged; the owner must run the rebuild+upload
-once torch + R2 credentials are available.**
+Tasks 1–7 (branch `feat/uncanny-corpus`, PR #16) re-targeted the offline pipeline toward a genuinely
+uncanny corpus, **and the rebuild+upload has now been run** — production R2 serves the new corpus.
+
+### Shipped result (the actual build, 2026-06-18)
+
+- Ran the full pipeline end-to-end (install `.[embed,publish]` → ingest → download → embed → publish
+  `--upload`). **697 license-gated candidates** ingested (PD 371 / CC0 157 / CC-BY 169; Wellcome 439 /
+  Openverse 151 / Met 65 / Archive.org 42; 66 rejected by the license gate). **504 images downloaded**,
+  CLIP-embedded (ViT-B/32, dim 512).
+- **Curation cut-off lowered 0.55 → 0.52** (commit `405e08d`): the old 0.55 let through only ~2% of
+  images on mood score (rest survived purely as anchors). The CLIP `max(uncanny, ominous)` scores
+  cluster tightly around 0.50–0.52, so 0.52 keeps the genuinely uncanny third. **Kept 223 images**
+  (161 by score + 62 anchors) + 9 procedural + 42 text = 232 assets. QC passed (0 dropped).
+- Uploaded 223 `.webp` derivatives + `manifest.2026.06.18-2208.json` + `latest.json` to the
+  `dreamreel-media` R2 bucket. Verified live: `latest.json` serves v2026.06.18-2208 / 223 images, and
+  a sampled media file returns HTTP 200 `image/webp`. Live at `dreamreel.pages.dev/?wake=1`.
+
+### To rebuild again later (when re-ingesting or after editing text/themes)
+
+`pipeline/.env` (gitignored) holds the 5 R2 vars locally. To rebuild + reship:
+`cd pipeline && set -a && . ./.env && set +a && make corpus UPLOAD=1`. To re-upload only an
+already-built `out/manifest.json` without re-ingesting: `python -m publish.run --out out --upload`.
+The 3 non-secret vars (`R2_ACCOUNT_ID=e1377b90aa5f91b18522fc40df57afc3`, `R2_BUCKET=dreamreel-media`,
+`R2_PUBLIC_BASE=https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev`) plus your two R2 API keys.
+**The R2 endpoint is derived from `R2_ACCOUNT_ID`; there is no `R2_ENDPOINT_URL`.**
+
+### Original task-build notes
 
 ### What was built
 
@@ -51,8 +76,8 @@ once torch + R2 credentials are available.**
   Collection** ingester (`pipeline/ingest/wellcome.py`) pulls from the IIIF/search API. Museums
   (Met + Smithsonian) and Wellcome are **on by default** in `ingest/run.py`.
 - **Mood-score curation filter** (`pipeline/embed/curate.py`): drops image assets whose
-  `max(uncanny, ominous) < DEFAULT_CUTOFF` (0.55). Anchors are always kept regardless of score.
-  The cutoff is a tuning knob — lower it to widen the net; raise it to tighten.
+  `max(uncanny, ominous) < DEFAULT_CUTOFF` (now **0.52**, lowered from 0.55). Anchors are always kept
+  regardless of score. The cutoff is a tuning knob — lower it to widen the net; raise it to tighten.
 - **Live-ingest verification** (Task 7, 2026-06-18): ran
   `python -m ingest.run --out /tmp/uncanny-check --no-archive --per-theme 6`.
   Result: **713 candidates kept, 65 rejected** (30 non-commercial/restricted inc, 19 CC-BY without
@@ -68,31 +93,10 @@ search APIs. Consider: adding synonyms (`alchemical manuscript`, `ghost photogra
 specimen`, `deep-sea fish`) or targeting an Archive.org collection directly. Not a blocker —
 the three anchor themes and the high-returning CLINICAL veins provide a solid core.
 
-### To ship — owner runs rebuild+upload
-
-```bash
-# 1. Install embed + publish extras (requires torch + open_clip + boto3)
-cd pipeline && pip install -e '.[embed,publish]'
-
-# 2. Run the full build + upload. publish/upload_r2.py reads exactly these 5 env vars
-#    (the S3 endpoint is derived from R2_ACCOUNT_ID; there is no R2_ENDPOINT_URL):
-export R2_ACCOUNT_ID=e1377b90aa5f91b18522fc40df57afc3
-export R2_BUCKET=dreamreel-media
-export R2_PUBLIC_BASE=https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev
-export R2_ACCESS_KEY_ID=<your-R2-access-key-id>
-export R2_SECRET_ACCESS_KEY=<your-R2-secret-access-key>
-make corpus UPLOAD=1
-
-# Or, if using wrangler instead of boto3:
-#   wrangler r2 object put dreamreel-media/media/<name>.webp --file ... --remote
-#   wrangler r2 object put dreamreel-media/manifest/latest.json --file ... --remote
-
-# 3. Verify: open https://dreamreel.pages.dev/?wake=1 and confirm new uncanny imagery loads.
-```
-
-The curation log line in `embed/build_manifest.py` will report kept/dropped counts (no silent
-truncation). Adjust `DEFAULT_CUTOFF` in `embed/curate.py` (currently 0.55) if the resulting
-corpus is too sparse or too broad.
+_(Rebuild/upload commands now live under "To rebuild again later" above — this block was the
+pre-ship plan and has been superseded.)_ The curation log line in `embed/build_manifest.py` reports
+kept/dropped counts (no silent truncation). Adjust `DEFAULT_CUTOFF` in `embed/curate.py` (now 0.52)
+if a future corpus is too sparse or too broad.
 
 ## The 6-round roadmap
 
@@ -103,7 +107,7 @@ corpus is too sparse or too broad.
 | 2 | **Dream-filter catalog (not one old-TV look)** | ✅ Round 2 (merged) |
 | 4 | **Moving image (video)** | ⬜ not started |
 | 5 | **Spoken-word / "audiobook" voices** | ⬜ not started |
-| 1 | **Weirder/scarier corpus** | ✅ machinery built (owner runs rebuild+upload) |
+| 1 | **Weirder/scarier corpus** | ✅ shipped to R2 (223 uncanny images, v2026.06.18-2208) |
 | — | **Photosensitivity hardening** | ⬜ deferred (clamp seam exists in `IntensityEngine`) |
 
 ## What's left to do
@@ -129,9 +133,9 @@ corpus is too sparse or too broad.
 - **Round 5 — Spoken-word voices**: a new sampled-audio subsystem (`Tone.Player`) layered over the
   generative bed in `audio/`, + audio ingest + determinism handling. Today `audio/engine.ts` is 100%
   synth with no sampled-playback path.
-- **Round 1 (corpus) — Weirder/scarier**: re-ingest a genuinely uncanny public-domain corpus
-  (anatomical plates, masks, decay, deep-sea, occult ephemera) instead of pretty scenery. Mostly
-  `pipeline/ingest` curation; no app changes.
+- **Round 1 (corpus) — Weirder/scarier**: ✅ DONE (shipped 2026-06-18). Optional follow-up:
+  re-ingest with the under-returning veins' synonyms (alchemical/spirit-photography/specimen/deep-sea)
+  to deepen those themes, then rebuild+upload.
 - **Photosensitivity hardening**: a real safety pass. The seam is already there — `IntensityEngine`
   has a single `setMaxIntensity` clamp point; reduced-motion already clamps to 0.45. Needs a proper
   strobe/flash-rate cap + possibly a warning gate before going default-on publicly.
