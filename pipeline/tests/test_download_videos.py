@@ -66,3 +66,10 @@ def test_download_videos_drops_when_poster_fails(tmp_path, monkeypatch):
 
     rows = dl.download_videos(_candidates(tmp_path), tmp_path)
     assert rows == []
+
+
+def test_download_videos_drops_when_fetch_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(dl.requests, "get", lambda url, headers=None, timeout=None: FakeResp(status=404))
+    monkeypatch.setattr(dl, "extract_poster", lambda video, dst_dir, at_seconds=1.0: None)
+    rows = dl.download_videos(_candidates(tmp_path), tmp_path)
+    assert rows == []
