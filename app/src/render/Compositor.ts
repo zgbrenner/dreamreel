@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { TransitionMaterial } from './TransitionMaterial';
 import { TRANSITION_NAMES } from './transitions';
 import { loadImageTexture, type TextureLoadResult } from './textureLoader';
+import { VideoPool } from './VideoPool';
 
 export type RenderFrame = (renderer: THREE.WebGLRenderer) => void;
 export type FrameHook = (dtSec: number, elapsedSec: number) => void;
@@ -38,6 +39,7 @@ export class Compositor {
   private readonly ghostMaterial: THREE.MeshBasicMaterial;
   private readonly ghostMesh: THREE.Mesh;
 
+  private videoPool = new VideoPool({ cap: 2 });
   private current: THREE.Texture | null = null;
   private crossfade: Crossfade | null = null;
   private rafId = 0;
@@ -159,6 +161,13 @@ export class Compositor {
     return res;
   }
 
+  /** Resolve a video URL to a looping muted VideoTexture via the bounded pool. */
+  async showVideo(url: string, grade?: string): Promise<TextureLoadResult> {
+    const res = await this.videoPool.acquire(url);
+    if (res.ok && grade) res.texture.userData.grade = grade;
+    return res;
+  }
+
   /**
    * Crossfade from the current texture to `to` over durationMs using `transitionName`.
    * The first ever call snaps in (no black frame). Passing a procedural texture is fine;
@@ -210,6 +219,7 @@ export class Compositor {
 
   dispose(): void {
     this.stop();
+    this.videoPool.dispose();
     this.disposeIfOwned(this.current, []);
     this.disposeIfOwned(this.crossfade?.to, []);
     this.disposeIfOwned(this.ghostMaterial.map, []);
