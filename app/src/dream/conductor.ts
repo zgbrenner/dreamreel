@@ -331,6 +331,17 @@ export class DreamConductor implements DreamRuntime {
           stack.setLayerTexture(slot, src.texture);
         }
       });
+    } else if (asset.type === 'video' && asset.src) {
+      void this.compositor.showVideo(asset.src, asset.grade).then((res) => {
+        if (res.ok) {
+          stack.setLayerTexture(slot, res.texture);
+        } else {
+          const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
+          const src = this.proc(`fallback:${asset.id}`, kind);
+          this.markLive(src);
+          stack.setLayerTexture(slot, src.texture);
+        }
+      });
     } else {
       // image with no src, or any other shape -> a Bodoni card so the slot still shows something
       const tex = this.makeTitleCard(asset.text ?? '');
@@ -426,6 +437,19 @@ export class DreamConductor implements DreamRuntime {
           this.compositor.crossfadeTo(res.texture, transition, this.crossfadeMs());
         } else {
           // fall back to a deterministic procedural so the reel never breaks
+          const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
+          const src = this.proc(`fallback:${asset.id}`, kind);
+          this.markLive(src);
+          this.compositor.crossfadeTo(src.texture, transition, this.crossfadeMs());
+        }
+      });
+      return;
+    }
+    if (asset.type === 'video' && asset.src) {
+      void this.compositor.showVideo(asset.src, asset.grade).then((res) => {
+        if (res.ok) {
+          this.compositor.crossfadeTo(res.texture, transition, this.crossfadeMs());
+        } else {
           const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
           const src = this.proc(`fallback:${asset.id}`, kind);
           this.markLive(src);
