@@ -99,6 +99,7 @@ export class DreamConductor implements DreamRuntime {
   async play(): Promise<void> {
     this.playing = true;
     this.compositor.start();
+    this.compositor.resumeVideos();
     try {
       await this.audio.start();
       this.audio.setVolume(true);
@@ -110,6 +111,7 @@ export class DreamConductor implements DreamRuntime {
 
   pause(): void {
     this.playing = false;
+    this.compositor.pauseVideos();
     this.safeAudio(() => this.audio.suspend());
   }
 

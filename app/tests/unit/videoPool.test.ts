@@ -71,4 +71,36 @@ describe('VideoPool', () => {
     if (!res.ok) return;
     expect((res.texture.userData.video as FakeVideo).play).not.toHaveBeenCalled();
   });
+
+  it('evicts by pausing without disposing the texture', async () => {
+    const disposed: unknown[] = [];
+    const pool = new VideoPool({ cap: 1, reducedMotion: () => false, load: okLoader() });
+    const a = await pool.acquire('a');
+    if (!a.ok) throw new Error('expected ok');
+    a.texture.addEventListener('dispose', () => disposed.push(a.texture));
+    const b = await pool.acquire('b');
+    if (!b.ok) throw new Error('expected ok');
+    expect((a.texture.userData.video as FakeVideo).paused).toBe(true);  // frozen still
+    expect(disposed).toHaveLength(0);                                     // NOT disposed
+  });
+
+  it('pauseAll pauses every active video', async () => {
+    const pool = new VideoPool({ cap: 3, reducedMotion: () => false, load: okLoader() });
+    const a = await pool.acquire('a');
+    const b = await pool.acquire('b');
+    if (!a.ok || !b.ok) throw new Error('expected ok');
+    pool.pauseAll();
+    expect((a.texture.userData.video as FakeVideo).paused).toBe(true);
+    expect((b.texture.userData.video as FakeVideo).paused).toBe(true);
+  });
+
+  it('resumeAll does not play under reduced motion', async () => {
+    const pool = new VideoPool({ cap: 3, reducedMotion: () => true, load: okLoader(true) });
+    const a = await pool.acquire('a');
+    if (!a.ok) throw new Error('expected ok');
+    const v = a.texture.userData.video as FakeVideo;
+    const callsBefore = (v.play as ReturnType<typeof vi.fn>).mock.calls.length;
+    pool.resumeAll();
+    expect((v.play as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBefore);
+  });
 });

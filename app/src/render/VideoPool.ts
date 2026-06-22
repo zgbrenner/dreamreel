@@ -51,6 +51,22 @@ export class VideoPool {
     return res;
   }
 
+  /** Pause every active video element (e.g. when the dream is paused) without tearing down. */
+  pauseAll(): void {
+    for (const a of this.active) {
+      try { a.video.pause?.(); } catch { /* ignore */ }
+    }
+  }
+
+  /** Resume videos that were paused by pauseAll, re-applying the cap. Skips reduced-motion. */
+  resumeAll(): void {
+    if ((this.opts.reducedMotion ?? defaultReducedMotion)()) return;
+    for (const a of this.active) {
+      try { void a.video.play?.()?.catch?.(() => {}); } catch { /* ignore */ }
+    }
+    this.enforceCap();
+  }
+
   dispose(): void {
     for (const a of [...this.active]) this.free(a);
   }

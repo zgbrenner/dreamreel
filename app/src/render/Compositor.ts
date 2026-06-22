@@ -154,6 +154,11 @@ export class Compositor {
     console.error('[compositor] frame listener error (loop continues):', err);
   }
 
+  /** Pause all pooled videos (dream paused). */
+  pauseVideos(): void { this.videoPool.pauseAll(); }
+  /** Resume all pooled videos (dream resumed). */
+  resumeVideos(): void { this.videoPool.resumeAll(); }
+
   /** Resolve an image URL to a texture, downscaled, with a fallback signal on failure. */
   async showImage(url: string, grade?: string): Promise<TextureLoadResult> {
     const res = await loadImageTexture(url);
