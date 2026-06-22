@@ -1,5 +1,5 @@
 // app/tests/unit/videoTexture.test.ts
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as THREE from 'three';
 import { loadVideoTexture } from '../../src/render/videoTexture';
 
@@ -24,6 +24,10 @@ function fakeVideo(): FakeVideo {
 }
 
 describe('loadVideoTexture', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('resolves ok on canplay, autoplays, and tags userData', async () => {
     const v = fakeVideo();
     const p = loadVideoTexture('http://x/film.mp4', {
