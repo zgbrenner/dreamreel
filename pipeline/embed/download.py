@@ -20,6 +20,7 @@ from typing import Iterable
 import requests
 
 from ingest.normalize import Candidate
+from embed.clip_window import clip_start_seconds, probe_duration
 from embed.poster import extract_poster
 
 MAX_SIDE = 1600
@@ -101,7 +102,8 @@ def download_videos(candidates: Iterable[Candidate], out_dir: Path) -> list[dict
                 local.write_bytes(r.content)
             except requests.RequestException:
                 continue
-        poster = extract_poster(local, poster_dir)
+        start = clip_start_seconds(probe_duration(local))
+        poster = extract_poster(local, poster_dir, at_seconds=start)
         if poster is None:
             local.unlink(missing_ok=True)
             continue
