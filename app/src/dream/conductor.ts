@@ -23,6 +23,7 @@ import { TRANSITION_NAMES } from '../render/transitions';
 import type { AudioEngine } from '../audio/engine';
 import { createAudioWalker, type AudioWalker } from './audioWalker';
 import { createMixer, type Mixer } from '../audio/mixer';
+import { makeAudioCadence, onVisualBeat, commitPick, type AudioCadence } from './audioCadence';
 import type { DreamRuntime } from '../state/runtime';
 import type { Caption } from '../state/store';
 
@@ -64,9 +65,7 @@ export class DreamConductor implements DreamRuntime {
   private readonly audioWalker: AudioWalker | null;
   private mixer: Mixer | null = null;
   private soundOn = true;
-  private audioElapsedMs = 0;
-  private audioDwellMs = 0;
-  private currentClaptext: number[] | undefined = undefined;
+  private audioCadence: AudioCadence = makeAudioCadence();
 
   private playing = false;
   private clock = 0; // internal seconds, advanced only while playing
@@ -197,9 +196,7 @@ export class DreamConductor implements DreamRuntime {
     this.safeAudio(() => this.audio.setTempo(tempoMul));
     // Reset audio walk accumulators so the new seed starts a fresh audio sequence.
     this.audioWalker?.reseed(seed);
-    this.audioElapsedMs = 0;
-    this.audioDwellMs = 0;
-    this.currentClaptext = undefined;
+    this.audioCadence = makeAudioCadence();
     this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
     this.hardCut();
   }
@@ -242,20 +239,6 @@ export class DreamConductor implements DreamRuntime {
     this.clock += dt;
     // keep any live procedural sources animating on the internal clock
     for (const p of this.liveProcs) p.update(this.clock);
-
-    // Audio walk cadence: advance on its own independent accumulator regardless of mode.
-    // audioDwellMs starts at 0 so the very first tick immediately takes the first pick.
-    if (this.audioWalker && this.mixer) {
-      this.audioElapsedMs += dt * 1000;
-      if (this.audioElapsedMs >= this.audioDwellMs) {
-        const pick = this.audioWalker.next(this.currentClaptext, this.tempoMul);
-        if (pick) {
-          this.safeAudio(() => this.mixer!.show(pick));
-          this.audioDwellMs = pick.dwellMs;
-          this.audioElapsedMs = 0;
-        }
-      }
-    }
 
     if (this.wake) {
       this.wakeTick(dt);
@@ -367,8 +350,18 @@ export class DreamConductor implements DreamRuntime {
     this.lastWakeMood = mood;
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
-    // Update the text bridge so the audio walker can bias toward the on-screen concept.
-    this.currentClaptext = beat.asset.claptext;
+
+    // Advance the audio walk on this logical visual beat — deterministic cadence.
+    // Uses beat.asset.claptext directly so the pick reads the concept for THIS beat.
+    if (this.audioWalker && this.mixer) {
+      if (onVisualBeat(this.audioCadence, beat.dwellMs)) {
+        const pick = this.audioWalker.next(beat.asset.claptext, this.tempoMul);
+        if (pick) {
+          this.safeAudio(() => this.mixer!.show(pick));
+          commitPick(this.audioCadence, pick.dwellMs);
+        }
+      }
+    }
 
     const { slot, nextCursor } = pickSwapSlot(
       this.layerCursor,
@@ -468,9 +461,20 @@ export class DreamConductor implements DreamRuntime {
     const mood = this.walker.currentMood();
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
-    // Update the text bridge for the audio walker.
-    this.currentClaptext = beat.asset.claptext;
     this.applyMoodToFilm(mood, beat.asset);
+
+    // Advance the audio walk on this logical visual beat — deterministic cadence.
+    // Audio picks are driven by beat.dwellMs (a pure function of the asset and tempoMul),
+    // not by wall-clock dt, so the audio sequence is a deterministic function of the seed.
+    if (this.audioWalker && this.mixer) {
+      if (onVisualBeat(this.audioCadence, beat.dwellMs)) {
+        const pick = this.audioWalker.next(beat.asset.claptext, this.tempoMul);
+        if (pick) {
+          this.safeAudio(() => this.mixer!.show(pick));
+          commitPick(this.audioCadence, pick.dwellMs);
+        }
+      }
+    }
 
     const transition = TRANSITION_NAMES[this.presRng.int(TRANSITION_NAMES.length)];
 

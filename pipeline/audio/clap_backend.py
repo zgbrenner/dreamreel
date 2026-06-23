@@ -68,9 +68,7 @@ class _LaionClapEmbedder:
 
     def __init__(self) -> None:
         import laion_clap  # lazy
-        import torch
 
-        self._torch = torch
         self.dim = 512
         self.model = laion_clap.CLAP_Module(enable_fusion=False)
         self.model.load_ckpt()  # downloads the default 630k checkpoint

@@ -7,17 +7,19 @@ import { MOOD_AXES } from './types';
 
 const audioKindSchema = z.enum(['music', 'voice', 'foley']);
 
+const moodRecord = z.object(
+  Object.fromEntries(MOOD_AXES.map((a) => [a, z.number()])) as Record<
+    (typeof MOOD_AXES)[number],
+    z.ZodNumber
+  >,
+);
+
 export const audioAssetSchema = z.object({
   id: z.string().min(1),
   kind: audioKindSchema,
   src: z.string().url(),
   embedding: z.array(z.number()).min(1),
-  mood: z.object(
-    Object.fromEntries(MOOD_AXES.map((a) => [a, z.number()])) as Record<
-      (typeof MOOD_AXES)[number],
-      z.ZodNumber
-    >,
-  ),
+  mood: moodRecord,
   tags: z.array(z.string()),
   durationSec: z.number().positive(),
   loopable: z.boolean(),
@@ -27,13 +29,6 @@ export const audioAssetSchema = z.object({
   attribution: z.string().optional(),
   attributionUrl: z.string().optional(),
 });
-
-const moodRecord = z.object(
-  Object.fromEntries(MOOD_AXES.map((a) => [a, z.number()])) as Record<
-    (typeof MOOD_AXES)[number],
-    z.ZodNumber
-  >,
-);
 
 const assetTypeSchema = z.enum(['image', 'video', 'procedural', 'titlecard']);
 const proceduralKindSchema = z.enum([

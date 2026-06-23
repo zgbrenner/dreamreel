@@ -177,10 +177,9 @@ def build(out_dir: Path, fetched_path: Path | None, videos_path: Path | None = N
     audio_assets: list[dict] = []
     audio_path = out_dir / "fetched_audio.jsonl"
     if audio_path.exists():
-        import json as _json
         from audio.ingest import normalize_audio
         with audio_path.open(encoding="utf-8") as f:
-            raw_audio = [_json.loads(line) for line in f if line.strip()]
+            raw_audio = [json.loads(line) for line in f if line.strip()]
         cands = normalize_audio(raw_audio)
         # Thread _local onto candidates via by-id lookup (normalize_audio does not carry _local)
         local_by_id = {r["id"]: r.get("_local", "") for r in raw_audio}

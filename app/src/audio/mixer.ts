@@ -123,6 +123,8 @@ async function defaultLoad(url: string): Promise<PooledAudio> {
 export function createMixer(deps: MixerDeps): Mixer {
   // One Tone.Gain per bus, all connected to deps.master.
   const buses: Record<BusName, Tone.Gain> = {
+    // bed carries no source yet; the synth engine's bed is not rerouted through it, so its
+    // computed duck trim is currently inert — bed-under-samples ducking is DEFERRED this round.
     bed: new Tone.Gain(1).connect(deps.master),
     music: new Tone.Gain(1).connect(deps.master),
     foley: new Tone.Gain(1).connect(deps.master),
