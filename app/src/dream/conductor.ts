@@ -239,14 +239,14 @@ export class DreamConductor implements DreamRuntime {
     // intensity-scaled film: a calm base, warped + graded by the heartbeat. These are the
     // CONTINUOUS params — they keep tracking the freshly sampled intensity every frame. setParams
     // merges, so we only push the channels we own here; the post-FX dream-event engine layers on
-    // top. warp is derived directly from intensity (layerPlan's curve: min(1, i*i*0.5)) since the
+    // top. warp is derived directly from intensity (layerPlan's curve: min(1, i*i*0.3)) since the
     // recipe's plan.warp is no longer recomputed per frame.
     this.postfx.setParams({
       ...baseWakeFilm(),
       // Keep the media readable: a lighter grade floor and much less bloom so imagery isn't
       // washed to milk; warp/chroma still surge with the heartbeat.
       filmGrade: 0.62 - intensity * 0.4,
-      warp: Math.min(1, intensity * intensity * 0.5),
+      warp: Math.min(1, intensity * intensity * 0.3),
       chroma: 0.12 + intensity * 0.45,
       bloom: 0.16 + intensity * 0.3,
     });

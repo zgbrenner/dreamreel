@@ -43,7 +43,7 @@ function videoFraction(seedStr: string): number {
 describe('Dreamwalker video weighting', () => {
   it('lifts scarce video well above its raw 50% share when embeddings are equal', () => {
     const f = videoFraction('vidw');
-    expect(f).toBeGreaterThan(0.6); // 3.5x weight pushes well past the unweighted 0.5
+    expect(f).toBeGreaterThan(0.72); // 7.0x weight pushes to ~0.875; bound tightened from 0.6
     expect(f).toBeLessThan(0.95); // still selects images too
   });
 

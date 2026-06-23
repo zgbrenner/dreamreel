@@ -61,15 +61,15 @@ describe('FilterDirector restraint', () => {
   it('peak strength is held back (no full-strength obliteration at intensity 1)', () => {
     // ominous -> kaleidoscope; a fully-dominant axis at intensity 1 used to reach ~1.0.
     const s = filterStrengths(moodPeaking('ominous', 1, 0.1), 1, false);
-    expect(s.kaleidoscope).toBeLessThan(0.7);
+    expect(s.kaleidoscope).toBeLessThan(0.5);
   });
 
   it('capDistortion clamps the two geometry-manglers, leaving others untouched', () => {
     const capped = capDistortion({
       kaleidoscope: 0.9, liquid: 0.95, solarize: 0.6, melt: 0.4, posterize: 0.3, feedback: 0.8,
     });
-    expect(capped.kaleidoscope).toBe(0.5);
-    expect(capped.liquid).toBe(0.7);
+    expect(capped.kaleidoscope).toBe(0.3);
+    expect(capped.liquid).toBe(0.45);
     expect(capped.solarize).toBe(0.6);
     expect(capped.feedback).toBe(0.8);
   });

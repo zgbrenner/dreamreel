@@ -40,7 +40,7 @@ export function filterStrengths(
 ): FilterStrengths {
   const pow = MOOD_AXES.map((a) => Math.pow(Math.max(0, mood[a]), SHARPEN));
   const sum = pow.reduce((s, x) => s + x, 0) || 1;
-  const scale = (0.18 + 0.5 * clamp01(intensity)) * (inTrough ? TROUGH_EASE : 1);
+  const scale = (0.10 + 0.32 * clamp01(intensity)) * (inTrough ? TROUGH_EASE : 1);
 
   const out = zero();
   MOOD_AXES.forEach((axis, i) => {
@@ -54,5 +54,5 @@ export function filterStrengths(
 /** Cap the two geometry-mangling filters so the underlying image is never fully obliterated —
  *  some clarity keeps a dream feeling real. Other filters pass through unchanged. */
 export function capDistortion(fs: FilterStrengths): FilterStrengths {
-  return { ...fs, kaleidoscope: Math.min(fs.kaleidoscope, 0.5), liquid: Math.min(fs.liquid, 0.7) };
+  return { ...fs, kaleidoscope: Math.min(fs.kaleidoscope, 0.3), liquid: Math.min(fs.liquid, 0.45) };
 }
