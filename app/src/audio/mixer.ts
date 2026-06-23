@@ -138,6 +138,12 @@ export function createMixer(deps: MixerDeps): Mixer {
   // Track currently active source per bus for crossfade/disconnect.
   const activeSrc: Partial<Record<BusName, PooledSrc>> = {};
 
+  // Per-bus epoch counter: incremented each time show() is called for that bus.
+  // The async IIFE captures its epoch at dispatch time; if the counter has advanced
+  // by the time pool.acquire() resolves, a newer show() has superseded this one and
+  // we discard the acquired node rather than mutating the bus graph.
+  const busEpoch: Record<BusName, number> = { bed: 0, music: 0, foley: 0, voice: 0, filmclip: 0 };
+
   // Per-<video> source nodes — reuse to avoid the "createMediaElementSource twice" error.
   const videoSources = new WeakMap<HTMLVideoElement, MediaElementAudioSourceNode>();
   let filmclipVideoEl: HTMLVideoElement | null = null;
@@ -181,12 +187,24 @@ export function createMixer(deps: MixerDeps): Mixer {
     const busName: BusName = kind;
     const oldSrc = activeSrc[busName];
 
+    // Increment the epoch for this bus and capture it before yielding to the microtask
+    // queue. Any later show() call on the same bus will increment again, making myEpoch
+    // stale and causing the superseded acquire to be discarded without touching the graph.
+    const myEpoch = (busEpoch[busName] += 1);
+
     void (async () => {
       let raw: PooledAudio;
       try {
         raw = await pool.acquire(pick.asset.src);
       } catch {
         // Swallow: a failed acquire is silently skipped — never throw into the caller.
+        return;
+      }
+
+      // Guard: if a newer show() for this bus completed its acquire after ours started,
+      // discard the node we just loaded rather than clobbering the graph it already wired.
+      if (busEpoch[busName] !== myEpoch) {
+        try { (raw as PooledSrc).dispose?.(); } catch { /* ignore */ }
         return;
       }
 
