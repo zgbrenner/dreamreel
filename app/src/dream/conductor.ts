@@ -202,7 +202,7 @@ export class DreamConductor implements DreamRuntime {
     for (const p of this.liveProcs) p.update(this.clock);
 
     if (this.wake) {
-      this.wakeTick();
+      this.wakeTick(dt);
       return;
     }
 
@@ -222,7 +222,7 @@ export class DreamConductor implements DreamRuntime {
    * swaps, so density/blends don't strobe per frame. Swaps fire sporadically — faster as
    * intensity rises — for a fluid, dense collage.
    */
-  private wakeTick(): void {
+  private wakeTick(dt: number): void {
     const stack = this.layerStack;
     if (!stack) return;
 
@@ -234,6 +234,7 @@ export class DreamConductor implements DreamRuntime {
     // it's re-rolled only in swapWakeLayer(), so density/blends don't strobe per frame. Re-apply
     // the stored plan each frame (cheap, no re-roll) so toggled layer visibility tracks the maps.
     if (this.currentPlan) stack.applyPlan(this.currentPlan);
+    stack.update(dt); // advance per-slot opacity ramps (cross-fade layer swaps)
     stack.captureFeedback(this.compositor.renderer);
 
     // intensity-scaled film: a calm base, warped + graded by the heartbeat. These are the

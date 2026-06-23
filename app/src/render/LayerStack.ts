@@ -38,6 +38,11 @@ export class LayerStack {
   // freshly-swapped image often lands in a hidden slot and the media never reads.
   private readonly writeSeq = new Array<number>(MAX_LAYERS).fill(0);
   private seqCounter = 0;
+  // Per-slot opacity fade: applyPlan writes desired opacities into fadeTarget; update(dt)
+  // eases fadeOpacity toward fadeTarget (~0.3 s) and writes mat.opacity. setLayerTexture
+  // resets fadeOpacity[slot] to 0 so a new texture always fades in instead of hard-cutting.
+  private readonly fadeOpacity = new Array<number>(MAX_LAYERS).fill(0);
+  private readonly fadeTarget = new Array<number>(MAX_LAYERS).fill(0);
   private fbA: THREE.WebGLRenderTarget;
   private fbB: THREE.WebGLRenderTarget;
   private readonly fbMat: THREE.MeshBasicMaterial;
@@ -99,6 +104,7 @@ export class LayerStack {
     mat.map = tex;
     mat.needsUpdate = true;
     this.writeSeq[index] = ++this.seqCounter;
+    this.fadeOpacity[index] = 0; // new texture fades in rather than hard-cutting
   }
 
   /**
@@ -116,18 +122,35 @@ export class LayerStack {
     ranked.sort((a, b) => this.writeSeq[b] - this.writeSeq[a]);
 
     const visibleCount = Math.min(plan.layerCount, ranked.length);
-    for (let i = 0; i < MAX_LAYERS; i++) this.layers[i].visible = false;
+    for (let i = 0; i < MAX_LAYERS; i++) {
+      this.layers[i].visible = false;
+      this.fadeTarget[i] = 0;
+    }
     for (let rank = 0; rank < visibleCount; rank++) {
       const slot = ranked[rank];
       this.layers[slot].visible = true;
       const mat = this.mats[slot];
       if (rank === 0) {
         mat.blending = THREE.NormalBlending; // hero: the current image, mostly opaque
-        mat.opacity = 0.92;
+        this.fadeTarget[slot] = 0.92;
       } else {
         mat.blending = BLEND_MAP[plan.blends[rank] ?? 'screen'];
-        mat.opacity = Math.max(0.18, 0.6 - rank * 0.09);
+        this.fadeTarget[slot] = Math.max(0.18, 0.6 - rank * 0.09);
       }
+    }
+  }
+
+  /**
+   * Advance per-slot opacity ramps toward their targets (~0.3 s ease). Must be called each
+   * frame (from conductor `wakeTick`) BEFORE rendering so material opacity is current.
+   * A freshly-set texture starts at fadeOpacity=0 (reset in setLayerTexture) and ramps up,
+   * eliminating the hard-cut flicker on layer swaps.
+   */
+  update(dtSec: number): void {
+    const factor = Math.min(1, dtSec * 8); // ~0.3 s to reach target (1 - e^(-8*0.3) ≈ 0.91)
+    for (let i = 0; i < MAX_LAYERS; i++) {
+      this.fadeOpacity[i] += (this.fadeTarget[i] - this.fadeOpacity[i]) * factor;
+      this.mats[i].opacity = this.fadeOpacity[i];
     }
   }
 
