@@ -52,29 +52,49 @@ describe('audioCadence', () => {
     expect(fired).toEqual([0, 3, 6, 9]);
   });
 
-  // (b) Feeding the SAME beat-dwell sequence in two different "chunkings"
-  //     (it's beat-driven, not dt-driven) yields identical pick indices.
-  //     We verify this by running with two differently-valued beat arrays that
-  //     have the same total dwell at each pick boundary.
-  it('(b) same logical sequence in different beat sizes yields identical pick indices', () => {
-    // Chunking A: 10 beats of 1 000 ms each.
-    const chunksA = new Array(10).fill(1000) as number[];
-    // Chunking B: equivalent total time spread across differently-sized beats.
-    // Total after 10 beats = 10 000 ms.  We split as 3000, 1000, 1000, 1000, 1000, 3000.
-    // (fewer beats, same total, so the index positions will differ — but the pick SEQUENCE
-    //  — which pick fires at what cumulative ms — is what matters, not the raw index.)
-    // This test instead verifies a simpler property: the same flat beat array always
-    // produces the same fired indices, regardless of how many times we run it.
-    const firedA1 = runCadence(chunksA, [3000]);
-    const firedA2 = runCadence(chunksA, [3000]);
-    expect(firedA1).toEqual(firedA2);
+  // (b) Pick fire-points depend only on cumulative dwell, not on how the dwell
+  //     is chunked into beats. Differently-shaped beat sequences that share the same
+  //     cumulative-millisecond thresholds must produce picks at those same cumulative ms.
+  it('(b) pick fire-points depend only on cumulative dwell, not beat chunking', () => {
+    /**
+     * Helper: drive the cadence with a beat-dwell array and a fixed pick dwell.
+     * Returns the cumulative milliseconds (not beat indices) at which picks fired.
+     */
+    function firePointsMs(beats: number[], pickDwellMs: number): number[] {
+      const c = makeAudioCadence();
+      const points: number[] = [];
+      let cum = 0;
+      for (const b of beats) {
+        cum += b;
+        if (onVisualBeat(c, b)) {
+          points.push(cum);
+          commitPick(c, pickDwellMs);
+        }
+      }
+      return points;
+    }
 
-    // And verify the fired set is what we expect: beats 0, 3, 6, 9.
-    // dwellMs starts at 0 → beat 0 (1000 ≥ 0) fires; reset, dwellMs=3000.
-    // beats 1,2 → elapsed 1000, 2000 — not ≥ 3000.
-    // beat 3 → elapsed 3000 ≥ 3000 → fires; reset, dwellMs=3000.
-    // beat 6 → fires; beat 9 → fires.
-    expect(firedA1).toEqual([0, 3, 6, 9]);
+    // Coarse chunking: [5000, 5000, 5000] → cumulative [5000, 10000, 15000]
+    //   With pickDwell=5000, fires at each beat (5000≥0, 5000≥5000, 5000≥5000).
+    //   Fires at cumulative ms: [5000, 10000, 15000]
+    const coarse = [5000, 5000, 5000];
+
+    // Fine chunking: [5000, 2500, 2500, 2500, 2500] → cumulative [5000, 7500, 10000, 12500, 15000]
+    // Trace with pickDwell=5000:
+    //   beat 0 (5000): elapsed=5000 ≥ 0 → fire at cum=5000, reset dwellMs=5000, elapsedMs=0
+    //   beat 1 (2500): elapsed=2500 ≥ 5000? No.
+    //   beat 2 (2500): elapsed=5000 ≥ 5000? Yes → fire at cum=10000, reset dwellMs=5000, elapsedMs=0
+    //   beat 3 (2500): elapsed=2500 ≥ 5000? No.
+    //   beat 4 (2500): elapsed=5000 ≥ 5000? Yes → fire at cum=15000
+    // Fires at cumulative ms: [5000, 10000, 15000] ← matches coarse!
+    const fine = [5000, 2500, 2500, 2500, 2500];
+
+    const pickDwell = 5000;
+
+    // Both sequences must produce picks at the same cumulative-millisecond thresholds,
+    // despite having different beat shapes. This proves that pick timing depends only
+    // on cumulative dwell accumulation, not on the beat chunking.
+    expect(firePointsMs(coarse, pickDwell)).toEqual(firePointsMs(fine, pickDwell));
   });
 
   // (c) commitPick resets elapsed to 0 and sets the new dwell.
