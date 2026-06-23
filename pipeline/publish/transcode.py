@@ -31,12 +31,19 @@ def transcode_image(src: Path, dst_dir: Path) -> Path | None:
         return None
 
 
-def transcode_video(src: Path, dst_dir: Path, max_seconds: int = 12) -> Path | None:
-    """Clip + downscale a public-domain film to a short web mp4. Requires ffmpeg on PATH."""
+def transcode_video(src: Path, dst_dir: Path, max_seconds: int = 12, start_seconds: float = 0.0) -> Path | None:
+    """Clip + downscale a public-domain film to a short web mp4. Requires ffmpeg on PATH.
+
+    start_seconds is inserted as ``-ss`` BEFORE ``-i`` for fast seek so the clip skips intro
+    title cards / logos. Use clip_window.clip_start_seconds to compute a deterministic interior
+    offset (~30% into the film) so the poster embedding and the clip show the same content.
+    """
     dst_dir.mkdir(parents=True, exist_ok=True)
     dst = dst_dir / (src.stem + ".mp4")
     cmd = [
-        "ffmpeg", "-y", "-i", str(src),
+        "ffmpeg", "-y",
+        "-ss", str(start_seconds),
+        "-i", str(src),
         "-t", str(max_seconds),
         "-vf", f"scale='min({MAX_SIDE},iw)':-2",
         "-c:v", "libx264", "-crf", "26", "-preset", "medium",
