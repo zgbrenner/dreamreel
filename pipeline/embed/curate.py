@@ -12,6 +12,7 @@ from typing import Sequence
 from ingest.themes import ANCHOR_THEMES
 
 DEFAULT_CUTOFF = 0.52
+VIDEO_CUTOFF = 0.45  # videos are scarce moving image; a gentler bar than the 0.52 image cutoff
 
 
 def _is_anchor(asset: dict, anchors: Sequence[str]) -> bool:

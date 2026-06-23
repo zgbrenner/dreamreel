@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from .clip_backend import get_embedder, l2_normalize
-from .curate import DEFAULT_CUTOFF, curate
+from .curate import DEFAULT_CUTOFF, VIDEO_CUTOFF, curate
 from .embed_images import embed_image_paths
 from .embed_texts import build_texts, procedural_seed_embeddings
 from .mood_axes import MOOD_AXES, build_axes, project_mood
@@ -61,7 +61,50 @@ def curate_image_assets(image_assets: list[dict]) -> list[dict]:
     return kept
 
 
-def build(out_dir: Path, fetched_path: Path | None) -> Path:
+def build_video_assets(embedder, axes, videos_path: Path | None) -> list[dict]:
+    """Read fetched_videos.jsonl, embed each poster frame, emit curated video assets.
+
+    Each asset carries an internal _local source path (consumed by publish/transcode, stripped
+    before R2 upload) and src = the remote film URL (rewritten to the R2 mp4 URL on upload).
+    Curated with the gentler VIDEO_CUTOFF so the scarce film pool is not over-pruned.
+    """
+    if not (videos_path and videos_path.exists()):
+        return []
+    with videos_path.open(encoding="utf-8") as f:
+        rows = [json.loads(line) for line in f if line.strip()]
+    if not rows:
+        return []
+    poster_paths = [r["poster_path"] for r in rows]
+    embs = embed_image_paths(embedder, poster_paths)
+    built: list[dict] = []
+    for i, (r, emb) in enumerate(zip(rows, embs)):
+        c = r["candidate"]
+        emb = l2_normalize(emb.reshape(1, -1))[0]
+        built.append(
+            {
+                "id": f"vid-{i:04d}",
+                "type": "video",
+                "src": c["source_url"],  # rewritten to the R2 mp4 URL in publish/upload_r2
+                "_local": r["video_path"],  # internal; stripped before upload
+                "embedding": _emb_list(emb),
+                "mood": project_mood(emb, axes),
+                "tags": c.get("tags", []),
+                "dwellBase": _dwell_for("video", c.get("tags", [])),
+                "source": c["source"],
+                "license": c["license"],
+                **({"attribution": c["attribution"]} if c.get("attribution") else {}),
+                **({"attributionUrl": c["attribution_url"]} if c.get("attribution_url") else {}),
+            }
+        )
+    kept, dropped = curate(built, cutoff=VIDEO_CUTOFF)
+    print(
+        f"[build_manifest] curation: kept {len(kept)}/{len(built)} video assets "
+        f"(dropped {len(dropped)} below cutoff {VIDEO_CUTOFF}; anchors exempt)"
+    )
+    return kept
+
+
+def build(out_dir: Path, fetched_path: Path | None, videos_path: Path | None = None) -> Path:
     embedder = get_embedder()
     print(f"[build_manifest] embedder backend: {embedder.backend}, dim={embedder.dim}")
     axes = build_axes(embedder)
@@ -97,6 +140,9 @@ def build(out_dir: Path, fetched_path: Path | None) -> Path:
             )
 
     assets.extend(curate_image_assets(image_assets))
+
+    # --- video assets from the video download step ---
+    assets.extend(build_video_assets(embedder, axes, videos_path))
 
     # --- procedural placeholder assets (runtime needs these for archive-off) ---
     proc_emb = procedural_seed_embeddings(embedder)
@@ -159,7 +205,8 @@ def main() -> None:
     ap.add_argument("--fetched", type=Path, default=None, help="fetched.jsonl from download step")
     args = ap.parse_args()
     fetched = args.fetched or (args.out / "fetched.jsonl")
-    build(args.out, fetched)
+    videos = args.out / "fetched_videos.jsonl"
+    build(args.out, fetched, videos)
 
 
 if __name__ == "__main__":

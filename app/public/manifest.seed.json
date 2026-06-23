@@ -337,6 +337,36 @@
       "license": "CC0"
     },
     {
+      "id": "vid-seed-0",
+      "type": "video",
+      "src": "https://archive.org/download/Popeye_forPresident/Popeye_forPresident_512kb.mp4",
+      "embedding": [
+        0,
+        0.5970223141259935,
+        0,
+        0,
+        0,
+        0,
+        0.6965260331469924,
+        0.3980148760839957
+      ],
+      "mood": {
+        "melancholy": 0.413,
+        "uncanny": 0.626,
+        "nostalgic": 0.672,
+        "ominous": 0.456,
+        "tender": 0.548,
+        "mechanical": 0.791
+      },
+      "tags": [
+        "film",
+        "archive"
+      ],
+      "dwellBase": 7.5,
+      "source": "Archive.org / Prelinger",
+      "license": "PD"
+    },
+    {
       "id": "img-great-wave",
       "type": "image",
       "src": "https://commons.wikimedia.org/wiki/Special:FilePath/The_Great_Wave_off_Kanagawa.jpg",

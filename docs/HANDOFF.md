@@ -105,7 +105,7 @@ if a future corpus is too sparse or too broad.
 | 6 | **Chaos engine + rare coherence** | ✅ Round 1 (merged) |
 | 3 | **Fluid dense layering** | ✅ folded into Round 1 (LayerStack) |
 | 2 | **Dream-filter catalog (not one old-TV look)** | ✅ Round 2 (merged) |
-| 4 | **Moving image (video)** | ⬜ not started |
+| 4 | **Moving image (video)** | 🟡 capability built on `feat/round4-video` (PR open); corpus ship pending |
 | 5 | **Spoken-word / "audiobook" voices** | ⬜ not started |
 | 1 | **Weirder/scarier corpus** | ✅ shipped to R2 (223 uncanny images, v2026.06.18-2208) |
 | — | **Photosensitivity hardening** | ⬜ deferred (clamp seam exists in `IntensityEngine`) |
@@ -126,10 +126,16 @@ if a future corpus is too sparse or too broad.
   (see "Rebuild the corpus" below).
 
 ### Remaining rounds (each = its own brainstorm → spec → plan → build)
-- **Round 4 — Video**: build a `THREE.VideoTexture` path in the renderer (the LayerStack can host it)
-  + a video transcode/upload path in `pipeline/publish` (`transcode_video` exists but nothing fetches
-  videos yet; **ffmpeg required**, not currently on PATH). ~46 Archive.org films are already in the
-  ingest candidates but were skipped (download fetches images only).
+- **Round 4 — Video**: 🟡 **capability complete** on branch `feat/round4-video` (spec
+  `docs/superpowers/specs/2026-06-22-round4-video-design.md`, plan
+  `docs/superpowers/plans/2026-06-22-round4-video.md`). Built + unit-tested end-to-end: pipeline
+  poster-frame extraction → embed → `vid-*` assets (`_local`, stripped before upload) → `transcode_video`
+  wired → R2; renderer `loadVideoTexture` + `VideoPool` (cap 2, restart-at-0, reduced-motion freeze,
+  pauses on dream-pause) + `Compositor.showVideo` + conductor `video` branch (wake **and** classic).
+  Muted/visual-only (audio is round 5); `VIDEO_CUTOFF = 0.45`. 105 unit tests + e2e green; final
+  whole-branch review clean. **Corpus NOT yet shipped to R2**: needs a local `ffmpeg` run over the
+  ~46 Archive.org films + R2 upload (the 2 secret R2 keys go in `pipeline/.env`). Until then the live
+  site shows no video. To ship: `cd pipeline && make corpus` then `make corpus UPLOAD=1` with R2 env.
 - **Round 5 — Spoken-word voices**: a new sampled-audio subsystem (`Tone.Player`) layered over the
   generative bed in `audio/`, + audio ingest + determinism handling. Today `audio/engine.ts` is 100%
   synth with no sampled-playback path.
