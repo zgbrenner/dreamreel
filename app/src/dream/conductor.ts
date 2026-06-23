@@ -269,35 +269,10 @@ export class DreamConductor implements DreamRuntime {
     const s = this.intensity.sample(logical);
     const intensity = s.intensity;
 
-    // Discrete recipe (layer count + per-layer blends + feedback) is held steady between swaps:
-    // it's re-rolled only in swapWakeLayer(), so density/blends don't strobe per frame. Re-apply
-    // the stored plan each frame (cheap, no re-roll) so toggled layer visibility tracks the maps.
-    // Pinned slots are slots whose video hold hasn't expired yet — they are forced into the visible
-    // set by applyPlan so a playing clip can't be ranked out of view as newer swaps fire.
-    if (this.currentPlan) stack.applyPlan(this.currentPlan, this.activePins());
-    stack.update(dt); // advance per-slot opacity ramps (cross-fade layer swaps)
-    stack.captureFeedback(this.compositor.renderer);
-
-    // intensity-scaled film: a calm base, warped + graded by the heartbeat. These are the
-    // CONTINUOUS params — they keep tracking the freshly sampled intensity every frame. setParams
-    // merges, so we only push the channels we own here; the post-FX dream-event engine layers on
-    // top. warp is derived directly from intensity (layerPlan's curve: min(1, i*i*0.3)) since the
-    // recipe's plan.warp is no longer recomputed per frame.
-    this.postfx.setParams({
-      ...baseWakeFilm(),
-      // Keep the media readable: a lighter grade floor and much less bloom so imagery isn't
-      // washed to milk; warp/chroma still surge with the heartbeat.
-      filmGrade: 0.38 - intensity * 0.25,
-      warp: Math.min(1, intensity * intensity * 0.3),
-      chroma: 0.12 + intensity * 0.45,
-      bloom: 0.10 + intensity * 0.18,
-    });
-
-    if (this.lastWakeMood) {
-      const fs = filterStrengths(this.lastWakeMood, s.intensity, s.inTrough);
-      this.postfx.setFilterStrengths(capDistortion(fs));
-      stack.setFeedback(fs.feedback);
-    }
+    // --- Discrete events FIRST (they mutate the walker + the layer recipe), so the per-slot
+    // fade ramps in stack.update(dt) below ease THIS frame rather than one frame late. The order
+    // of the two walker.next() calls — coherence's text beat before the swap's image beat — is
+    // load-bearing for determinism: it must not change. ---
 
     // coherence at troughs: on entering a NEW trough, decide what surfaces; on leaving, release.
     if (s.inTrough && s.troughId !== this.activeTrough) {
@@ -323,6 +298,38 @@ export class DreamConductor implements DreamRuntime {
       if (s.inTrough) interval *= 2.0;
       this.nextSwapAt = this.clock + interval;
     }
+
+    // --- Now advance the CONTINUOUS look and the per-slot fade ramps, then capture feedback.
+    // Discrete recipe (layer count + per-layer blends + feedback) is held steady between swaps:
+    // it's re-rolled only in swapWakeLayer(), so density/blends don't strobe per frame. Re-apply
+    // the stored plan each frame (cheap, no re-roll) so toggled layer visibility tracks the maps.
+    // Pinned slots are slots whose video hold hasn't expired yet — they are forced into the visible
+    // set by applyPlan so a playing clip can't be ranked out of view as newer swaps fire. ---
+    if (this.currentPlan) stack.applyPlan(this.currentPlan, this.activePins());
+
+    // intensity-scaled film: a calm base, warped + graded by the heartbeat. These are the
+    // CONTINUOUS params — they keep tracking the freshly sampled intensity every frame. setParams
+    // merges, so we only push the channels we own here; the post-FX dream-event engine layers on
+    // top. warp is derived directly from intensity (layerPlan's curve: min(1, i*i*0.3)) since the
+    // recipe's plan.warp is no longer recomputed per frame.
+    this.postfx.setParams({
+      ...baseWakeFilm(),
+      // Keep the media readable: a lighter grade floor and much less bloom so imagery isn't
+      // washed to milk; warp/chroma still surge with the heartbeat.
+      filmGrade: 0.38 - intensity * 0.25,
+      warp: Math.min(1, intensity * intensity * 0.3),
+      chroma: 0.12 + intensity * 0.45,
+      bloom: 0.10 + intensity * 0.18,
+    });
+
+    if (this.lastWakeMood) {
+      const fs = filterStrengths(this.lastWakeMood, s.intensity, s.inTrough);
+      this.postfx.setFilterStrengths(capDistortion(fs));
+      stack.setFeedback(fs.feedback);
+    }
+
+    stack.update(dt); // advance per-slot opacity ramps (cross-fade layer swaps)
+    stack.captureFeedback(this.compositor.renderer);
   }
 
   /**

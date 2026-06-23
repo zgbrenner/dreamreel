@@ -152,12 +152,17 @@ inert. Wiring it needs an engine bed sub-bus; voice/film-clip-over-music/foley d
 sound mute all work. Per-kind UI toggles, beat-sync, and a coupling-strength URL knob were YAGNI'd.
 
 ### Known deferred Minors (non-blocking, from reviews)
-- **Held-clip swap-frame lag**: a swap fires its `applyPlan` after `wakeTick`'s `update(dt)`, so the
-  newly-set fade target is eased a frame late (~16 ms, imperceptible). Optional: move the swap check
-  above `update(dt)` in `wakeTick`.
+- ✅ **Held-clip swap-frame lag** — FIXED (2026-06-23). `wakeTick` now runs the discrete events
+  (coherence trough + layer swap) BEFORE `stack.update(dt)`/`captureFeedback`, so a freshly-set fade
+  target eases the same frame instead of one late. The two `walker.next()` calls (coherence text →
+  swap image) keep their order, so the deterministic sequence is unchanged.
+- ✅ **`LayerStack.resize()` not wired** — FIXED (2026-06-23). `Compositor` now exposes
+  `addResizeListener()` (a multi-listener mirror of `addFrameListener`, alongside the single-slot
+  `onResize` held by post-FX); `LayerStack` registers in its constructor and unsubscribes on dispose,
+  so its feedback render targets track window resize. Covered by a new vitest in `layerFade.test.ts`.
+- ✅ **Stale "Task N" / "prompt N" comments** — FIXED (2026-06-23): scrubbed the build-order
+  references in `render/LayerStack.ts`, `render/Compositor.ts`, `render/filmParams.ts`, `audio/engine.ts`.
 - `frame_selector` leaves candidate frames in `out/posters/_cand` (one-shot offline pipeline; harmless).
-- `LayerStack.resize()` is not wired to window resize (feedback targets stay at initial size).
-- A couple of stale "Task N" comments may remain in `render/*` — cosmetic.
 
 ## Architecture pointers
 

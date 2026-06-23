@@ -11,6 +11,7 @@ function stubCompositor() {
     camera: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1),
     addOverlay: (m: THREE.Object3D) => scene.add(m),
     removeOverlay: (m: THREE.Object3D) => scene.remove(m),
+    addResizeListener: (_fn: (w: number, h: number) => void) => () => {},
     size: { width: 2, height: 2 },
     renderer: {} as unknown,
   };
@@ -31,5 +32,35 @@ describe('LayerStack swap fade-in', () => {
     const later = mat0.opacity;
     expect(early).toBeLessThan(0.5);
     expect(later).toBeGreaterThan(early);
+  });
+});
+
+describe('LayerStack resize wiring', () => {
+  it('resizes its feedback targets when the compositor fires a resize', () => {
+    let fire: ((w: number, h: number) => void) | null = null;
+    const scene = new THREE.Scene();
+    const stub = {
+      scene,
+      camera: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1),
+      addOverlay: (m: THREE.Object3D) => scene.add(m),
+      removeOverlay: (m: THREE.Object3D) => scene.remove(m),
+      addResizeListener: (fn: (w: number, h: number) => void) => {
+        fire = fn;
+        return () => {
+          fire = null;
+        };
+      },
+      size: { width: 2, height: 2 },
+      renderer: {} as unknown,
+    };
+    const stack = new LayerStack(stub as never);
+    const fbA = (stack as unknown as { fbA: THREE.WebGLRenderTarget }).fbA;
+    // constructed at half(2) = 1
+    expect(fbA.width).toBe(1);
+    expect(fire).not.toBeNull();
+    fire!(800, 600); // simulate a window resize
+    // targets render at half resolution
+    expect(fbA.width).toBe(400);
+    expect(fbA.height).toBe(300);
   });
 });

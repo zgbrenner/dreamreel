@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { LayerStack } from '../../src/render/LayerStack';
-function stub() { const s = new THREE.Scene(); return { scene: s, camera: new THREE.OrthographicCamera(-1,1,1,-1,0,1), addOverlay:(m:THREE.Object3D)=>s.add(m), removeOverlay:(m:THREE.Object3D)=>s.remove(m), size:{width:2,height:2}, renderer:{} as unknown }; }
+function stub() { const s = new THREE.Scene(); return { scene: s, camera: new THREE.OrthographicCamera(-1,1,1,-1,0,1), addOverlay:(m:THREE.Object3D)=>s.add(m), removeOverlay:(m:THREE.Object3D)=>s.remove(m), addResizeListener:(_fn:(w:number,h:number)=>void)=>()=>{}, size:{width:2,height:2}, renderer:{} as unknown }; }
 
 describe('LayerStack pin', () => {
   it('a pinned slot stays visible even when newer swaps would rank it out', () => {

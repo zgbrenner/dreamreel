@@ -3,7 +3,7 @@
 // primitives (MIT, ship-safe). Everything is gated behind a user gesture (start()), and
 // all parameter changes ramp to avoid clicks/pops.
 //
-// Public surface kept small so the Zustand store (prompt 7) is the only driver:
+// Public surface kept small so the Zustand store is the only driver:
 //   start(), setMood(), setVolume(), setTempo(), suspend(), resume(), dispose().
 
 import * as Tone from 'tone';

@@ -1,6 +1,6 @@
 // app/src/render/filmParams.ts
-// Single home for every film-treatment parameter, so the audio/mood layer (prompt 6) and
-// the conductor (prompt 8) drive the look from one place. These are the *base* levels; the
+// Single home for every film-treatment parameter, so the audio/mood layer and the conductor
+// drive the look from one place. These are the *base* levels; the
 // PostFX dream-event engine layers slow LFOs and one-shot swells on top each frame, so the
 // reel keeps breathing even when the mood holds steady.
 

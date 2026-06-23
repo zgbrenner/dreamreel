@@ -21,7 +21,7 @@ interface Crossfade {
  * (double-exposure) layer. Never leaves a black frame: callers substitute a procedural
  * texture when an image fails (see textureLoader + procedural sources).
  *
- * Post-FX (prompt 3) attaches by replacing `renderFrame`; the rAF loop stays singular.
+ * Post-FX attaches by replacing `renderFrame`; the rAF loop stays singular.
  */
 export class Compositor {
   renderer!: THREE.WebGLRenderer;
@@ -34,6 +34,7 @@ export class Compositor {
   onResize: ((w: number, h: number) => void) | null = null;
 
   private readonly frameListeners = new Set<FrameHook>();
+  private readonly resizeListeners = new Set<(w: number, h: number) => void>();
 
   private readonly stageMaterial = new TransitionMaterial('fade');
   private readonly ghostMaterial: THREE.MeshBasicMaterial;
@@ -91,6 +92,7 @@ export class Compositor {
     this.renderer.setSize(this.width, this.height, false);
     this.stageMaterial.setRatio(this.width / this.height);
     this.onResize?.(this.width, this.height);
+    for (const fn of this.resizeListeners) fn(this.width, this.height);
   }
 
   /** Add a mesh to the stage scene (used by the dust/scratch system so it shares the pass). */
@@ -107,6 +109,16 @@ export class Compositor {
   addFrameListener(fn: FrameHook): () => void {
     this.frameListeners.add(fn);
     return () => this.frameListeners.delete(fn);
+  }
+
+  /**
+   * Register a resize listener (e.g. the LayerStack's feedback render targets). Returns an
+   * unsubscribe. Unlike `onResize` (a single slot held by post-FX), any number of these can
+   * coexist; each is called with the new size from setSize.
+   */
+  addResizeListener(fn: (w: number, h: number) => void): () => void {
+    this.resizeListeners.add(fn);
+    return () => this.resizeListeners.delete(fn);
   }
 
   get size(): { width: number; height: number } {

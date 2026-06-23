@@ -48,12 +48,16 @@ export class LayerStack {
   private readonly fbMat: THREE.MeshBasicMaterial;
   private readonly fbMesh: THREE.Mesh;
   private readonly compositor: Compositor;
+  private readonly unsubResize: () => void;
 
   constructor(compositor: Compositor) {
     this.compositor = compositor;
     const { width, height } = compositor.size;
     this.fbA = new THREE.WebGLRenderTarget(half(width), half(height));
     this.fbB = new THREE.WebGLRenderTarget(half(width), half(height));
+    // Keep the feedback targets in sync with the canvas; otherwise they stay frozen at the
+    // construction-time size and a window resize stretches the echo-trail buffer.
+    this.unsubResize = compositor.addResizeListener((w, h) => this.resize(w, h));
 
     for (let i = 0; i < MAX_LAYERS; i++) {
       const mat = new THREE.MeshBasicMaterial({
@@ -196,8 +200,9 @@ export class LayerStack {
   }
 
   dispose(): void {
+    this.unsubResize();
     // Detach the layer + feedback meshes from the compositor scene so dispose() doesn't leave
-    // dead meshes rendering (Compositor has no removeOverlay otherwise — added in Task 7).
+    // dead meshes rendering via the compositor's removeOverlay.
     for (const mesh of this.layers) this.compositor.removeOverlay(mesh);
     this.compositor.removeOverlay(this.fbMesh);
     for (const m of this.mats) {
