@@ -26,7 +26,7 @@ export const MOOD_FILTER: Record<MoodAxis, keyof FilterStrengths> = {
 };
 
 const SHARPEN = 4; // higher => the dominant axis's filter stands out more
-const TROUGH_EASE = 0.12; // strengths scale by this inside a coherence trough
+const TROUGH_EASE = 0.08; // strengths scale by this inside a coherence trough (lucid = near-clean)
 
 function zero(): FilterStrengths {
   return { kaleidoscope: 0, liquid: 0, solarize: 0, melt: 0, posterize: 0, feedback: 0 };
@@ -40,7 +40,7 @@ export function filterStrengths(
 ): FilterStrengths {
   const pow = MOOD_AXES.map((a) => Math.pow(Math.max(0, mood[a]), SHARPEN));
   const sum = pow.reduce((s, x) => s + x, 0) || 1;
-  const scale = (0.35 + 0.65 * clamp01(intensity)) * (inTrough ? TROUGH_EASE : 1);
+  const scale = (0.10 + 0.32 * clamp01(intensity)) * (inTrough ? TROUGH_EASE : 1);
 
   const out = zero();
   MOOD_AXES.forEach((axis, i) => {
@@ -49,4 +49,10 @@ export function filterStrengths(
     out[filter] = clamp01(out[filter] + w * scale);
   });
   return out;
+}
+
+/** Cap the two geometry-mangling filters so the underlying image is never fully obliterated —
+ *  some clarity keeps a dream feeling real. Other filters pass through unchanged. */
+export function capDistortion(fs: FilterStrengths): FilterStrengths {
+  return { ...fs, kaleidoscope: Math.min(fs.kaleidoscope, 0.3), liquid: Math.min(fs.liquid, 0.45) };
 }

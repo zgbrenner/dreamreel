@@ -27,10 +27,10 @@ interface Trough {
 }
 
 // All TROUGH_* constants are in logicalTime (tempo-scaled) seconds.
-const TROUGH_MIN_GAP = 22;
-const TROUGH_MAX_GAP = 46;
-const TROUGH_DUR = 2.0;
-const TROUGH_RAMP = 0.8;
+const TROUGH_MIN_GAP = 14;
+const TROUGH_MAX_GAP = 30;
+const TROUGH_DUR = 4.0;
+const TROUGH_RAMP = 1.0;
 
 const NOISE_CACHE_MAX = 256;
 const NOISE_CACHE_LOOKBACK = 64;

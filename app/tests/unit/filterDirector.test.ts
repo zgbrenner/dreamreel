@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterStrengths, MOOD_FILTER, type FilterStrengths } from '../../src/dream/filterDirector';
+import { filterStrengths, MOOD_FILTER, capDistortion, type FilterStrengths } from '../../src/dream/filterDirector';
 import { MOOD_AXES, type MoodAxis } from '../../src/manifest/types';
 
 function moodPeaking(axis: MoodAxis, peak = 0.9, base = 0.4): Record<MoodAxis, number> {
@@ -54,5 +54,23 @@ describe('FilterDirector bounds + determinism', () => {
   it('is a pure deterministic function of its inputs', () => {
     const m = moodPeaking('tender');
     expect(filterStrengths(m, 0.6, false)).toEqual(filterStrengths(m, 0.6, false));
+  });
+});
+
+describe('FilterDirector restraint', () => {
+  it('peak strength is held back (no full-strength obliteration at intensity 1)', () => {
+    // ominous -> kaleidoscope; a fully-dominant axis at intensity 1 used to reach ~1.0.
+    const s = filterStrengths(moodPeaking('ominous', 1, 0.1), 1, false);
+    expect(s.kaleidoscope).toBeLessThan(0.5);
+  });
+
+  it('capDistortion clamps the two geometry-manglers, leaving others untouched', () => {
+    const capped = capDistortion({
+      kaleidoscope: 0.9, liquid: 0.95, solarize: 0.6, melt: 0.4, posterize: 0.3, feedback: 0.8,
+    });
+    expect(capped.kaleidoscope).toBe(0.3);
+    expect(capped.liquid).toBe(0.45);
+    expect(capped.solarize).toBe(0.6);
+    expect(capped.feedback).toBe(0.8);
   });
 });

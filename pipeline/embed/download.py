@@ -20,7 +20,9 @@ from typing import Iterable
 import requests
 
 from ingest.normalize import Candidate
-from embed.poster import extract_poster
+from embed.clip_backend import get_embedder
+from embed.clip_window import probe_duration
+from embed.frame_selector import build_avoid_vector, select_best_frame
 
 MAX_SIDE = 1600
 USER_AGENT = "DREAMREEL-corpus/0.1 (+https://dreamreel.example)"
@@ -89,6 +91,8 @@ def download_videos(candidates: Iterable[Candidate], out_dir: Path) -> list[dict
     vid_dir = out_dir / "videos"
     poster_dir = out_dir / "posters"
     vid_dir.mkdir(parents=True, exist_ok=True)
+    embedder = get_embedder()
+    avoid = build_avoid_vector(embedder)
     fetched: list[dict] = []
     for c in candidates:
         if c.type != "video":
@@ -101,12 +105,18 @@ def download_videos(candidates: Iterable[Candidate], out_dir: Path) -> list[dict
                 local.write_bytes(r.content)
             except requests.RequestException:
                 continue
-        poster = extract_poster(local, poster_dir)
+        duration = probe_duration(local)
+        poster, clip_start = select_best_frame(local, poster_dir, embedder, avoid, duration)
         if poster is None:
             local.unlink(missing_ok=True)
             continue
         fetched.append(
-            {"candidate": c.model_dump(), "video_path": str(local), "poster_path": str(poster)}
+            {
+                "candidate": c.model_dump(),
+                "video_path": str(local),
+                "poster_path": str(poster),
+                "clip_start_seconds": clip_start,
+            }
         )
 
     manifest_path = out_dir / "fetched_videos.jsonl"

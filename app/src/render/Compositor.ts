@@ -39,7 +39,7 @@ export class Compositor {
   private readonly ghostMaterial: THREE.MeshBasicMaterial;
   private readonly ghostMesh: THREE.Mesh;
 
-  private videoPool = new VideoPool({ cap: 2 });
+  private videoPool = new VideoPool({ cap: 3 });
   private current: THREE.Texture | null = null;
   private crossfade: Crossfade | null = null;
   private rafId = 0;

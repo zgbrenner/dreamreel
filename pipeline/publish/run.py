@@ -12,6 +12,8 @@ import json
 import os
 from pathlib import Path
 
+from embed.clip_window import clip_start_seconds, probe_duration
+
 from .qc import run_qc, write_report
 from .transcode import transcode_image, transcode_video
 from .upload_r2 import publish_manifest, upload_media, write_local_copy
@@ -64,7 +66,9 @@ def build_derivatives(
             raw = a.get("_local")
             local = Path(raw) if raw else None
             if local and local.exists():
-                dst = transcode_video(local, deriv_dir)
+                clip_start = a.get("_clipStart")
+                start = clip_start if clip_start is not None else clip_start_seconds(probe_duration(local))
+                dst = transcode_video(local, deriv_dir, start_seconds=start)
                 if dst is not None:
                     derivatives[a["id"]] = dst
     return derivatives

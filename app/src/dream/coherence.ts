@@ -9,6 +9,6 @@ export type CoherenceKind = 'rhyme' | 'lucid' | 'phrase';
 export function coherenceForTrough(seed: string, troughId: number): CoherenceKind {
   const r = makeRng(`${seed}:coh:${troughId}`).next();
   if (r < 0.5) return 'rhyme';
-  if (r < 0.85) return 'lucid';
+  if (r < 0.9) return 'lucid';
   return 'phrase';
 }

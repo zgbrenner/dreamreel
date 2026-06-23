@@ -10,7 +10,8 @@ import { createDreamwalker, type Dreamwalker } from './dreamwalker';
 import { makeRng, type Rng } from './prng';
 import { createIntensityEngine, type IntensityEngine } from './intensity';
 import { coherenceForTrough } from './coherence';
-import { filterStrengths } from './filterDirector';
+import { filterStrengths, capDistortion } from './filterDirector';
+import { pickSwapSlot } from './slotHold';
 import { planLayers, MAX_LAYERS, type LayerPlan } from './layerPlan';
 import { LayerStack } from '../render/LayerStack';
 import type { Compositor } from '../render/Compositor';
@@ -49,6 +50,7 @@ export class DreamConductor implements DreamRuntime {
   private intensity: IntensityEngine;
   private layerStack: LayerStack | null;
   private layerCursor = 0;
+  private slotHeldUntil: number[] = new Array(MAX_LAYERS).fill(0);
   private activeTrough = -1;
   private nextSwapAt = 0;
   private lastWakeMood: Record<MoodAxis, number> | null = null;
@@ -154,6 +156,7 @@ export class DreamConductor implements DreamRuntime {
     this.intensity.reseed(seed);
     this.activeTrough = -1;
     this.layerCursor = 0;
+    this.slotHeldUntil.fill(0);
     this.currentPlan = null;
     this.lastWakeMood = null;
     this.safeAudio(() => this.audio.setTempo(tempoMul));
@@ -199,7 +202,7 @@ export class DreamConductor implements DreamRuntime {
     for (const p of this.liveProcs) p.update(this.clock);
 
     if (this.wake) {
-      this.wakeTick();
+      this.wakeTick(dt);
       return;
     }
 
@@ -219,7 +222,7 @@ export class DreamConductor implements DreamRuntime {
    * swaps, so density/blends don't strobe per frame. Swaps fire sporadically — faster as
    * intensity rises — for a fluid, dense collage.
    */
-  private wakeTick(): void {
+  private wakeTick(dt: number): void {
     const stack = this.layerStack;
     if (!stack) return;
 
@@ -230,27 +233,30 @@ export class DreamConductor implements DreamRuntime {
     // Discrete recipe (layer count + per-layer blends + feedback) is held steady between swaps:
     // it's re-rolled only in swapWakeLayer(), so density/blends don't strobe per frame. Re-apply
     // the stored plan each frame (cheap, no re-roll) so toggled layer visibility tracks the maps.
-    if (this.currentPlan) stack.applyPlan(this.currentPlan);
+    // Pinned slots are slots whose video hold hasn't expired yet — they are forced into the visible
+    // set by applyPlan so a playing clip can't be ranked out of view as newer swaps fire.
+    if (this.currentPlan) stack.applyPlan(this.currentPlan, this.activePins());
+    stack.update(dt); // advance per-slot opacity ramps (cross-fade layer swaps)
     stack.captureFeedback(this.compositor.renderer);
 
     // intensity-scaled film: a calm base, warped + graded by the heartbeat. These are the
     // CONTINUOUS params — they keep tracking the freshly sampled intensity every frame. setParams
     // merges, so we only push the channels we own here; the post-FX dream-event engine layers on
-    // top. warp is derived directly from intensity (layerPlan's curve: min(1, i*i*0.9)) since the
+    // top. warp is derived directly from intensity (layerPlan's curve: min(1, i*i*0.3)) since the
     // recipe's plan.warp is no longer recomputed per frame.
     this.postfx.setParams({
       ...baseWakeFilm(),
       // Keep the media readable: a lighter grade floor and much less bloom so imagery isn't
       // washed to milk; warp/chroma still surge with the heartbeat.
-      filmGrade: 0.62 - intensity * 0.4,
-      warp: Math.min(1, intensity * intensity * 0.9),
+      filmGrade: 0.38 - intensity * 0.25,
+      warp: Math.min(1, intensity * intensity * 0.3),
       chroma: 0.12 + intensity * 0.45,
-      bloom: 0.16 + intensity * 0.3,
+      bloom: 0.10 + intensity * 0.18,
     });
 
     if (this.lastWakeMood) {
       const fs = filterStrengths(this.lastWakeMood, s.intensity, s.inTrough);
-      this.postfx.setFilterStrengths(fs);
+      this.postfx.setFilterStrengths(capDistortion(fs));
       stack.setFeedback(fs.feedback);
     }
 
@@ -272,7 +278,10 @@ export class DreamConductor implements DreamRuntime {
     // sporadic layer swap; the interval shrinks as intensity rises (and with faster tempo).
     if (this.clock >= this.nextSwapAt) {
       this.swapWakeLayer();
-      const interval = (0.12 + (1 - intensity) * 0.9) / Math.max(0.5, this.tempoMul);
+      // Breathing room: slower baseline + a wider range so calm stretches actually linger; a
+      // lucid trough holds even longer so the clear image can be taken in.
+      let interval = (0.4 + (1 - intensity) * 1.6) / Math.max(0.5, this.tempoMul);
+      if (s.inTrough) interval *= 2.0;
       this.nextSwapAt = this.clock + interval;
     }
   }
@@ -290,9 +299,12 @@ export class DreamConductor implements DreamRuntime {
     // then hold it steady between swaps. This advances presRng per-swap (not per-frame) and is
     // what keeps the layer count + blend modes from strobing. Sample intensity on the logical
     // clock so the recipe's density band matches the current heartbeat.
-    const intensity = this.intensity.sample(this.clock * this.tempoMul).intensity;
+    const sample = this.intensity.sample(this.clock * this.tempoMul);
+    const intensity = sample.intensity;
     this.currentPlan = planLayers(intensity, this.presRng);
-    stack.applyPlan(this.currentPlan);
+    // Compute the pinned set here too so the swap-time applyPlan also respects any active
+    // video holds — consistent with every other applyPlan call.
+    stack.applyPlan(this.currentPlan, this.activePins());
 
     const beat = this.walker.next('image', this.tempoMul);
     const mood = this.walker.currentMood();
@@ -300,7 +312,13 @@ export class DreamConductor implements DreamRuntime {
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
 
-    const slot = this.layerCursor++ % MAX_LAYERS;
+    const { slot, nextCursor } = pickSwapSlot(
+      this.layerCursor,
+      this.slotHeldUntil,
+      this.clock,
+      MAX_LAYERS,
+    );
+    this.layerCursor = nextCursor;
     const asset = beat.asset;
 
     if (beat.titleCard || asset.type === 'titlecard') {
@@ -337,6 +355,7 @@ export class DreamConductor implements DreamRuntime {
       void this.compositor.showVideo(asset.src, asset.grade).then((res) => {
         if (res.ok) {
           stack.setLayerTexture(slot, res.texture);
+          this.slotHeldUntil[slot] = this.clock + (sample.inTrough ? 13.0 : 9.0);
         } else {
           const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
           const src = this.proc(`fallback:${asset.id}`, kind);
@@ -357,6 +376,15 @@ export class DreamConductor implements DreamRuntime {
       attribution: ccByAttribution(asset),
       attributionUrl: asset.attributionUrl,
     });
+  }
+
+  /** Returns the set of slots whose video hold hasn't expired yet. */
+  private activePins(): Set<number> {
+    const pins = new Set<number>();
+    for (let i = 0; i < this.slotHeldUntil.length; i++) {
+      if (this.slotHeldUntil[i] > this.clock) pins.add(i);
+    }
+    return pins;
   }
 
   private imageBeat(): void {
@@ -591,13 +619,14 @@ function ccByAttribution(asset: Asset): string | undefined {
  */
 function baseWakeFilm(): Partial<FilmParams> {
   return {
-    vignette: 0.3,
-    grain: 0.12,
-    sepia: 0.16,
-    scanline: 0.05,
-    desat: 0.14,
-    halation: 0.1,
-    haze: 0.05,
+    vignette: 0.16,
+    grain: 0.06,
+    sepia: 0.08,
+    scanline: 0.02,
+    desat: 0.08,
+    halation: 0.05,
+    haze: 0.03,
+    flicker: 0.02,
   };
 }
 
