@@ -1,11 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { createAudioWalker, type AudioWalkerPools } from './audioWalker';
+import { blankMood } from './mood';
 import type { AudioAsset } from '../manifest/types';
 
-const mood = {
-  melancholy: 0.5, uncanny: 0.5, nostalgic: 0.5,
-  ominous: 0.5, tender: 0.5, mechanical: 0.5,
-};
+const mood = blankMood();
 
 function asset(id: string, kind: AudioAsset['kind'], e: number[]): AudioAsset {
   return {

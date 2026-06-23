@@ -2,7 +2,7 @@ import numpy as np
 
 from audio.build_audio import build_audio_assets, claptext_for, _dwell_for_audio
 from audio.clap_backend import get_audio_embedder
-from embed.mood_axes import build_axes
+from embed.mood_axes import build_axes, MOOD_AXES
 
 
 def test_build_audio_assets_shape_and_internal_fields():
@@ -17,7 +17,7 @@ def test_build_audio_assets_shape_and_internal_fields():
     a = out[0]
     assert a["id"] == "m1" and a["kind"] == "music"
     assert len(a["embedding"]) == 512
-    assert set(a["mood"]) == {"melancholy", "uncanny", "nostalgic", "ominous", "tender", "mechanical"}
+    assert set(a["mood"]) == set(MOOD_AXES)
     assert a["durationSec"] == 80.0 and a["loopable"] is False
     assert a["dwellBase"] == 60.0
     assert a["_local"] == "/tmp/x.m4a"  # internal path retained for transcode/upload

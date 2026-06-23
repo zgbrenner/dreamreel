@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { filterStrengths, MOOD_FILTER, capDistortion, type FilterStrengths } from '../../src/dream/filterDirector';
+import {
+  filterStrengths,
+  MOOD_FILTER,
+  FILTER_AXES,
+  capDistortion,
+  type FilterStrengths,
+} from '../../src/dream/filterDirector';
 import { MOOD_AXES, type MoodAxis } from '../../src/manifest/types';
 
 function moodPeaking(axis: MoodAxis, peak = 0.9, base = 0.4): Record<MoodAxis, number> {
@@ -12,16 +18,29 @@ const argmaxFilter = (s: FilterStrengths) =>
   FILTERS.reduce((best, f) => (s[f] > s[best] ? f : best), FILTERS[0]);
 
 describe('FilterDirector mapping', () => {
-  it('every mood axis, when dominant, makes its mapped filter the strongest', () => {
-    for (const axis of MOOD_AXES) {
+  it('every wired (filter) axis, when dominant, makes its mapped filter the strongest', () => {
+    for (const axis of FILTER_AXES) {
       const s = filterStrengths(moodPeaking(axis), 1, false);
       expect(argmaxFilter(s)).toBe(MOOD_FILTER[axis]);
     }
   });
 
-  it('all six filters are reachable across the mood space', () => {
-    const reached = new Set(MOOD_AXES.map((a) => argmaxFilter(filterStrengths(moodPeaking(a), 1, false))));
+  it('all six filters are reachable across the wired mood axes', () => {
+    const reached = new Set(FILTER_AXES.map((a) => argmaxFilter(filterStrengths(moodPeaking(a), 1, false))));
     expect(reached.size).toBe(6);
+  });
+
+  it('the new emotional axes are NOT wired to the filter catalog yet (inert)', () => {
+    // A dream peaking on a new axis (with the wired axes flat) produces no filter strength —
+    // the new emotions are carried in the data but not yet mapped to a visual treatment.
+    for (const axis of ['love', 'loss', 'joy', 'fear', 'absurdity', 'strange'] as const) {
+      const m = {} as Record<MoodAxis, number>;
+      for (const a of MOOD_AXES) m[a] = 0;
+      m[axis] = 0.9;
+      const s = filterStrengths(m, 1, false);
+      const total = FILTERS.reduce((sum, f) => sum + s[f], 0);
+      expect(total).toBe(0);
+    }
   });
 });
 

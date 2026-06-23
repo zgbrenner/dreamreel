@@ -1,15 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { bedParamsFor, bellShotFor, type Mood } from '../../src/audio/params';
 import { MOOD_AXES } from '../../src/manifest/types';
+import { blankMood } from '../../src/dream/mood';
 
-const NEUTRAL: Mood = {
-  melancholy: 0.5,
-  uncanny: 0.5,
-  nostalgic: 0.5,
-  ominous: 0.5,
-  tender: 0.5,
-  mechanical: 0.5,
-};
+const NEUTRAL: Mood = blankMood();
 
 /** A neutral mood with one axis pushed to `v`. */
 function only(axis: keyof Mood, v: number): Mood {

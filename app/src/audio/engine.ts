@@ -12,7 +12,9 @@ import { bedParamsFor, bellShotFor, type Mood } from './params';
 const PENTATONIC = ['C', 'D', 'E', 'G', 'A'];
 const RAMP = 1.5; // seconds for smooth parameter glides
 
-// Neutral mood used to drive the tick rate before any real mood has been set.
+// Neutral mood used to drive the tick rate before any real mood has been set. The bed only
+// reads a few axes (see params.ts); the new emotional axes are present for type-completeness but
+// not yet wired to the synth — that lands in a later prompt.
 const NEUTRAL_MOOD: Mood = {
   melancholy: 0.5,
   uncanny: 0.5,
@@ -20,6 +22,12 @@ const NEUTRAL_MOOD: Mood = {
   ominous: 0.5,
   tender: 0.5,
   mechanical: 0.3,
+  love: 0.5,
+  loss: 0.5,
+  joy: 0.5,
+  fear: 0.5,
+  absurdity: 0.5,
+  strange: 0.5,
 };
 
 export class AudioEngine {

@@ -1,6 +1,6 @@
 # DREAMREEL — Handoff / Pick-Up Doc
 
-_Last updated: 2026-06-23. Read this first when resuming._
+_Last updated: 2026-06-23 (emotion-taxonomy expansion). Read this first when resuming._
 
 ## TL;DR — where we are
 
@@ -28,9 +28,20 @@ advanced — all merged to `main`:
   `AudioPool`). Plays in **both** classic and wake, behind the existing sound/archive toggles.
   Determinism preserved: audio picks fire on **logical visual beats** (`dream/audioCadence.ts`), not
   wall-clock. Film clips now ship **with** their native soundtrack (ducked in when a clip is the hero).
+- **Single-verb UX** (2026-06-23, `main` `fc1af01`): the viewer can only summon a **new dream** —
+  no dream-shaping controls. Surreality + tempo are now derived from the seed (`dream/seedParams.ts`),
+  not user knobs; the UI is just **New dream / play-pause / sound on-off**. Shareable state reduced to
+  **`?seed=`** only (`?wake=0` remains a non-UI engine-mode opt-out). Store no longer holds
+  surreality/tempo/archive.
+- **Emotion-taxonomy expansion to 12 blendable axes** (2026-06-23, *data + types + docs only — NOT
+  yet wired to visuals/audio/text*): added **love, loss, joy, fear, absurdity, strange** to the
+  original six CLIP mood axes. Mood is a continuous, blendable vector over all axes (never a single
+  label). New helpers `dominantAxes` + `blendMoods` in `dream/mood.ts` for later prompts. The filter
+  catalog is deliberately still pinned to the original six (`filterDirector.ts` `FILTER_AXES`); the
+  new axes are inert until a later wiring prompt. See "Emotion taxonomy — next steps" below.
 
-- Live app: **https://dreamreel.pages.dev** (classic by default; add **`?wake=1`** for the new
-  engine). **Production deploys from `main`** via Cloudflare Pages Git integration.
+- Live app: **https://dreamreel.pages.dev** (**wake by default**; add **`?wake=0`** for the classic
+  three-clock reel). **Production deploys from `main`** via Cloudflare Pages Git integration.
 - Production manifest: `VITE_MANIFEST_URL` on Cloudflare Pages (prod **and** preview) →
   `https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json`. **Now serving
   v`2026.06.23-1515`: 326 visual assets (277 PD images + 40 film clips + 9 procedural) + 42 texts +
@@ -48,6 +59,8 @@ advanced — all merged to `main`:
 | 4 | **Moving image (video)** | ✅ shipped to R2 (40 PD film clips, content-aware frames) |
 | — | **Wake pacing + restraint polish** | ✅ merged (PR #20, 2026-06-23) |
 | 5 | **Sampled audio (music + voice + foley + film-clip native audio)** | ✅ shipped to R2 (CLAP walk, 44 audio clips, v2026.06.23-1515) |
+| — | **Single-verb UX (new-dream-only; seed-derived surreality/tempo)** | ✅ merged (`main` `fc1af01`) |
+| — | **Emotion taxonomy: 12 blendable axes (data+types+docs)** | ✅ done; ⬜ not yet wired to visuals/audio/text |
 | — | **Photosensitivity hardening** | ⬜ deferred (clamp seam exists in `IntensityEngine`) |
 
 ## Wake-mode tuning surface (where to nudge the live feel)
@@ -91,6 +104,25 @@ values after the 2026-06-23 polish:
   feedback/strobe-capable layers) is the default the public lands on. `IntensityEngine` has a single
   `setMaxIntensity` clamp (reduced-motion already clamps to 0.45) — needs a proper strobe/flash-rate
   cap + possibly a warning gate. Flicker is now low (0.02 in wake) but this is the remaining safety gate.
+
+### Emotion taxonomy — next steps (the wiring prompts)
+The 12-axis mood vector now exists end-to-end (offline → manifest → runtime types), but the six
+**new** axes (love/loss/joy/fear/absurdity/strange) are carried in data only — nothing reacts to them
+yet. This was deliberate (the expansion prompt was data+types+docs). Remaining wiring work:
+- **Visuals:** extend `dream/filterDirector.ts` beyond `FILTER_AXES` (currently the original six) so
+  the new emotions select/scale treatments. CLAUDE.md's "Mood-mapped filter catalog" documents the
+  original six 1:1 mappings — agree new mappings (or blend-based selection) before changing it.
+- **Audio:** `audio/params.ts` `bedParamsFor` reads only a few named axes; decide how love/joy/fear/etc.
+  reshape the bed (and whether the CLAP audio walk should bias on the new axes).
+- **Text:** the drifting/intertitle text could be selected/tinted by the dominant emotional blend.
+- Helpers ready to consume: `dream/mood.ts` `dominantAxes(mood, k)` (top-k without collapsing the
+  blend) and `blendMoods(moods, weights)` (per-axis weighted average — e.g. tender+loss = bittersweet).
+- **Real-corpus reship:** the live R2 manifest (`v2026.06.23-1515`) still has 6-axis moods. A reship
+  via `pipeline/embed/build_manifest.py` (real CLIP) will re-project all assets onto the 12 axes — do
+  this before the wiring lands so production assets carry the new axes. (The committed dev seed
+  `app/public/manifest.seed.json` is already 12-axis; the generator `app/scripts/gen-seed.mjs` is
+  updated too, but a raw regen still drops the augmented `vid-seed-0` + `audio[]` — pre-existing
+  generator limitation, so the seed was migrated additively rather than regenerated.)
 
 ### Round 4 — Video (✅ SHIPPED, content-aware frames)
 Pipeline: a video is sourced by sampling several interior frames and using CLIP to pick the one
@@ -168,8 +200,10 @@ sound mute all work. Per-kind UI toggles, beat-sync, and a coupling-strength URL
 
 - **The brain (pure, seeded, unit-tested):** `dream/intensity.ts` (heartbeat + troughs),
   `dream/coherence.ts` (trough kinds), `dream/layerPlan.ts` (density bands), `dream/filterDirector.ts`
-  (mood→filter strengths + `capDistortion`), `dream/dreamwalker.ts` (embedding walk + `TYPE_WEIGHTS`),
-  `dream/slotHold.ts` (`pickSwapSlot`). No `Math.random` in the dream path.
+  (mood→filter strengths + `capDistortion`; reacts to `FILTER_AXES` = the original six),
+  `dream/mood.ts` (12-axis `projectMood`/`blankMood` + `dominantAxes`/`blendMoods` helpers),
+  `dream/seedParams.ts` (seed→surreality/tempo), `dream/dreamwalker.ts` (embedding walk +
+  `TYPE_WEIGHTS`), `dream/slotHold.ts` (`pickSwapSlot`). No `Math.random` in the dream path.
 - **The renderer:** `render/LayerStack.ts` (N-layer feedback compositor; cross-fade `update(dt)` +
   pinned-slot visibility), `render/videoTexture.ts` + `render/VideoPool.ts` (video), `render/DreamFilter.ts`
   (5 fragment filters), `render/postfx.ts` (EffectComposer: DreamFilter → FilmEffect grade → bloom →

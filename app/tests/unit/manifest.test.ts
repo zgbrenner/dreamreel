@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseManifest, ManifestError } from '../../src/manifest/loader';
+import { MOOD_AXES } from '../../src/manifest/types';
 import seed from '../../public/manifest.seed.json';
 
 describe('manifest validation', () => {
@@ -7,6 +8,23 @@ describe('manifest validation', () => {
     const m = parseManifest(seed);
     expect(m.assets.length).toBeGreaterThan(0);
     expect(m.embeddingDim).toBe(8);
+  });
+
+  it('every asset, text, and audio mood carries a value for EVERY emotional axis', () => {
+    const m = parseManifest(seed);
+    const sortedAxes = [...MOOD_AXES].sort();
+    // moodAxes provides a vector for every axis.
+    expect(Object.keys(m.moodAxes).sort()).toEqual(sortedAxes);
+    for (const axis of MOOD_AXES) expect(m.moodAxes[axis].length).toBe(m.embeddingDim);
+    // Every asset/text/audio mood is a complete, in-range vector — no undefined new axis.
+    for (const a of [...m.assets, ...m.texts, ...m.audio]) {
+      expect(Object.keys(a.mood).sort()).toEqual(sortedAxes);
+      for (const axis of MOOD_AXES) {
+        const v = a.mood[axis];
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+      }
+    }
   });
 
   it('every embedding is L2-normalized to ~1', () => {

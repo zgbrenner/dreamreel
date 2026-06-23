@@ -7,7 +7,23 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DIM = 8;
-const MOOD_AXES = ['melancholy', 'uncanny', 'nostalgic', 'ominous', 'tender', 'mechanical'];
+// Mood is a continuous, blendable vector over ALL these axes (never a single dominant label).
+// The first six are the original CLIP mood axes; love/loss/joy/fear/absurdity/strange widen the
+// emotional range. Order must match MoodAxis in app/src/manifest/types.ts.
+const MOOD_AXES = [
+  'melancholy',
+  'uncanny',
+  'nostalgic',
+  'ominous',
+  'tender',
+  'mechanical',
+  'love',
+  'loss',
+  'joy',
+  'fear',
+  'absurdity',
+  'strange',
+];
 
 function norm(v) {
   const m = Math.sqrt(v.reduce((s, x) => s + x * x, 0)) || 1;
@@ -20,9 +36,10 @@ function dot(a, b) {
 }
 const sigmoid = (x) => 1 / (1 + Math.exp(-x));
 
-// Six interpretable semantic axes for the 8-dim toy space:
+// Interpretable semantic axes for the 8-dim toy space:
 //  [sea, machinery, faces, ruins, cosmos, botanical, light, decay]
-// Mood axis vectors are hand-placed contrasts in that space (then normalized).
+// Mood axis vectors are hand-placed contrasts in that space (then normalized). The six new
+// emotional axes are placed the same way so the stub blends across the full taxonomy.
 const moodAxes = {
   melancholy: norm([0.3, -0.2, 0.4, 0.6, 0.1, -0.1, -0.5, 0.7]),
   uncanny: norm([0.1, 0.3, 0.6, 0.2, 0.4, -0.3, -0.2, 0.5]),
@@ -30,6 +47,12 @@ const moodAxes = {
   ominous: norm([0.4, 0.2, -0.1, 0.7, 0.3, -0.4, -0.6, 0.5]),
   tender: norm([-0.1, -0.5, 0.6, -0.2, 0.1, 0.6, 0.7, -0.2]),
   mechanical: norm([-0.2, 0.9, -0.2, 0.1, 0.0, -0.4, 0.2, -0.1]),
+  love: norm([0.0, -0.4, 0.7, -0.1, 0.1, 0.5, 0.6, -0.3]),
+  loss: norm([0.3, -0.1, 0.3, 0.6, 0.1, -0.3, -0.5, 0.6]),
+  joy: norm([0.0, -0.2, 0.5, -0.3, 0.4, 0.5, 0.8, -0.4]),
+  fear: norm([0.4, 0.3, 0.0, 0.6, 0.2, -0.4, -0.6, 0.5]),
+  absurdity: norm([0.1, 0.5, 0.4, -0.2, 0.6, -0.3, 0.2, 0.1]),
+  strange: norm([0.2, 0.3, 0.5, 0.1, 0.7, -0.2, -0.1, 0.3]),
 };
 
 function moodFor(embedding) {

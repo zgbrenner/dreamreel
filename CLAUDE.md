@@ -22,6 +22,19 @@ spend is the one-time offline tagging pass.
   Surreality is that temperature plus the leap probability — **derived from the seed, not a
   user control** (see `dream/seedParams.ts`). Reference: the Infinite Jukebox / Remixatron
   family. Reimplement the algorithm; do not copy code.
+- **Emotion taxonomy (a blendable vector, not a label).** Every asset (and the live walk point)
+  carries a **continuous mood vector over twelve axes**, each 0..1: the original six —
+  melancholy, uncanny, nostalgic, ominous, tender, mechanical — plus **love, loss, joy, fear,
+  absurdity, strange**. Mood is **never reduced to a single dominant axis** in the data: the axes
+  blend, so the runtime can express combinations — tender+loss = bittersweet, joy+uncanny = manic.
+  The intended emotional range is love, loss, joy, absurdity, fear, nostalgia, the strange — and
+  their combinations. Each axis is a CLIP text-prompt anchor (a contrast of descriptive prompts,
+  L2-normalized — see `pipeline/embed/mood_axes.py`); an asset's mood is the projection of its
+  embedding onto each axis (`dream/mood.ts` `projectMood`, with blend/query helpers `dominantAxes`
+  and `blendMoods`). Axis order is frozen and shared by `manifest/types.ts`, the pipeline, and the
+  seed generator. The new axes are present in the data but not yet wired to a specific
+  visual/audio/text treatment (the filter catalog still maps only the original six) — that wiring
+  lands in later work.
 - **Single-verb UX.** The viewer can only summon a **new dream** (a fresh seed) — they can
   never tune or edit the one they're given. There are no dream-shaping sliders, toggles, or
   switches: surreality and tempo are derived deterministically from the seed, so each dream has
@@ -29,8 +42,10 @@ spend is the one-time offline tagging pass.
   controls are **New dream**, play/pause, and a sound on/off output toggle.
 - **Determinism.** Given the same seed, the *sequence of assets and text* (the "dream script")
   — and, in wake mode, the sequence of coherence troughs and layer-swap events — is identical,
-  even if frame timing varies. The seed is the **only** shareable dream param: `?seed=...`
-  (surreality/tempo fold into what the seed produces; `?wake=0` is a non-UI engine-mode opt-out).
+  even if frame timing varies. A given seed therefore yields a given **emotional identity** (its
+  surreality/tempo and the mood vectors of the assets its walk surfaces) and the same dream. The
+  seed is the **only** shareable dream param: `?seed=...` (surreality/tempo fold into what the
+  seed produces; `?wake=0` is a non-UI engine-mode opt-out).
 - **Two compositing modes, both seeded and deterministic.**
   - *Classic clocks:* three desynced layer clocks (image, ghost/double-exposure, text)
     advance independently so layers recombine.

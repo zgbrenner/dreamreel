@@ -2,13 +2,24 @@
 // Frozen data contract. Field names must not change — the pipeline emits these exactly
 // and the runtime builds against them.
 
+// The emotional taxonomy. Mood is a CONTINUOUS, BLENDABLE vector over ALL of these axes
+// (0..1 each) — never reduced to a single dominant label — so the runtime can express
+// combinations (tender+loss = bittersweet, joy+uncanny = manic). The first six are the
+// original CLIP mood axes; love/loss/joy/fear/absurdity/strange widen the emotional range.
+// Order is frozen and must match pipeline/embed/mood_axes.py MOOD_AXES.
 export type MoodAxis =
   | 'melancholy'
   | 'uncanny'
   | 'nostalgic'
   | 'ominous'
   | 'tender'
-  | 'mechanical';
+  | 'mechanical'
+  | 'love'
+  | 'loss'
+  | 'joy'
+  | 'fear'
+  | 'absurdity'
+  | 'strange';
 
 export const MOOD_AXES: MoodAxis[] = [
   'melancholy',
@@ -17,6 +28,12 @@ export const MOOD_AXES: MoodAxis[] = [
   'ominous',
   'tender',
   'mechanical',
+  'love',
+  'loss',
+  'joy',
+  'fear',
+  'absurdity',
+  'strange',
 ];
 
 export type AudioKind = 'music' | 'voice' | 'foley';

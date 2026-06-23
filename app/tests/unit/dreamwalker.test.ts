@@ -5,6 +5,7 @@ import {
   type DreamLayer,
 } from '../../src/dream/dreamwalker';
 import { cosine } from '../../src/dream/mood';
+import { MOOD_AXES } from '../../src/manifest/types';
 import { parseManifest } from '../../src/manifest/loader';
 import seed from '../../public/manifest.seed.json';
 
@@ -146,12 +147,12 @@ describe('Dreamwalker layers', () => {
     }
   });
 
-  it('currentMood returns all six axes in 0..1', () => {
+  it('currentMood returns all axes in 0..1', () => {
     const w = createDreamwalker(pools, { seed: 'm', surreality: 0.5 });
     w.next('image', 1);
     const mood = w.currentMood();
     const keys = Object.keys(mood);
-    expect(keys).toHaveLength(6);
+    expect(keys.sort()).toEqual([...MOOD_AXES].sort());
     for (const v of Object.values(mood)) {
       expect(v).toBeGreaterThanOrEqual(0);
       expect(v).toBeLessThanOrEqual(1);

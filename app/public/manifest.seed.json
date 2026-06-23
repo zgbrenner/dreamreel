@@ -62,6 +62,66 @@
       -0.37966319830099965,
       0.18983159915049982,
       -0.09491579957524991
+    ],
+    "love": [
+      0.0,
+      -0.34174306308670443,
+      0.5980503604017327,
+      -0.08543576577167611,
+      0.08543576577167611,
+      0.4271788288583805,
+      0.5126145946300565,
+      -0.25630729731502827
+    ],
+    "loss": [
+      0.26726124191242434,
+      -0.0890870806374748,
+      0.26726124191242434,
+      0.5345224838248487,
+      0.0890870806374748,
+      -0.26726124191242434,
+      -0.44543540318737396,
+      0.5345224838248487
+    ],
+    "joy": [
+      0.0,
+      -0.15861031714362883,
+      0.396525792859072,
+      -0.23791547571544322,
+      0.31722063428725766,
+      0.396525792859072,
+      0.6344412685745153,
+      -0.31722063428725766
+    ],
+    "fear": [
+      0.3356725433186757,
+      0.25175440748900674,
+      0.0,
+      0.5035088149780135,
+      0.16783627165933784,
+      -0.3356725433186757,
+      -0.5035088149780135,
+      0.4195906791483446
+    ],
+    "absurdity": [
+      0.10206207261596575,
+      0.5103103630798287,
+      0.408248290463863,
+      -0.2041241452319315,
+      0.6123724356957945,
+      -0.30618621784789724,
+      0.2041241452319315,
+      0.10206207261596575
+    ],
+    "strange": [
+      0.19802950859533486,
+      0.2970442628930023,
+      0.49507377148833714,
+      0.09901475429766743,
+      0.693103280083672,
+      -0.19802950859533486,
+      -0.09901475429766743,
+      0.2970442628930023
     ]
   },
   "audioEmbeddingDim": 8,
@@ -70,14 +130,29 @@
       "id": "foley-seed-silence",
       "kind": "foley",
       "src": "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==",
-      "embedding": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+      "embedding": [
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5,
+        0.5
+      ],
       "mood": {
         "melancholy": 0.5,
         "uncanny": 0.5,
         "nostalgic": 0.5,
         "ominous": 0.5,
         "tender": 0.5,
-        "mechanical": 0.5
+        "mechanical": 0.5,
+        "love": 0.738,
+        "loss": 0.727,
+        "joy": 0.757,
+        "fear": 0.716,
+        "absurdity": 0.828,
+        "strange": 0.877
       },
       "tags": [],
       "durationSec": 0.1,
@@ -108,7 +183,13 @@
         "nostalgic": 0.672,
         "ominous": 0.456,
         "tender": 0.548,
-        "mechanical": 0.791
+        "mechanical": 0.791,
+        "love": 0.528,
+        "loss": 0.418,
+        "joy": 0.619,
+        "fear": 0.482,
+        "absurdity": 0.745,
+        "strange": 0.622
       },
       "tags": [
         "countdown",
@@ -138,7 +219,13 @@
         "nostalgic": 0.845,
         "ominous": 0.741,
         "tender": 0.526,
-        "mechanical": 0.407
+        "mechanical": 0.407,
+        "love": 0.511,
+        "loss": 0.768,
+        "joy": 0.484,
+        "fear": 0.734,
+        "absurdity": 0.553,
+        "strange": 0.686
       },
       "tags": [
         "fog",
@@ -168,7 +255,13 @@
         "nostalgic": 0.625,
         "ominous": 0.553,
         "tender": 0.646,
-        "mechanical": 0.526
+        "mechanical": 0.526,
+        "love": 0.638,
+        "loss": 0.49,
+        "joy": 0.754,
+        "fear": 0.514,
+        "absurdity": 0.809,
+        "strange": 0.802
       },
       "tags": [
         "cosmos",
@@ -198,7 +291,13 @@
         "nostalgic": 0.762,
         "ominous": 0.366,
         "tender": 0.709,
-        "mechanical": 0.692
+        "mechanical": 0.692,
+        "love": 0.697,
+        "loss": 0.401,
+        "joy": 0.741,
+        "fear": 0.383,
+        "absurdity": 0.734,
+        "strange": 0.615
       },
       "tags": [
         "optical",
@@ -228,7 +327,13 @@
         "nostalgic": 0.746,
         "ominous": 0.591,
         "tender": 0.605,
-        "mechanical": 0.387
+        "mechanical": 0.387,
+        "love": 0.617,
+        "loss": 0.586,
+        "joy": 0.641,
+        "fear": 0.591,
+        "absurdity": 0.598,
+        "strange": 0.629
       },
       "tags": [
         "water",
@@ -258,7 +363,13 @@
         "nostalgic": 0.644,
         "ominous": 0.707,
         "tender": 0.315,
-        "mechanical": 0.774
+        "mechanical": 0.774,
+        "love": 0.304,
+        "loss": 0.669,
+        "joy": 0.344,
+        "fear": 0.738,
+        "absurdity": 0.72,
+        "strange": 0.714
       },
       "tags": [
         "noise",
@@ -288,7 +399,13 @@
         "nostalgic": 0.815,
         "ominous": 0.578,
         "tender": 0.69,
-        "mechanical": 0.425
+        "mechanical": 0.425,
+        "love": 0.684,
+        "loss": 0.576,
+        "joy": 0.721,
+        "fear": 0.556,
+        "absurdity": 0.64,
+        "strange": 0.679
       },
       "tags": [
         "landscape",
@@ -318,7 +435,13 @@
         "nostalgic": 0.753,
         "ominous": 0.363,
         "tender": 0.772,
-        "mechanical": 0.591
+        "mechanical": 0.591,
+        "love": 0.753,
+        "loss": 0.359,
+        "joy": 0.822,
+        "fear": 0.353,
+        "absurdity": 0.752,
+        "strange": 0.682
       },
       "tags": [
         "orbs",
@@ -348,7 +471,13 @@
         "nostalgic": 0.744,
         "ominous": 0.69,
         "tender": 0.397,
-        "mechanical": 0.717
+        "mechanical": 0.717,
+        "love": 0.373,
+        "loss": 0.685,
+        "joy": 0.398,
+        "fear": 0.71,
+        "absurdity": 0.685,
+        "strange": 0.694
       },
       "tags": [
         "film",
@@ -379,7 +508,13 @@
         "nostalgic": 0.672,
         "ominous": 0.456,
         "tender": 0.548,
-        "mechanical": 0.791
+        "mechanical": 0.791,
+        "love": 0.528,
+        "loss": 0.418,
+        "joy": 0.619,
+        "fear": 0.482,
+        "absurdity": 0.745,
+        "strange": 0.622
       },
       "tags": [
         "film",
@@ -409,7 +544,13 @@
         "nostalgic": 0.727,
         "ominous": 0.636,
         "tender": 0.558,
-        "mechanical": 0.407
+        "mechanical": 0.407,
+        "love": 0.579,
+        "loss": 0.624,
+        "joy": 0.598,
+        "fear": 0.636,
+        "absurdity": 0.605,
+        "strange": 0.642
       },
       "tags": [
         "sea",
@@ -442,7 +583,13 @@
         "nostalgic": 0.707,
         "ominous": 0.516,
         "tender": 0.706,
-        "mechanical": 0.505
+        "mechanical": 0.505,
+        "love": 0.69,
+        "loss": 0.474,
+        "joy": 0.783,
+        "fear": 0.475,
+        "absurdity": 0.771,
+        "strange": 0.768
       },
       "tags": [
         "cosmos",
@@ -475,7 +622,13 @@
         "nostalgic": 0.867,
         "ominous": 0.741,
         "tender": 0.589,
-        "mechanical": 0.395
+        "mechanical": 0.395,
+        "love": 0.6,
+        "loss": 0.792,
+        "joy": 0.542,
+        "fear": 0.738,
+        "absurdity": 0.586,
+        "strange": 0.729
       },
       "tags": [
         "fog",
@@ -508,7 +661,13 @@
         "nostalgic": 0.789,
         "ominous": 0.784,
         "tender": 0.46,
-        "mechanical": 0.615
+        "mechanical": 0.615,
+        "love": 0.496,
+        "loss": 0.791,
+        "joy": 0.44,
+        "fear": 0.783,
+        "absurdity": 0.585,
+        "strange": 0.709
       },
       "tags": [
         "ruins",
@@ -541,7 +700,13 @@
         "nostalgic": 0.847,
         "ominous": 0.374,
         "tender": 0.83,
-        "mechanical": 0.357
+        "mechanical": 0.357,
+        "love": 0.844,
+        "loss": 0.51,
+        "joy": 0.818,
+        "fear": 0.395,
+        "absurdity": 0.653,
+        "strange": 0.659
       },
       "tags": [
         "venus",
@@ -575,7 +740,13 @@
         "nostalgic": 0.826,
         "ominous": 0.381,
         "tender": 0.807,
-        "mechanical": 0.45
+        "mechanical": 0.45,
+        "love": 0.826,
+        "loss": 0.565,
+        "joy": 0.783,
+        "fear": 0.413,
+        "absurdity": 0.736,
+        "strange": 0.722
       },
       "tags": [
         "face",
@@ -608,7 +779,13 @@
         "nostalgic": 0.854,
         "ominous": 0.6,
         "tender": 0.707,
-        "mechanical": 0.446
+        "mechanical": 0.446,
+        "love": 0.723,
+        "loss": 0.694,
+        "joy": 0.666,
+        "fear": 0.613,
+        "absurdity": 0.626,
+        "strange": 0.731
       },
       "tags": [
         "bosch",
@@ -642,7 +819,13 @@
         "nostalgic": 0.863,
         "ominous": 0.628,
         "tender": 0.687,
-        "mechanical": 0.391
+        "mechanical": 0.391,
+        "love": 0.714,
+        "loss": 0.766,
+        "joy": 0.644,
+        "fear": 0.656,
+        "absurdity": 0.74,
+        "strange": 0.807
       },
       "tags": [
         "scream",
@@ -675,7 +858,13 @@
         "nostalgic": 0.854,
         "ominous": 0.713,
         "tender": 0.572,
-        "mechanical": 0.415
+        "mechanical": 0.415,
+        "love": 0.586,
+        "loss": 0.829,
+        "joy": 0.469,
+        "fear": 0.733,
+        "absurdity": 0.641,
+        "strange": 0.771
       },
       "tags": [
         "goya",
@@ -709,7 +898,13 @@
         "nostalgic": 0.848,
         "ominous": 0.665,
         "tender": 0.63,
-        "mechanical": 0.475
+        "mechanical": 0.475,
+        "love": 0.654,
+        "loss": 0.787,
+        "joy": 0.574,
+        "fear": 0.691,
+        "absurdity": 0.738,
+        "strange": 0.814
       },
       "tags": [
         "fuseli",
@@ -742,7 +937,13 @@
         "nostalgic": 0.849,
         "ominous": 0.498,
         "tender": 0.764,
-        "mechanical": 0.289
+        "mechanical": 0.289,
+        "love": 0.774,
+        "loss": 0.616,
+        "joy": 0.722,
+        "fear": 0.515,
+        "absurdity": 0.549,
+        "strange": 0.649
       },
       "tags": [
         "ophelia",
@@ -776,7 +977,13 @@
         "nostalgic": 0.808,
         "ominous": 0.511,
         "tender": 0.71,
-        "mechanical": 0.334
+        "mechanical": 0.334,
+        "love": 0.676,
+        "loss": 0.55,
+        "joy": 0.67,
+        "fear": 0.493,
+        "absurdity": 0.463,
+        "strange": 0.574
       },
       "tags": [
         "wheatfield",
@@ -810,7 +1017,13 @@
         "nostalgic": 0.804,
         "ominous": 0.483,
         "tender": 0.743,
-        "mechanical": 0.5
+        "mechanical": 0.5,
+        "love": 0.728,
+        "loss": 0.481,
+        "joy": 0.777,
+        "fear": 0.453,
+        "absurdity": 0.666,
+        "strange": 0.655
       },
       "tags": [
         "fuji",
@@ -843,7 +1056,13 @@
         "nostalgic": 0.797,
         "ominous": 0.514,
         "tender": 0.771,
-        "mechanical": 0.433
+        "mechanical": 0.433,
+        "love": 0.785,
+        "loss": 0.584,
+        "joy": 0.813,
+        "fear": 0.51,
+        "absurdity": 0.828,
+        "strange": 0.841
       },
       "tags": [
         "rousseau",
@@ -877,7 +1096,13 @@
         "nostalgic": 0.887,
         "ominous": 0.55,
         "tender": 0.756,
-        "mechanical": 0.383
+        "mechanical": 0.383,
+        "love": 0.75,
+        "loss": 0.668,
+        "joy": 0.71,
+        "fear": 0.553,
+        "absurdity": 0.626,
+        "strange": 0.711
       },
       "tags": [
         "bruegel",
@@ -911,7 +1136,13 @@
         "nostalgic": 0.759,
         "ominous": 0.429,
         "tender": 0.76,
-        "mechanical": 0.579
+        "mechanical": 0.579,
+        "love": 0.751,
+        "loss": 0.435,
+        "joy": 0.816,
+        "fear": 0.409,
+        "absurdity": 0.789,
+        "strange": 0.746
       },
       "tags": [
         "vangogh",
@@ -947,7 +1178,13 @@
         "nostalgic": 0.793,
         "ominous": 0.701,
         "tender": 0.48,
-        "mechanical": 0.699
+        "mechanical": 0.699,
+        "love": 0.478,
+        "loss": 0.721,
+        "joy": 0.485,
+        "fear": 0.719,
+        "absurdity": 0.738,
+        "strange": 0.765
       },
       "tags": [
         "drift",
@@ -977,7 +1214,13 @@
         "nostalgic": 0.841,
         "ominous": 0.717,
         "tender": 0.581,
-        "mechanical": 0.378
+        "mechanical": 0.378,
+        "love": 0.606,
+        "loss": 0.772,
+        "joy": 0.563,
+        "fear": 0.726,
+        "absurdity": 0.652,
+        "strange": 0.752
       },
       "tags": [
         "drift",
@@ -1007,7 +1250,13 @@
         "nostalgic": 0.77,
         "ominous": 0.582,
         "tender": 0.64,
-        "mechanical": 0.615
+        "mechanical": 0.615,
+        "love": 0.649,
+        "loss": 0.55,
+        "joy": 0.721,
+        "fear": 0.577,
+        "absurdity": 0.772,
+        "strange": 0.751
       },
       "tags": [
         "drift",
@@ -1037,7 +1286,13 @@
         "nostalgic": 0.842,
         "ominous": 0.558,
         "tender": 0.721,
-        "mechanical": 0.479
+        "mechanical": 0.479,
+        "love": 0.748,
+        "loss": 0.702,
+        "joy": 0.686,
+        "fear": 0.593,
+        "absurdity": 0.741,
+        "strange": 0.794
       },
       "tags": [
         "drift",
@@ -1067,7 +1322,13 @@
         "nostalgic": 0.77,
         "ominous": 0.781,
         "tender": 0.369,
-        "mechanical": 0.649
+        "mechanical": 0.649,
+        "love": 0.373,
+        "loss": 0.795,
+        "joy": 0.344,
+        "fear": 0.8,
+        "absurdity": 0.659,
+        "strange": 0.749
       },
       "tags": [
         "drift",
@@ -1097,7 +1358,13 @@
         "nostalgic": 0.731,
         "ominous": 0.573,
         "tender": 0.671,
-        "mechanical": 0.546
+        "mechanical": 0.546,
+        "love": 0.661,
+        "loss": 0.543,
+        "joy": 0.754,
+        "fear": 0.545,
+        "absurdity": 0.812,
+        "strange": 0.815
       },
       "tags": [
         "drift",
@@ -1127,7 +1394,13 @@
         "nostalgic": 0.821,
         "ominous": 0.34,
         "tender": 0.829,
-        "mechanical": 0.354
+        "mechanical": 0.354,
+        "love": 0.818,
+        "loss": 0.421,
+        "joy": 0.804,
+        "fear": 0.333,
+        "absurdity": 0.495,
+        "strange": 0.534
       },
       "tags": [
         "drift",
@@ -1157,7 +1430,13 @@
         "nostalgic": 0.538,
         "ominous": 0.631,
         "tender": 0.361,
-        "mechanical": 0.848
+        "mechanical": 0.848,
+        "love": 0.378,
+        "loss": 0.545,
+        "joy": 0.465,
+        "fear": 0.671,
+        "absurdity": 0.797,
+        "strange": 0.739
       },
       "tags": [
         "drift",
@@ -1187,7 +1466,13 @@
         "nostalgic": 0.795,
         "ominous": 0.755,
         "tender": 0.512,
-        "mechanical": 0.38
+        "mechanical": 0.38,
+        "love": 0.548,
+        "loss": 0.778,
+        "joy": 0.508,
+        "fear": 0.759,
+        "absurdity": 0.604,
+        "strange": 0.724
       },
       "tags": [
         "drift",
@@ -1217,7 +1502,13 @@
         "nostalgic": 0.839,
         "ominous": 0.46,
         "tender": 0.767,
-        "mechanical": 0.554
+        "mechanical": 0.554,
+        "love": 0.766,
+        "loss": 0.517,
+        "joy": 0.783,
+        "fear": 0.463,
+        "absurdity": 0.722,
+        "strange": 0.711
       },
       "tags": [
         "drift",
@@ -1247,7 +1538,13 @@
         "nostalgic": 0.847,
         "ominous": 0.71,
         "tender": 0.571,
-        "mechanical": 0.56
+        "mechanical": 0.56,
+        "love": 0.591,
+        "loss": 0.784,
+        "joy": 0.51,
+        "fear": 0.723,
+        "absurdity": 0.639,
+        "strange": 0.742
       },
       "tags": [
         "drift",
@@ -1277,7 +1574,13 @@
         "nostalgic": 0.79,
         "ominous": 0.548,
         "tender": 0.661,
-        "mechanical": 0.536
+        "mechanical": 0.536,
+        "love": 0.666,
+        "loss": 0.553,
+        "joy": 0.712,
+        "fear": 0.546,
+        "absurdity": 0.719,
+        "strange": 0.69
       },
       "tags": [
         "drift",
@@ -1307,7 +1610,13 @@
         "nostalgic": 0.854,
         "ominous": 0.554,
         "tender": 0.713,
-        "mechanical": 0.494
+        "mechanical": 0.494,
+        "love": 0.738,
+        "loss": 0.712,
+        "joy": 0.665,
+        "fear": 0.587,
+        "absurdity": 0.728,
+        "strange": 0.769
       },
       "tags": [
         "drift",
@@ -1337,7 +1646,13 @@
         "nostalgic": 0.842,
         "ominous": 0.474,
         "tender": 0.76,
-        "mechanical": 0.327
+        "mechanical": 0.327,
+        "love": 0.746,
+        "loss": 0.582,
+        "joy": 0.689,
+        "fear": 0.473,
+        "absurdity": 0.445,
+        "strange": 0.564
       },
       "tags": [
         "drift",
@@ -1367,7 +1682,13 @@
         "nostalgic": 0.746,
         "ominous": 0.723,
         "tender": 0.426,
-        "mechanical": 0.748
+        "mechanical": 0.748,
+        "love": 0.438,
+        "loss": 0.721,
+        "joy": 0.453,
+        "fear": 0.745,
+        "absurdity": 0.758,
+        "strange": 0.78
       },
       "tags": [
         "drift",
@@ -1397,7 +1718,13 @@
         "nostalgic": 0.882,
         "ominous": 0.583,
         "tender": 0.726,
-        "mechanical": 0.381
+        "mechanical": 0.381,
+        "love": 0.718,
+        "loss": 0.671,
+        "joy": 0.688,
+        "fear": 0.58,
+        "absurdity": 0.605,
+        "strange": 0.696
       },
       "tags": [
         "drift",
@@ -1427,7 +1754,13 @@
         "nostalgic": 0.768,
         "ominous": 0.705,
         "tender": 0.54,
-        "mechanical": 0.366
+        "mechanical": 0.366,
+        "love": 0.575,
+        "loss": 0.729,
+        "joy": 0.553,
+        "fear": 0.714,
+        "absurdity": 0.628,
+        "strange": 0.716
       },
       "tags": [
         "drift",
@@ -1457,7 +1790,13 @@
         "nostalgic": 0.771,
         "ominous": 0.61,
         "tender": 0.591,
-        "mechanical": 0.608
+        "mechanical": 0.608,
+        "love": 0.597,
+        "loss": 0.58,
+        "joy": 0.658,
+        "fear": 0.605,
+        "absurdity": 0.72,
+        "strange": 0.699
       },
       "tags": [
         "drift",
@@ -1487,7 +1826,13 @@
         "nostalgic": 0.656,
         "ominous": 0.677,
         "tender": 0.402,
-        "mechanical": 0.809
+        "mechanical": 0.809,
+        "love": 0.421,
+        "loss": 0.64,
+        "joy": 0.47,
+        "fear": 0.711,
+        "absurdity": 0.794,
+        "strange": 0.774
       },
       "tags": [
         "drift",
@@ -1517,7 +1862,13 @@
         "nostalgic": 0.871,
         "ominous": 0.607,
         "tender": 0.693,
-        "mechanical": 0.447
+        "mechanical": 0.447,
+        "love": 0.709,
+        "loss": 0.747,
+        "joy": 0.62,
+        "fear": 0.632,
+        "absurdity": 0.659,
+        "strange": 0.751
       },
       "tags": [
         "drift",
@@ -1547,7 +1898,13 @@
         "nostalgic": 0.679,
         "ominous": 0.582,
         "tender": 0.655,
-        "mechanical": 0.526
+        "mechanical": 0.526,
+        "love": 0.648,
+        "loss": 0.548,
+        "joy": 0.744,
+        "fear": 0.545,
+        "absurdity": 0.812,
+        "strange": 0.821
       },
       "tags": [
         "drift",
@@ -1577,7 +1934,13 @@
         "nostalgic": 0.819,
         "ominous": 0.514,
         "tender": 0.709,
-        "mechanical": 0.42
+        "mechanical": 0.42,
+        "love": 0.695,
+        "loss": 0.569,
+        "joy": 0.678,
+        "fear": 0.52,
+        "absurdity": 0.549,
+        "strange": 0.634
       },
       "tags": [
         "drift",
@@ -1607,7 +1970,13 @@
         "nostalgic": 0.691,
         "ominous": 0.711,
         "tender": 0.467,
-        "mechanical": 0.748
+        "mechanical": 0.748,
+        "love": 0.475,
+        "loss": 0.654,
+        "joy": 0.566,
+        "fear": 0.711,
+        "absurdity": 0.823,
+        "strange": 0.83
       },
       "tags": [
         "drift",
@@ -1637,7 +2006,13 @@
         "nostalgic": 0.803,
         "ominous": 0.773,
         "tender": 0.458,
-        "mechanical": 0.439
+        "mechanical": 0.439,
+        "love": 0.48,
+        "loss": 0.79,
+        "joy": 0.44,
+        "fear": 0.78,
+        "absurdity": 0.583,
+        "strange": 0.704
       },
       "tags": [
         "drift",
@@ -1667,7 +2042,13 @@
         "nostalgic": 0.868,
         "ominous": 0.73,
         "tender": 0.599,
-        "mechanical": 0.45
+        "mechanical": 0.45,
+        "love": 0.617,
+        "loss": 0.789,
+        "joy": 0.558,
+        "fear": 0.735,
+        "absurdity": 0.638,
+        "strange": 0.76
       },
       "tags": [
         "drift",
@@ -1697,7 +2078,13 @@
         "nostalgic": 0.873,
         "ominous": 0.574,
         "tender": 0.728,
-        "mechanical": 0.481
+        "mechanical": 0.481,
+        "love": 0.745,
+        "loss": 0.692,
+        "joy": 0.709,
+        "fear": 0.594,
+        "absurdity": 0.738,
+        "strange": 0.776
       },
       "tags": [
         "drift",
@@ -1727,7 +2114,13 @@
         "nostalgic": 0.782,
         "ominous": 0.303,
         "tender": 0.804,
-        "mechanical": 0.551
+        "mechanical": 0.551,
+        "love": 0.782,
+        "loss": 0.33,
+        "joy": 0.828,
+        "fear": 0.295,
+        "absurdity": 0.677,
+        "strange": 0.583
       },
       "tags": [
         "drift",
@@ -1757,7 +2150,13 @@
         "nostalgic": 0.84,
         "ominous": 0.452,
         "tender": 0.763,
-        "mechanical": 0.345
+        "mechanical": 0.345,
+        "love": 0.743,
+        "loss": 0.544,
+        "joy": 0.7,
+        "fear": 0.445,
+        "absurdity": 0.434,
+        "strange": 0.532
       },
       "tags": [
         "drift",
@@ -1787,7 +2186,13 @@
         "nostalgic": 0.795,
         "ominous": 0.374,
         "tender": 0.787,
-        "mechanical": 0.592
+        "mechanical": 0.592,
+        "love": 0.784,
+        "loss": 0.409,
+        "joy": 0.824,
+        "fear": 0.373,
+        "absurdity": 0.754,
+        "strange": 0.685
       },
       "tags": [
         "intertitle",
@@ -1817,7 +2222,13 @@
         "nostalgic": 0.79,
         "ominous": 0.754,
         "tender": 0.433,
-        "mechanical": 0.686
+        "mechanical": 0.686,
+        "love": 0.438,
+        "loss": 0.75,
+        "joy": 0.448,
+        "fear": 0.764,
+        "absurdity": 0.708,
+        "strange": 0.755
       },
       "tags": [
         "intertitle",
@@ -1847,7 +2258,13 @@
         "nostalgic": 0.848,
         "ominous": 0.664,
         "tender": 0.608,
-        "mechanical": 0.59
+        "mechanical": 0.59,
+        "love": 0.621,
+        "loss": 0.746,
+        "joy": 0.581,
+        "fear": 0.682,
+        "absurdity": 0.739,
+        "strange": 0.787
       },
       "tags": [
         "intertitle",
@@ -1877,7 +2294,13 @@
         "nostalgic": 0.74,
         "ominous": 0.541,
         "tender": 0.567,
-        "mechanical": 0.765
+        "mechanical": 0.765,
+        "love": 0.566,
+        "loss": 0.54,
+        "joy": 0.626,
+        "fear": 0.57,
+        "absurdity": 0.794,
+        "strange": 0.736
       },
       "tags": [
         "intertitle",
@@ -1907,7 +2330,13 @@
         "nostalgic": 0.853,
         "ominous": 0.489,
         "tender": 0.774,
-        "mechanical": 0.525
+        "mechanical": 0.525,
+        "love": 0.784,
+        "loss": 0.605,
+        "joy": 0.772,
+        "fear": 0.5,
+        "absurdity": 0.762,
+        "strange": 0.77
       },
       "tags": [
         "intertitle",
@@ -1937,7 +2366,13 @@
         "nostalgic": 0.777,
         "ominous": 0.686,
         "tender": 0.554,
-        "mechanical": 0.386
+        "mechanical": 0.386,
+        "love": 0.578,
+        "loss": 0.7,
+        "joy": 0.572,
+        "fear": 0.69,
+        "absurdity": 0.622,
+        "strange": 0.695
       },
       "tags": [
         "intertitle",
@@ -1950,7 +2385,7 @@
     {
       "id": "txt-card-6",
       "type": "titlecard",
-      "text": "REEL TWO — THE HOUR WITHOUT A NUMBER",
+      "text": "REEL TWO \u2014 THE HOUR WITHOUT A NUMBER",
       "embedding": [
         0,
         0.48154341234307685,
@@ -1967,7 +2402,13 @@
         "nostalgic": 0.754,
         "ominous": 0.718,
         "tender": 0.468,
-        "mechanical": 0.722
+        "mechanical": 0.722,
+        "love": 0.466,
+        "loss": 0.695,
+        "joy": 0.521,
+        "fear": 0.722,
+        "absurdity": 0.781,
+        "strange": 0.801
       },
       "tags": [
         "intertitle",
@@ -1997,7 +2438,13 @@
         "nostalgic": 0.814,
         "ominous": 0.488,
         "tender": 0.735,
-        "mechanical": 0.608
+        "mechanical": 0.608,
+        "love": 0.733,
+        "loss": 0.539,
+        "joy": 0.771,
+        "fear": 0.494,
+        "absurdity": 0.805,
+        "strange": 0.784
       },
       "tags": [
         "intertitle",

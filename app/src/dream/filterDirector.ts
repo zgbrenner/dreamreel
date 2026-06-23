@@ -1,10 +1,14 @@
 // app/src/dream/filterDirector.ts
-// Pure brain for the dream-filter catalog. Maps the current mood (6 CLIP axes) to a strength for
-// each of the 6 filters: the dominant axis's filter dominates (sharpened weighting → a smooth
-// crossfade as mood drifts), intensity scales the strengths, and coherence troughs ease them
-// toward 0 so the lucid image reads clean. No DOM, no three.js, no randomness of its own.
+// Pure brain for the dream-filter catalog. Maps the current mood to a strength for each of the
+// 6 filters: the dominant axis's filter dominates (sharpened weighting → a smooth crossfade as
+// mood drifts), intensity scales the strengths, and coherence troughs ease them toward 0 so the
+// lucid image reads clean. No DOM, no three.js, no randomness of its own.
+//
+// NOTE: mood is now a 12-axis vector, but the filter catalog deliberately maps only the original
+// six CLIP axes (FILTER_AXES). The new emotional axes (love/loss/joy/fear/absurdity/strange) are
+// carried in the data but NOT yet wired to a visual treatment — that lands in a later prompt.
 
-import { MOOD_AXES, type MoodAxis } from '../manifest/types';
+import type { MoodAxis } from '../manifest/types';
 
 export interface FilterStrengths {
   kaleidoscope: number;
@@ -15,8 +19,18 @@ export interface FilterStrengths {
   feedback: number;
 }
 
-/** 1:1 mood-axis → filter mapping (confirmed in the spec). */
-export const MOOD_FILTER: Record<MoodAxis, keyof FilterStrengths> = {
+// The mood axes the filter catalog currently reacts to (the original six). New axes are inert here.
+export const FILTER_AXES = [
+  'melancholy',
+  'uncanny',
+  'nostalgic',
+  'ominous',
+  'tender',
+  'mechanical',
+] as const satisfies readonly MoodAxis[];
+
+/** 1:1 mood-axis → filter mapping (confirmed in the spec) for the original six axes. */
+export const MOOD_FILTER: Record<(typeof FILTER_AXES)[number], keyof FilterStrengths> = {
   melancholy: 'feedback',
   uncanny: 'solarize',
   nostalgic: 'liquid',
@@ -38,12 +52,12 @@ export function filterStrengths(
   intensity: number,
   inTrough: boolean,
 ): FilterStrengths {
-  const pow = MOOD_AXES.map((a) => Math.pow(Math.max(0, mood[a]), SHARPEN));
+  const pow = FILTER_AXES.map((a) => Math.pow(Math.max(0, mood[a]), SHARPEN));
   const sum = pow.reduce((s, x) => s + x, 0) || 1;
   const scale = (0.10 + 0.32 * clamp01(intensity)) * (inTrough ? TROUGH_EASE : 1);
 
   const out = zero();
-  MOOD_AXES.forEach((axis, i) => {
+  FILTER_AXES.forEach((axis, i) => {
     const w = pow[i] / sum;
     const filter = MOOD_FILTER[axis];
     out[filter] = clamp01(out[filter] + w * scale);

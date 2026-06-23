@@ -44,3 +44,47 @@ export function blankMood(): Record<MoodAxis, number> {
   for (const axis of MOOD_AXES) out[axis] = 0.5;
   return out;
 }
+
+// --- mood-vector blend/query helpers (consumed by later visual/audio/text prompts) ---
+// Mood is a blendable vector, never a single label; these read it without collapsing it.
+
+export interface MoodWeight {
+  axis: MoodAxis;
+  value: number;
+}
+
+/**
+ * The top-k axes by strength, descending — for asking "what is this dream MOSTLY about"
+ * without throwing away the blend. Ties break by MOOD_AXES order (stable, deterministic).
+ * k is clamped to [0, MOOD_AXES.length].
+ */
+export function dominantAxes(mood: Record<MoodAxis, number>, k = 2): MoodWeight[] {
+  const ranked = MOOD_AXES.map((axis) => ({ axis, value: mood[axis] }));
+  // Stable sort: Array.prototype.sort is stable in modern engines, so equal values keep
+  // their MOOD_AXES order. Sort by value descending only.
+  ranked.sort((a, b) => b.value - a.value);
+  return ranked.slice(0, Math.max(0, Math.min(k, MOOD_AXES.length)));
+}
+
+/**
+ * Weighted blend of several mood vectors into one (per-axis weighted average), e.g. to mix the
+ * current visual's mood with an audio clip's. Weights default to equal; non-positive total
+ * weight falls back to a blank (neutral) mood rather than dividing by zero. Result stays 0..1
+ * when inputs are 0..1.
+ */
+export function blendMoods(
+  moods: Record<MoodAxis, number>[],
+  weights?: number[],
+): Record<MoodAxis, number> {
+  if (moods.length === 0) return blankMood();
+  const w = weights ?? moods.map(() => 1);
+  const total = w.reduce((s, x) => s + Math.max(0, x), 0);
+  if (total <= 0) return blankMood();
+  const out = {} as Record<MoodAxis, number>;
+  for (const axis of MOOD_AXES) {
+    let acc = 0;
+    for (let i = 0; i < moods.length; i++) acc += moods[i][axis] * Math.max(0, w[i] ?? 0);
+    out[axis] = acc / total;
+  }
+  return out;
+}

@@ -6,8 +6,9 @@ import math
 from pathlib import Path
 
 from embed.build_manifest import build
+from embed.mood_axes import MOOD_AXES as MOOD_AXES_LIST
 
-MOOD_AXES = {"melancholy", "uncanny", "nostalgic", "ominous", "tender", "mechanical"}
+MOOD_AXES = set(MOOD_AXES_LIST)
 
 
 def _norm(v):

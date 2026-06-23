@@ -1,22 +1,24 @@
 // app/src/manifest/schema.test.ts
 import { describe, it, expect } from 'vitest';
 import { manifestSchema } from './schema';
+import { MOOD_AXES } from './types';
+
+// Build axis records covering the FULL axis set so the fixtures track the contract automatically.
+const moodAxesFixture = () =>
+  Object.fromEntries(MOOD_AXES.map((a) => [a, [0, 0]])) as Record<(typeof MOOD_AXES)[number], number[]>;
 
 const base = () => ({
   version: '1', createdAt: 'now', embeddingDim: 2,
-  moodAxes: {
-    melancholy: [0, 0], uncanny: [0, 0], nostalgic: [0, 0],
-    ominous: [0, 0], tender: [0, 0], mechanical: [0, 0],
-  },
+  moodAxes: moodAxesFixture(),
   assets: [], texts: [],
   audioEmbeddingDim: 2,
   audio: [] as unknown[],
 });
 
-const mood = {
-  melancholy: 0.5, uncanny: 0.5, nostalgic: 0.5,
-  ominous: 0.5, tender: 0.5, mechanical: 0.5,
-};
+const mood = Object.fromEntries(MOOD_AXES.map((a) => [a, 0.5])) as Record<
+  (typeof MOOD_AXES)[number],
+  number
+>;
 
 describe('manifest audio schema', () => {
   it('accepts a valid audio asset', () => {

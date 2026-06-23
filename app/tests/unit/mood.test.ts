@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { cosine, l2norm, dot, projectMood, blankMood } from '../../src/dream/mood';
+import {
+  cosine,
+  l2norm,
+  dot,
+  projectMood,
+  blankMood,
+  dominantAxes,
+  blendMoods,
+} from '../../src/dream/mood';
 import { MOOD_AXES, type MoodAxis } from '../../src/manifest/types';
 
 describe('dot', () => {
@@ -59,7 +67,7 @@ describe('projectMood', () => {
     axes[axis] = v;
   });
 
-  it('returns all six axes squashed into [0, 1]', () => {
+  it('returns all axes squashed into [0, 1]', () => {
     const embedding = MOOD_AXES.map((_, i) => (i % 2 === 0 ? 1 : -1));
     const mood = projectMood(embedding, axes);
     expect(Object.keys(mood).sort()).toEqual([...MOOD_AXES].sort());
@@ -87,7 +95,82 @@ describe('projectMood', () => {
 describe('blankMood', () => {
   it('is 0.5 on every axis', () => {
     const mood = blankMood();
-    expect(Object.keys(mood)).toHaveLength(6);
+    expect(Object.keys(mood).sort()).toEqual([...MOOD_AXES].sort());
+    expect(Object.keys(mood)).toHaveLength(MOOD_AXES.length);
     for (const v of Object.values(mood)) expect(v).toBe(0.5);
+  });
+});
+
+describe('emotion taxonomy', () => {
+  it('carries all twelve emotional axes including the new ones', () => {
+    for (const axis of ['love', 'loss', 'joy', 'fear', 'absurdity', 'strange'] as const) {
+      expect(MOOD_AXES).toContain(axis);
+    }
+    expect(MOOD_AXES).toHaveLength(12);
+  });
+});
+
+describe('dominantAxes', () => {
+  const mood = blankMood();
+  mood.loss = 0.9;
+  mood.tender = 0.8;
+  mood.joy = 0.1;
+
+  it('returns the top-k axes by strength, descending', () => {
+    const top = dominantAxes(mood, 2);
+    expect(top.map((t) => t.axis)).toEqual(['loss', 'tender']);
+    expect(top[0].value).toBe(0.9);
+  });
+
+  it('does not collapse the blend — k can span the whole vector', () => {
+    expect(dominantAxes(mood, MOOD_AXES.length)).toHaveLength(MOOD_AXES.length);
+    expect(dominantAxes(mood, 0)).toHaveLength(0);
+    // k is clamped, never over-returns.
+    expect(dominantAxes(mood, 99)).toHaveLength(MOOD_AXES.length);
+  });
+
+  it('breaks ties by MOOD_AXES order (deterministic)', () => {
+    const flat = blankMood(); // all equal
+    const top = dominantAxes(flat, 3).map((t) => t.axis);
+    expect(top).toEqual(MOOD_AXES.slice(0, 3));
+  });
+});
+
+describe('blendMoods', () => {
+  it('weighted-averages per axis (tender+loss = a bittersweet blend)', () => {
+    const a = blankMood();
+    a.tender = 1;
+    a.loss = 0;
+    const b = blankMood();
+    b.tender = 0;
+    b.loss = 1;
+    const mix = blendMoods([a, b], [1, 1]);
+    expect(mix.tender).toBeCloseTo(0.5, 10);
+    expect(mix.loss).toBeCloseTo(0.5, 10);
+    // unweighted axes stay where both agreed
+    expect(mix.joy).toBeCloseTo(0.5, 10);
+  });
+
+  it('honors weights', () => {
+    const a = blankMood();
+    a.joy = 1;
+    const b = blankMood();
+    b.joy = 0;
+    const mix = blendMoods([a, b], [3, 1]);
+    expect(mix.joy).toBeCloseTo(0.75, 10);
+  });
+
+  it('stays in 0..1 and covers every axis', () => {
+    const mix = blendMoods([blankMood(), blankMood()]);
+    expect(Object.keys(mix).sort()).toEqual([...MOOD_AXES].sort());
+    for (const v of Object.values(mix)) {
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('falls back to a neutral mood on empty input or non-positive weight', () => {
+    expect(blendMoods([])).toEqual(blankMood());
+    expect(blendMoods([blankMood()], [0])).toEqual(blankMood());
   });
 });

@@ -12,8 +12,25 @@ import numpy as np
 from .clip_backend import Embedder, l2_normalize
 
 # Order must match MoodAxis in app/src/manifest/types.ts.
-MOOD_AXES = ["melancholy", "uncanny", "nostalgic", "ominous", "tender", "mechanical"]
+# Mood is a CONTINUOUS, BLENDABLE vector over ALL these axes (never a single dominant label),
+# so the runtime can express combinations (tender+loss = bittersweet, joy+uncanny = manic).
+MOOD_AXES = [
+    "melancholy",
+    "uncanny",
+    "nostalgic",
+    "ominous",
+    "tender",
+    "mechanical",
+    "love",
+    "loss",
+    "joy",
+    "fear",
+    "absurdity",
+    "strange",
+]
 
+# Each axis is a CLIP text-embedding contrast: average several positive prompts minus several
+# negatives, then L2-normalize (see build_axes). The new axes follow the same construction.
 _CONTRASTS: dict[str, tuple[list[str], list[str]]] = {
     "melancholy": (
         ["melancholy", "mournful, grieving", "a sorrowful faded photograph"],
@@ -38,6 +55,30 @@ _CONTRASTS: dict[str, tuple[list[str], list[str]]] = {
     "mechanical": (
         ["mechanical, industrial machinery, gears and engines", "a factory of metal"],
         ["organic, natural, living growth", "a lush wild forest"],
+    ),
+    "love": (
+        ["love, romantic devotion, deep affection", "two lovers in a tender embrace"],
+        ["hatred, contempt, cold indifference", "bitter loathing between enemies"],
+    ),
+    "loss": (
+        ["loss, bereavement, grief for what is gone", "an empty chair, a vanished presence"],
+        ["gain, abundance, joyful reunion", "a homecoming, everything restored"],
+    ),
+    "joy": (
+        ["joy, jubilation, exuberant delight", "a radiant celebration of happiness"],
+        ["misery, despair, leaden gloom", "a desolate, joyless scene"],
+    ),
+    "fear": (
+        ["fear, terror, dread and panic", "a frightened figure fleeing in the dark"],
+        ["calm, safety, fearless serenity", "a tranquil, reassuring stillness"],
+    ),
+    "absurdity": (
+        ["absurdity, nonsensical and ridiculous", "a surreal, illogical juxtaposition"],
+        ["logical, sensible, rational order", "a coherent, orderly arrangement"],
+    ),
+    "strange": (
+        ["strange, bizarre, peculiar and weird", "an utterly strange, otherworldly apparition"],
+        ["normal, ordinary, conventional", "a familiar, unremarkable everyday moment"],
     ),
 }
 
