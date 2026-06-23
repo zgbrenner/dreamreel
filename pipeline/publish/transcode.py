@@ -31,6 +31,35 @@ def transcode_image(src: Path, dst_dir: Path) -> Path | None:
         return None
 
 
+def build_clip_audio_cmd(src: Path, dst: Path, max_seconds: int = 12, start_seconds: float = 0.0) -> list[str]:
+    """ffmpeg argv for a short web mp4 that KEEPS its soundtrack (no -an). Used for film clips
+    whose native audio the runtime ducks in when the clip is a hero layer."""
+    return [
+        "ffmpeg", "-y",
+        "-ss", str(start_seconds),
+        "-i", str(src),
+        "-t", str(max_seconds),
+        "-vf", f"scale='min({MAX_SIDE},iw)':-2",
+        "-c:v", "libx264", "-crf", "26", "-preset", "medium",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "128k",
+        "-movflags", "+faststart",
+        str(dst),
+    ]
+
+
+def transcode_video_with_audio(src: Path, dst_dir: Path, max_seconds: int = 12, start_seconds: float = 0.0) -> Path | None:
+    """Clip + downscale a film to a short web mp4 preserving the soundtrack. Requires ffmpeg on PATH."""
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    dst = dst_dir / (src.stem + ".mp4")
+    cmd = build_clip_audio_cmd(src, dst, max_seconds, start_seconds)
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+        return dst
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+
 def transcode_video(src: Path, dst_dir: Path, max_seconds: int = 12, start_seconds: float = 0.0) -> Path | None:
     """Clip + downscale a public-domain film to a short web mp4. Requires ffmpeg on PATH.
 

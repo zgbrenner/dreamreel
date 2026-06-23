@@ -27,6 +27,20 @@ def _client():
     )
 
 
+def _rewrite_for_upload(manifest: dict, media_urls: dict[str, str]) -> dict:
+    """Rewrite asset/audio src to R2 URLs and drop internal-only keys. No network."""
+    for a in manifest.get("assets", []):
+        if a["id"] in media_urls:
+            a["src"] = media_urls[a["id"]]
+        a.pop("_local", None)
+        a.pop("_clipStart", None)
+    for a in manifest.get("audio", []):
+        if a["id"] in media_urls:
+            a["src"] = media_urls[a["id"]]
+        a.pop("_local", None)
+    return manifest
+
+
 def upload_media(derivatives: dict[str, Path]) -> dict[str, str]:
     """Upload {asset_id: local_path}; return {asset_id: public_url}."""
     bucket = os.environ["R2_BUCKET"]
@@ -35,7 +49,12 @@ def upload_media(derivatives: dict[str, Path]) -> dict[str, str]:
     urls: dict[str, str] = {}
     for asset_id, path in derivatives.items():
         key = f"media/{path.name}"
-        content_type = "image/webp" if path.suffix == ".webp" else "video/mp4"
+        if path.suffix == ".webp":
+            content_type = "image/webp"
+        elif path.suffix == ".m4a":
+            content_type = "audio/mp4"
+        else:
+            content_type = "video/mp4"
         client.upload_file(
             str(path),
             bucket,
@@ -47,12 +66,8 @@ def upload_media(derivatives: dict[str, Path]) -> dict[str, str]:
 
 
 def publish_manifest(manifest: dict, media_urls: dict[str, str]) -> dict:
-    """Rewrite asset.src to R2 URLs and upload manifest.<version>.json + latest pointer."""
-    for a in manifest.get("assets", []):
-        if a["id"] in media_urls:
-            a["src"] = media_urls[a["id"]]
-        a.pop("_local", None)  # internal pipeline key — never ship local paths
-        a.pop("_clipStart", None)  # internal pipeline key — never ship chosen timestamp
+    """Rewrite asset/audio src to R2 URLs and upload manifest.<version>.json + latest pointer."""
+    _rewrite_for_upload(manifest, media_urls)
 
     version = manifest["version"]
     bucket = os.environ["R2_BUCKET"]

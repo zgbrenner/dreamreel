@@ -5,12 +5,30 @@
 import { z } from 'zod';
 import { MOOD_AXES } from './types';
 
+const audioKindSchema = z.enum(['music', 'voice', 'foley']);
+
 const moodRecord = z.object(
   Object.fromEntries(MOOD_AXES.map((a) => [a, z.number()])) as Record<
     (typeof MOOD_AXES)[number],
     z.ZodNumber
   >,
 );
+
+export const audioAssetSchema = z.object({
+  id: z.string().min(1),
+  kind: audioKindSchema,
+  src: z.string().url(),
+  embedding: z.array(z.number()).min(1),
+  mood: moodRecord,
+  tags: z.array(z.string()),
+  durationSec: z.number().positive(),
+  loopable: z.boolean(),
+  dwellBase: z.number().positive(),
+  source: z.string().min(1),
+  license: z.string().min(1),
+  attribution: z.string().optional(),
+  attributionUrl: z.string().optional(),
+});
 
 const assetTypeSchema = z.enum(['image', 'video', 'procedural', 'titlecard']);
 const proceduralKindSchema = z.enum([
@@ -40,6 +58,7 @@ export const assetSchema = z.object({
   license: z.string().min(1),
   attribution: z.string().optional(),
   attributionUrl: z.string().optional(),
+  claptext: z.array(z.number()).optional(),
 });
 
 export const manifestSchema = z
@@ -55,6 +74,8 @@ export const manifestSchema = z
     ),
     assets: z.array(assetSchema),
     texts: z.array(assetSchema),
+    audioEmbeddingDim: z.number().int().positive(),
+    audio: z.array(audioAssetSchema),
   })
   .superRefine((m, ctx) => {
     // Dimensional consistency: every embedding and axis must match embeddingDim.
@@ -76,6 +97,22 @@ export const manifestSchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `asset ${a.id} is ${a.license} but has no attribution`,
+        });
+      }
+    }
+
+    // Audio: CLAP-dim consistency + CC-BY attribution rule.
+    for (const a of m.audio) {
+      if (a.embedding.length !== m.audioEmbeddingDim) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `audio ${a.id} embedding length ${a.embedding.length} != audioEmbeddingDim ${m.audioEmbeddingDim}`,
+        });
+      }
+      if (a.license.toUpperCase().startsWith('CC-BY') && !a.attribution) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `audio ${a.id} is ${a.license} but has no attribution`,
         });
       }
     }

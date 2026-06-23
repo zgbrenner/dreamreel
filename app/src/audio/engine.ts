@@ -50,6 +50,11 @@ export class AudioEngine {
     return this.started;
   }
 
+  /** The master Gain node — available only after start() resolves. Used by the Mixer. */
+  get masterGain(): Tone.Gain | undefined {
+    return this.master;
+  }
+
   /** Must be called from a user gesture. Idempotent. */
   async start(): Promise<void> {
     if (this.started) {
