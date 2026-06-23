@@ -1,179 +1,143 @@
 # DREAMREEL — Handoff / Pick-Up Doc
 
-_Last updated: 2026-06-19. Read this first when resuming._
+_Last updated: 2026-06-23. Read this first when resuming._
 
 ## TL;DR — where we are
 
 DREAMREEL is being redesigned from a tasteful old-film reel into a **chaotic, fluid, multi-modal,
-Finnegans-Wake-style stream of consciousness**. The redesign is a 6-round roadmap. **Rounds 1 and 2
-are built, reviewed, and merged to `main`** (default-OFF, opt-in via `?wake=1`, so the live default
-experience is unchanged). The media pipeline now uploads a real corpus to Cloudflare R2 and the app
-is wired to it.
+Finnegans-Wake-style stream of consciousness**, reachable via **`?wake=1`** (the classic reel is
+still the default until wake is flipped default-on). The redesign is well advanced — all merged to
+`main`:
 
-- Live app: **https://dreamreel.pages.dev** (classic reel by default; add **`?wake=1`** to see the
-  new engine).
+- **Chaos engine + fluid layering** (rounds 6/3): a seeded `intensity` heartbeat drives sporadic
+  layer-swaps, breathing N-layer density (`LayerStack`), and rare **coherence troughs**.
+- **Dream-filter catalog** (round 2): mood-axis-selected filters (kaleidoscope, liquid, solarize,
+  melt, posterize, feedback echo-trails).
+- **Uncanny image corpus** (round 1): CLIP-embedded public-domain images.
+- **Moving image / video** (round 4): short, muted, looping public-domain film clips as first-class
+  visual assets.
+- **Wake-mode "pacing + restraint" polish** (2026-06-23, PR #20): a large live-feel tuning pass on
+  owner feedback — calmer/widened cadence, more+longer lucid moments, far more (7×) and longer-held
+  (9–13 s) **video that is pinned visible while it plays**, **content-aware clip frames** (CLIP
+  avoids title cards/logos), much less distortion/flicker/old-TV/feedback, **cross-faded layer
+  swaps**, and less on-screen text.
+
+- Live app: **https://dreamreel.pages.dev** (classic by default; add **`?wake=1`** for the new
+  engine). **Production deploys from `main`** via Cloudflare Pages Git integration.
 - Production manifest: `VITE_MANIFEST_URL` on Cloudflare Pages (prod **and** preview) →
-  `https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json`. **Now serving the
-  uncanny corpus: 223 CLIP-embedded public-domain images** (version `2026.06.18-2208`), shipped
-  2026-06-18 — see "Round 1 corpus" below.
-
-## What's been done this session
-
-1. **Media → R2 publish pipeline** (PR #13, merged to main earlier): closed the stubbed
-   `publish/run.py` upload — builds web derivatives, correlates `asset.id`→local file, uploads to R2,
-   rewrites `asset.src` to CDN URLs. Offline tests with mocked boto3.
-2. **Real corpus shipped to R2**: ran the first real ingest (Openverse + Archive.org, 135 ship-safe
-   CC0/PD/CC-BY images), CLIP-embedded (ViT-B/32, dim 512), uploaded the `.webp` derivatives +
-   `manifest/latest.json` to the `dreamreel-media` bucket (public r2.dev URL, CORS `*`, not publicly
-   writable). Set `VITE_MANIFEST_URL` on Pages (prod + preview) and verified load/play.
-3. **Round 1 — Wake chaos engine** (`feat/wake-chaos-engine`, PR #14): a single seeded **intensity**
-   signal drives sporadic-fast layer-swaps, breathing N-layer density (the `LayerStack` compositor),
-   and rare **coherence troughs** (50% thematic-rhyme / 35% lucid-image / 15% legible-phrase).
-   Deterministic per `?seed`. Behind `?wake=1`, default-off.
-4. **Round 2 — Mood-mapped filter catalog** (`feat/dream-filters`, this round): 6 filters chosen by
-   the dominant CLIP **mood axis**, strength scaled by the intensity heartbeat, eased off at coherence.
-   Filters: kaleidoscope, liquid warp, solarize, melt, posterize, and feedback echo-trails (which
-   completes round 1's deferred render-to-target). Default-0 = identity, so classic is unchanged.
-
-## Round 1 corpus — uncanny re-curation (✅ SHIPPED 2026-06-18, PR #16 merged)
-
-Tasks 1–7 (branch `feat/uncanny-corpus`, PR #16) re-targeted the offline pipeline toward a genuinely
-uncanny corpus, **and the rebuild+upload has now been run** — production R2 serves the new corpus.
-
-### Shipped result (the actual build, 2026-06-18)
-
-- Ran the full pipeline end-to-end (install `.[embed,publish]` → ingest → download → embed → publish
-  `--upload`). **697 license-gated candidates** ingested (PD 371 / CC0 157 / CC-BY 169; Wellcome 439 /
-  Openverse 151 / Met 65 / Archive.org 42; 66 rejected by the license gate). **504 images downloaded**,
-  CLIP-embedded (ViT-B/32, dim 512).
-- **Curation cut-off lowered 0.55 → 0.52** (commit `405e08d`): the old 0.55 let through only ~2% of
-  images on mood score (rest survived purely as anchors). The CLIP `max(uncanny, ominous)` scores
-  cluster tightly around 0.50–0.52, so 0.52 keeps the genuinely uncanny third. **Kept 223 images**
-  (161 by score + 62 anchors) + 9 procedural + 42 text = 232 assets. QC passed (0 dropped).
-- Uploaded 223 `.webp` derivatives + `manifest.2026.06.18-2208.json` + `latest.json` to the
-  `dreamreel-media` R2 bucket. Verified live: `latest.json` serves v2026.06.18-2208 / 223 images, and
-  a sampled media file returns HTTP 200 `image/webp`. Live at `dreamreel.pages.dev/?wake=1`.
-
-### To rebuild again later (when re-ingesting or after editing text/themes)
-
-`pipeline/.env` (gitignored) holds the 5 R2 vars locally. To rebuild + reship:
-`cd pipeline && set -a && . ./.env && set +a && make corpus UPLOAD=1`. To re-upload only an
-already-built `out/manifest.json` without re-ingesting: `python -m publish.run --out out --upload`.
-The 3 non-secret vars (`R2_ACCOUNT_ID=e1377b90aa5f91b18522fc40df57afc3`, `R2_BUCKET=dreamreel-media`,
-`R2_PUBLIC_BASE=https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev`) plus your two R2 API keys.
-**The R2 endpoint is derived from `R2_ACCOUNT_ID`; there is no `R2_ENDPOINT_URL`.**
-
-### Original task-build notes
-
-### What was built
-
-- **Shared uncanny theme catalog** (`pipeline/ingest/themes.py`): 3 veins — `CLINICAL`
-  (anatomical, dissection, skeleton, x-ray, specimen, phrenology, taxidermy), `OCCULT` (death
-  mask, memento mori, occult symbol, alchemical, spirit photography, ritual mask), `LIMINAL`
-  (deep sea, fungus, cave, decay, moth, abandoned) — plus 3 `ANCHOR_THEMES` (ruins, faces,
-  antique photograph) kept for dream-logic contrast.
-- **Retargeted ingesters**: Openverse + museums now query the uncanny theme list. A new **Wellcome
-  Collection** ingester (`pipeline/ingest/wellcome.py`) pulls from the IIIF/search API. Museums
-  (Met + Smithsonian) and Wellcome are **on by default** in `ingest/run.py`.
-- **Mood-score curation filter** (`pipeline/embed/curate.py`): drops image assets whose
-  `max(uncanny, ominous) < DEFAULT_CUTOFF` (now **0.52**, lowered from 0.55). Anchors are always kept
-  regardless of score. The cutoff is a tuning knob — lower it to widen the net; raise it to tighten.
-- **Live-ingest verification** (Task 7, 2026-06-18): ran
-  `python -m ingest.run --out /tmp/uncanny-check --no-archive --per-theme 6`.
-  Result: **713 candidates kept, 65 rejected** (30 non-commercial/restricted inc, 19 CC-BY without
-  attribution, 16 CC-BY-NC). Source mix: Wellcome 439 / Openverse 209 / Met 65. All licenses are
-  in {CC0, PD, CC-BY, CC-BY-2.0, CC-BY-3.0, CC-BY-4.0} — ship-safe. Spot-checked Flickr,
-  Wikipedia, Wellcome IIIF, and Met image URLs: all returned HTTP 200.
-
-### Under-returning veins (query-tuning follow-up)
-
-With `--per-theme 6`, the weakest themes were: **alchemical diagram** (5), **spirit photography**
-(6), **specimen** (7), **deep sea creature** (9). These are thin in Openverse and the museums'
-search APIs. Consider: adding synonyms (`alchemical manuscript`, `ghost photograph`, `marine
-specimen`, `deep-sea fish`) or targeting an Archive.org collection directly. Not a blocker —
-the three anchor themes and the high-returning CLINICAL veins provide a solid core.
-
-_(Rebuild/upload commands now live under "To rebuild again later" above — this block was the
-pre-ship plan and has been superseded.)_ The curation log line in `embed/build_manifest.py` reports
-kept/dropped counts (no silent truncation). Adjust `DEFAULT_CUTOFF` in `embed/curate.py` (now 0.52)
-if a future corpus is too sparse or too broad.
+  `https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json`. **Now serving
+  v`2026.06.23-0359`: 326 assets — 277 public-domain images + 40 public-domain film clips + 9
+  procedural — plus 42 texts.**
 
 ## The 6-round roadmap
 
 | # | Work-stream | Status |
 |---|-------------|--------|
-| 6 | **Chaos engine + rare coherence** | ✅ Round 1 (merged) |
-| 3 | **Fluid dense layering** | ✅ folded into Round 1 (LayerStack) |
-| 2 | **Dream-filter catalog (not one old-TV look)** | ✅ Round 2 (merged) |
-| 4 | **Moving image (video)** | ✅ shipped to R2 (35 PD film clips, v2026.06.23-0053) |
+| 6 | **Chaos engine + rare coherence** | ✅ merged |
+| 3 | **Fluid dense layering** | ✅ folded into the chaos engine (LayerStack) |
+| 2 | **Dream-filter catalog (not one old-TV look)** | ✅ merged |
+| 1 | **Weirder/scarier corpus** | ✅ shipped to R2 (uncanny images) |
+| 4 | **Moving image (video)** | ✅ shipped to R2 (40 PD film clips, content-aware frames) |
+| — | **Wake pacing + restraint polish** | ✅ merged (PR #20, 2026-06-23) |
 | 5 | **Spoken-word / "audiobook" voices** | ⬜ not started |
-| 1 | **Weirder/scarier corpus** | ✅ shipped to R2 (223 uncanny images, v2026.06.18-2208) |
 | — | **Photosensitivity hardening** | ⬜ deferred (clamp seam exists in `IntensityEngine`) |
+
+## Wake-mode tuning surface (where to nudge the live feel)
+
+All wake-mode; all deterministic (constants/thresholds + dt/clock-driven, no new RNG draws). Current
+values after the 2026-06-23 polish:
+
+- **Pacing / cadence** — `dream/conductor.ts` `wakeTick` swap interval
+  `(0.4 + (1 - intensity) * 1.6) / max(0.5, tempoMul)`, **×2 when `s.inTrough`** (lucid moments
+  linger). Faster as intensity rises.
+- **Lucid moments (coherence troughs)** — `dream/intensity.ts`: `TROUGH_MIN_GAP 14`,
+  `TROUGH_MAX_GAP 30`, `TROUGH_DUR 4.0`, `TROUGH_RAMP 1.0` (more frequent + longer than the original
+  22–46 s / 2 s). Trough kind split is 50% rhyme / 40% lucid / 10% phrase (`dream/coherence.ts`).
+- **Video frequency** — `dream/dreamwalker.ts` `TYPE_WEIGHTS = { video: 7.0 }` (multiplies the
+  pre-softmax weight; ~11% of the pool → majority of picks).
+- **Video linger + visibility** — `conductor.ts` `swapWakeLayer` sets `slotHeldUntil[slot] =
+  clock + (inTrough ? 13 : 9)`; `pickSwapSlot` (`dream/slotHold.ts`) skips held slots; held slots
+  are **pinned visible** via `LayerStack.applyPlan(plan, pinnedSlots)` (pinned non-hero forced to
+  ≥0.72 opacity). Concurrent decoders capped at 3 (`render/Compositor.ts` `VideoPool`).
+- **Distortion** — `dream/filterDirector.ts` strength scale `(0.10 + 0.32 * intensity)`,
+  `TROUGH_EASE 0.08`; `capDistortion` clamps the two geometry-manglers (`kaleidoscope ≤ 0.3`,
+  `liquid ≤ 0.45`); film warp `conductor.ts` `min(1, intensity² * 0.3)`.
+- **Feedback "breathing" echo-trail** — `render/LayerStack.ts` `fbMat.opacity = feedbackTrail * 0.55`.
+- **Old-TV grade / flicker** — `conductor.ts` `baseWakeFilm()` (vignette 0.16, grain 0.06, sepia
+  0.08, scanline 0.02, desat 0.08, halation 0.05, haze 0.03, **flicker 0.02**); `filmGrade
+  0.38 - intensity*0.25`; `bloom 0.10 + intensity*0.18`. Flicker math is in `render/postfx.ts`.
+- **Layer-swap blending** — swaps cross-fade over ~0.3 s via `LayerStack.update(dt)` +
+  `fadeTarget`/`fadeOpacity` (no more hard cuts).
+- **On-screen text frequency** — `dreamwalker.ts` `pCard = 0.02 + (lastLeaped ? 0.05 : 0) +
+  surreality*0.03`; phrase-trough threshold `coherence.ts` `0.9`.
+- **Curation cutoffs** — `dream`/pipeline: image `DEFAULT_CUTOFF 0.52`, **video `VIDEO_CUTOFF 0.45`**
+  (`pipeline/embed/curate.py`).
 
 ## What's left to do
 
 ### Immediate / decisions for the owner
 - **Flip wake mode default-ON** once happy with the look. One line in `app/src/state/url.ts`
-  (`readShareState`): default `wake` to `true` unless `?wake=0`. Add a test. We kept it opt-in
-  pending a human visual + tuning pass — it has NOT been formally signed off as the production default.
-- **Tuning** (all against the live `?wake=1` reel): intensity cadence/spikiness (`dream/intensity.ts`
-  `TROUGH_*`), layer density caps (`dream/layerPlan.ts`), filter strength + crossfade sharpness
-  (`dream/filterDirector.ts` `SHARPEN`, `TROUGH_EASE`), feedback trail opacity
-  (`render/LayerStack.ts` `feedbackTrail * 0.85`), and the wake film floor (`conductor.ts`
-  `baseWakeFilm`, `wakeTick` filmGrade/bloom/chroma).
-- **New dream-text → production**: round-2 added ~16 drift lines + 4 intertitles to
-  `pipeline/embed/embed_texts.py`. They reach production only after a corpus rebuild + R2 re-upload
-  (see "Rebuild the corpus" below).
+  (`readShareState`): default `wake` to `true` unless `?wake=0`. Add a test. Still opt-in pending the
+  owner's sign-off as the production default (the look has been iterated against the live reel but not
+  formally flipped).
+- **Photosensitivity hardening** before going default-on publicly: `IntensityEngine` has a single
+  `setMaxIntensity` clamp (reduced-motion already clamps to 0.45) — needs a proper strobe/flash-rate
+  cap + possibly a warning gate. Flicker is now low (0.02 in wake) but this is the remaining safety gate.
 
-### Remaining rounds (each = its own brainstorm → spec → plan → build)
-- **Round 4 — Video**: ✅ **SHIPPED 2026-06-23** (PR #18 merged; spec
-  `docs/superpowers/specs/2026-06-22-round4-video-design.md`, plan
-  `docs/superpowers/plans/2026-06-22-round4-video.md`). Pipeline poster-frame extraction → embed →
-  `vid-*` assets (`_local`, stripped before upload) → `transcode_video` (12s muted mp4) → R2; renderer
-  `loadVideoTexture` + `VideoPool` (cap 2, restart-at-0, reduced-motion freeze, pauses on dream-pause)
-  + `Compositor.showVideo` + conductor `video` branch (wake **and** classic). Muted/visual-only (audio
-  is round 5); `VIDEO_CUTOFF = 0.45`. **Corpus rebuilt + uploaded**: v`2026.06.23-0053` serves 321
-  assets — 277 images + **35 public-domain Archive.org film clips** (the 0.45 cutoff kept all 35; the
-  image 0.52 cutoff kept 277/586) + 9 procedural, 42 texts. Verified live: `latest.json` is 200 and a
-  sampled `.mp4` returns 200 `video/mp4`. Visible at `dreamreel.pages.dev/?wake=1`. Optional follow-up
-  noted below. (Superseded "not yet shipped" / ~46-film estimate; the real ingest yielded 35 ship-safe
-  films.) To rebuild + reship later: `cd pipeline && make corpus` then `make corpus UPLOAD=1` with R2 env
-  (boto3 path; `wrangler` not installed). Optional follow-up: deepen the under-returning uncanny veins.
-- **Round 5 — Spoken-word voices**: a new sampled-audio subsystem (`Tone.Player`) layered over the
-  generative bed in `audio/`, + audio ingest + determinism handling. Today `audio/engine.ts` is 100%
-  synth with no sampled-playback path.
-- **Round 1 (corpus) — Weirder/scarier**: ✅ DONE (shipped 2026-06-18). Optional follow-up:
-  re-ingest with the under-returning veins' synonyms (alchemical/spirit-photography/specimen/deep-sea)
-  to deepen those themes, then rebuild+upload.
-- **Photosensitivity hardening**: a real safety pass. The seam is already there — `IntensityEngine`
-  has a single `setMaxIntensity` clamp point; reduced-motion already clamps to 0.45. Needs a proper
-  strobe/flash-rate cap + possibly a warning gate before going default-on publicly.
+### Round 4 — Video (✅ SHIPPED, content-aware frames)
+Pipeline: a video is sourced by sampling several interior frames and using CLIP to pick the one
+**least like a title card / studio logo / archival notice** (`pipeline/embed/frame_selector.py` —
+`build_avoid_vector` + `select_best_frame`); that chosen timestamp drives BOTH the embedding poster
+AND the clip start (threaded download → `fetched_videos.jsonl` `clip_start_seconds` → manifest
+internal `_clipStart` → `publish/transcode_video` `-ss`, stripped before R2). Degrades gracefully to a
+single ~30% frame (`pipeline/embed/clip_window.py` `clip_start_seconds`/`probe_duration`) when CLIP
+text-scoring or ffprobe is unavailable. Renderer: `render/videoTexture.ts` (`loadVideoTexture`,
+muted/looping/fail-safe) + `render/VideoPool.ts` (cap 3, restart-at-0, reduced-motion freeze, pauses
+on dream-pause, dispose-driven teardown) + `Compositor.showVideo` + conductor `video` branch (wake
+**and** classic). Muted/visual-only — film audio is round 5. **Live: v`2026.06.23-0359`, 40 clips**;
+the 0.45 cutoff kept all 40. Specs/plans: `docs/superpowers/specs/2026-06-22-round4-video-design.md`,
+`…/plans/2026-06-22-round4-video.md`, plus the polish round
+`…/specs/2026-06-23-wake-pacing-restraint-design.md`, `…/plans/2026-06-23-wake-pacing-restraint.md`,
+and `…/plans/2026-06-23-wake-polish-r4.md`.
+
+### Round 5 — Spoken-word voices (⬜ not started)
+A new sampled-audio subsystem (`Tone.Player`) layered over the generative bed in `audio/`, + audio
+ingest + determinism handling. Today `audio/engine.ts` is 100% synth with no sampled-playback path.
+The ~40 Archive.org films already carry soundtracks (currently transcoded muted with `-an`).
 
 ### Known deferred Minors (non-blocking, from reviews)
-- Feedback trail uses the previous frame's strength (1-frame sub-frame lag) — reorder the
-  `filterStrengths` block above `captureFeedback` in `conductor.wakeTick` to fix.
-- `LayerStack.resize()` is never wired to window resize (feedback targets stay at initial size).
-- Wake-mode title cards reuse a single `textCardTex` (benign re-upload if two card slots coincide).
+- **Held-clip swap-frame lag**: a swap fires its `applyPlan` after `wakeTick`'s `update(dt)`, so the
+  newly-set fade target is eased a frame late (~16 ms, imperceptible). Optional: move the swap check
+  above `update(dt)` in `wakeTick`.
+- `frame_selector` leaves candidate frames in `out/posters/_cand` (one-shot offline pipeline; harmless).
+- `LayerStack.resize()` is not wired to window resize (feedback targets stay at initial size).
 - A couple of stale "Task N" comments may remain in `render/*` — cosmetic.
 
-## Architecture pointers (round 1 + 2)
+## Architecture pointers
 
 - **The brain (pure, seeded, unit-tested):** `dream/intensity.ts` (heartbeat + troughs),
-  `dream/coherence.ts` (50/35/15), `dream/layerPlan.ts` (density bands), `dream/filterDirector.ts`
-  (mood→filter strengths). All deterministic functions; no `Math.random` in the dream path.
-- **The renderer:** `render/LayerStack.ts` (N-layer feedback compositor), `render/DreamFilter.ts`
-  (5 fragment filters by strength), `render/postfx.ts` (EffectComposer: DreamFilter → FilmEffect grade
-  → bloom → chroma), `render/Compositor.ts` (single rAF loop).
-- **The integration:** `dream/conductor.ts` — `wakeTick()` drives everything each frame from the
-  intensity sample + mood; the classic 3-clock path is untouched and runs when `wake` is off.
-- **Determinism contract:** same `?seed` → same asset/text/coherence sequence (timing + cosmetic
-  recipe may vary). Mood drives filters; intensity drives density/strength; both are seeded.
+  `dream/coherence.ts` (trough kinds), `dream/layerPlan.ts` (density bands), `dream/filterDirector.ts`
+  (mood→filter strengths + `capDistortion`), `dream/dreamwalker.ts` (embedding walk + `TYPE_WEIGHTS`),
+  `dream/slotHold.ts` (`pickSwapSlot`). No `Math.random` in the dream path.
+- **The renderer:** `render/LayerStack.ts` (N-layer feedback compositor; cross-fade `update(dt)` +
+  pinned-slot visibility), `render/videoTexture.ts` + `render/VideoPool.ts` (video), `render/DreamFilter.ts`
+  (5 fragment filters), `render/postfx.ts` (EffectComposer: DreamFilter → FilmEffect grade → bloom →
+  chroma; flicker), `render/filmParams.ts` (FilmParams), `render/Compositor.ts` (single rAF loop).
+- **The integration:** `dream/conductor.ts` — `wakeTick(dt)` drives everything each frame from the
+  intensity sample + mood; `swapWakeLayer` does the layer swaps + video holds; the classic 3-clock
+  path is untouched and runs when `wake` is off.
+- **The pipeline:** `pipeline/ingest/` (Openverse + Wellcome + Met/Smithsonian + Archive.org, license
+  gate), `pipeline/embed/` (CLIP via `clip_backend`, `download` images+videos, `frame_selector` +
+  `clip_window` for video frames, `curate`, `build_manifest`), `pipeline/publish/` (transcode webp/mp4,
+  upload to R2, strip internal `_local`/`_clipStart`, rewrite `src` to CDN).
+- **Determinism contract:** same `?seed` → same asset/text/coherence **sequence** (timing + cosmetic
+  recipe may vary). The video weight is a deterministic scalar; holds/fades are clock/dt-driven.
 - Specs + plans: `docs/superpowers/specs/` and `docs/superpowers/plans/` (one pair per round).
 
 ## How to run / verify
 
 - **See wake mode (deployed):** `https://dreamreel.pages.dev/?wake=1`, or a branch preview like
-  `https://feat-dream-filters.dreamreel.pages.dev/?wake=1`.
+  `https://<branch-with-dashes>.dreamreel.pages.dev/?wake=1`.
 - **Local with real media:**
   ```bash
   cd app
@@ -181,30 +145,65 @@ if a future corpus is too sparse or too broad.
   npm run preview -- --port 4173 --strictPort
   # open http://localhost:4173/?wake=1
   ```
-- **Tests:** `cd app && npm run test` (vitest, ~92), `npm run typecheck`, `npm run lint`,
+- **Tests:** `cd app && npm run test` (vitest, ~117), `npm run typecheck`, `npm run lint`,
   `npm run test:e2e` (Playwright smoke; covers `?wake=1`).
 - **⚠️ Smoke gotcha:** Playwright's `reuseExistingServer` will reuse a stale `npm run preview` on
   **port 4173** and silently test an OLD build (false-green). Kill any process on 4173 before
   `npm run test:e2e` (a real run rebuilds and takes ~60s; a <15s run reused a stale server).
 - **⚠️ Pipeline test:** `pipeline/tests/test_carry_through.py` fails LOCALLY if `torch` is installed
-  (the real CLIP embedder can't decode the test's fake jpg). CI's torch-less venv passes. Not a bug.
+  (the real CLIP embedder can't decode the test's fake jpg). CI's torch-less venv passes. Run the
+  suite as `python -m pytest -q -k "not carry_through"` locally. Not a bug.
+- **⚠️ ffmpeg/ffprobe required** for the video pipeline (poster frames + transcode). Not always on
+  PATH; on Windows it was installed via `winget install Gyan.FFmpeg` and lives under
+  `%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg_*\ffmpeg-*\bin` — prepend to PATH for builds.
 
 ## Rebuild the corpus + re-upload to R2
 
+The downloaded films/images are cached under `pipeline/out/` (and `out/candidates.jsonl` from ingest),
+so a re-pick/re-embed/re-ship does NOT need to re-ingest:
+
 ```bash
-cd pipeline && pip install -e '.[embed,publish]'   # torch + open_clip + boto3
-make corpus                                          # ingest -> download -> embed(CLIP) -> manifest
-# Upload: either `make corpus UPLOAD=1` with R2_* env (boto3), OR the wrangler path used this session:
-#   wrangler r2 object put dreamreel-media/media/<name>.webp --file ... --remote
-#   wrangler r2 object put dreamreel-media/manifest/latest.json --file ... --remote
+cd pipeline
+export PATH="<ffmpeg-bin>:$PATH"
+# R2 env: R2_ACCOUNT_ID, R2_BUCKET, R2_PUBLIC_BASE (non-secret, below) + R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
+python -m embed.download --candidates out/candidates.jsonl --out out   # re-pick video frames; images/films cached
+python -m embed.build_manifest --out out                              # re-embed (images stable, videos from new frames)
+python -m publish.run --out out --upload                              # transcode + upload + rewrite src + strip internal keys
 ```
-R2 details: account `e1377b90aa5f91b18522fc40df57afc3`, bucket `dreamreel-media`, public base
-`https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev`, CORS = allow GET `*`. Creds via env only.
+
+A full fresh build (re-ingest included) is `make corpus` then `make corpus UPLOAD=1` with the R2 env.
+The R2 endpoint is derived from `R2_ACCOUNT_ID` (there is no `R2_ENDPOINT_URL`). Non-secret vars:
+`R2_ACCOUNT_ID=e1377b90aa5f91b18522fc40df57afc3`, `R2_BUCKET=dreamreel-media`,
+`R2_PUBLIC_BASE=https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev`. The two API keys are secret
+(create an R2 API token with Object Read & Write in the Cloudflare dashboard; the secret is shown once).
 
 ## Infra / accounts
 
 - GitHub: `zgbrenner/dreamreel`. CI = `.github/workflows/ci.yml` (app typecheck/lint/vitest/build/
-  license-scan; pipeline pytest + license gate; manifest-contract). Cloudflare Pages deploys via Git
-  integration (production on `main` + per-PR previews); NO deploy GitHub Action.
-- Cloudflare: Pages project `dreamreel`; R2 bucket `dreamreel-media` (public r2.dev URL, custom domain
-  not set up — fine for now, swap `R2_PUBLIC_BASE` if a domain is added later).
+  license-scan; pipeline pytest + license gate; manifest-contract validates pipeline output against the
+  app's zod loader). Cloudflare Pages deploys via Git integration (production on `main` + per-PR
+  previews); NO deploy GitHub Action. Playwright smoke runs in CI on `main`.
+- Cloudflare: Pages project `dreamreel`; R2 bucket `dreamreel-media` (public r2.dev URL, CORS allow
+  GET `*`, not publicly writable; custom domain not set up — swap `R2_PUBLIC_BASE` if one is added).
+
+---
+
+## Appendix — earlier-round history
+
+### Rounds 1 & 2 build notes (history)
+1. **Media → R2 publish pipeline** (PR #13): builds web derivatives, correlates `asset.id`→local file,
+   uploads to R2, rewrites `asset.src` to CDN URLs. Offline tests with mocked boto3.
+2. **Round 6/3 — Wake chaos engine** (PR #14): the seeded intensity signal + `LayerStack` compositor +
+   coherence troughs. Behind `?wake=1`.
+3. **Round 2 — Mood-mapped filter catalog** (PR #15): 6 filters by dominant CLIP mood axis, strength
+   scaled by the intensity heartbeat, eased at coherence. Identity (no filter) by default.
+
+### Round 1 corpus — uncanny re-curation (shipped 2026-06-18, PR #16)
+Retargeted the offline pipeline at a genuinely uncanny corpus. Shared theme catalog
+(`pipeline/ingest/themes.py`): `CLINICAL` / `OCCULT` / `LIMINAL` veins + `ANCHOR_THEMES` (always
+kept). New **Wellcome Collection** ingester (`pipeline/ingest/wellcome.py`); Met + Smithsonian +
+Wellcome on by default. Mood-score curation (`pipeline/embed/curate.py`) drops images whose
+`max(uncanny, ominous) < 0.52` (anchors exempt). First uncanny corpus shipped as v`2026.06.18-2208`
+(223 images); superseded by the current v`2026.06.23-0359` build (277 images + 40 video clips).
+Under-returning veins to deepen later (optional): alchemical diagram, spirit photography, specimen,
+deep-sea creature — thin in Openverse/museum APIs; add synonyms or target an Archive.org collection.
