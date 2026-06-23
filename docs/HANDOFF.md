@@ -105,7 +105,7 @@ if a future corpus is too sparse or too broad.
 | 6 | **Chaos engine + rare coherence** | ✅ Round 1 (merged) |
 | 3 | **Fluid dense layering** | ✅ folded into Round 1 (LayerStack) |
 | 2 | **Dream-filter catalog (not one old-TV look)** | ✅ Round 2 (merged) |
-| 4 | **Moving image (video)** | 🟡 capability built on `feat/round4-video` (PR open); corpus ship pending |
+| 4 | **Moving image (video)** | ✅ shipped to R2 (35 PD film clips, v2026.06.23-0053) |
 | 5 | **Spoken-word / "audiobook" voices** | ⬜ not started |
 | 1 | **Weirder/scarier corpus** | ✅ shipped to R2 (223 uncanny images, v2026.06.18-2208) |
 | — | **Photosensitivity hardening** | ⬜ deferred (clamp seam exists in `IntensityEngine`) |
@@ -126,16 +126,19 @@ if a future corpus is too sparse or too broad.
   (see "Rebuild the corpus" below).
 
 ### Remaining rounds (each = its own brainstorm → spec → plan → build)
-- **Round 4 — Video**: 🟡 **capability complete** on branch `feat/round4-video` (spec
+- **Round 4 — Video**: ✅ **SHIPPED 2026-06-23** (PR #18 merged; spec
   `docs/superpowers/specs/2026-06-22-round4-video-design.md`, plan
-  `docs/superpowers/plans/2026-06-22-round4-video.md`). Built + unit-tested end-to-end: pipeline
-  poster-frame extraction → embed → `vid-*` assets (`_local`, stripped before upload) → `transcode_video`
-  wired → R2; renderer `loadVideoTexture` + `VideoPool` (cap 2, restart-at-0, reduced-motion freeze,
-  pauses on dream-pause) + `Compositor.showVideo` + conductor `video` branch (wake **and** classic).
-  Muted/visual-only (audio is round 5); `VIDEO_CUTOFF = 0.45`. 105 unit tests + e2e green; final
-  whole-branch review clean. **Corpus NOT yet shipped to R2**: needs a local `ffmpeg` run over the
-  ~46 Archive.org films + R2 upload (the 2 secret R2 keys go in `pipeline/.env`). Until then the live
-  site shows no video. To ship: `cd pipeline && make corpus` then `make corpus UPLOAD=1` with R2 env.
+  `docs/superpowers/plans/2026-06-22-round4-video.md`). Pipeline poster-frame extraction → embed →
+  `vid-*` assets (`_local`, stripped before upload) → `transcode_video` (12s muted mp4) → R2; renderer
+  `loadVideoTexture` + `VideoPool` (cap 2, restart-at-0, reduced-motion freeze, pauses on dream-pause)
+  + `Compositor.showVideo` + conductor `video` branch (wake **and** classic). Muted/visual-only (audio
+  is round 5); `VIDEO_CUTOFF = 0.45`. **Corpus rebuilt + uploaded**: v`2026.06.23-0053` serves 321
+  assets — 277 images + **35 public-domain Archive.org film clips** (the 0.45 cutoff kept all 35; the
+  image 0.52 cutoff kept 277/586) + 9 procedural, 42 texts. Verified live: `latest.json` is 200 and a
+  sampled `.mp4` returns 200 `video/mp4`. Visible at `dreamreel.pages.dev/?wake=1`. Optional follow-up
+  noted below. (Superseded "not yet shipped" / ~46-film estimate; the real ingest yielded 35 ship-safe
+  films.) To rebuild + reship later: `cd pipeline && make corpus` then `make corpus UPLOAD=1` with R2 env
+  (boto3 path; `wrangler` not installed). Optional follow-up: deepen the under-returning uncanny veins.
 - **Round 5 — Spoken-word voices**: a new sampled-audio subsystem (`Tone.Player`) layered over the
   generative bed in `audio/`, + audio ingest + determinism handling. Today `audio/engine.ts` is 100%
   synth with no sampled-playback path.
