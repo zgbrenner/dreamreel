@@ -233,7 +233,13 @@ export class DreamConductor implements DreamRuntime {
     // Discrete recipe (layer count + per-layer blends + feedback) is held steady between swaps:
     // it's re-rolled only in swapWakeLayer(), so density/blends don't strobe per frame. Re-apply
     // the stored plan each frame (cheap, no re-roll) so toggled layer visibility tracks the maps.
-    if (this.currentPlan) stack.applyPlan(this.currentPlan);
+    // Pinned slots are slots whose video hold hasn't expired yet — they are forced into the visible
+    // set by applyPlan so a playing clip can't be ranked out of view as newer swaps fire.
+    const pinned = new Set<number>();
+    for (let i = 0; i < this.slotHeldUntil.length; i++) {
+      if (this.slotHeldUntil[i] > this.clock) pinned.add(i);
+    }
+    if (this.currentPlan) stack.applyPlan(this.currentPlan, pinned);
     stack.update(dt); // advance per-slot opacity ramps (cross-fade layer swaps)
     stack.captureFeedback(this.compositor.renderer);
 
@@ -300,7 +306,13 @@ export class DreamConductor implements DreamRuntime {
     const sample = this.intensity.sample(this.clock * this.tempoMul);
     const intensity = sample.intensity;
     this.currentPlan = planLayers(intensity, this.presRng);
-    stack.applyPlan(this.currentPlan);
+    // Compute the pinned set here too (same logic as wakeTick) so the swap-time applyPlan
+    // also respects any active video holds — consistent with every other applyPlan call.
+    const swapPinned = new Set<number>();
+    for (let i = 0; i < this.slotHeldUntil.length; i++) {
+      if (this.slotHeldUntil[i] > this.clock) swapPinned.add(i);
+    }
+    stack.applyPlan(this.currentPlan, swapPinned);
 
     const beat = this.walker.next('image', this.tempoMul);
     const mood = this.walker.currentMood();
@@ -351,7 +363,7 @@ export class DreamConductor implements DreamRuntime {
       void this.compositor.showVideo(asset.src, asset.grade).then((res) => {
         if (res.ok) {
           stack.setLayerTexture(slot, res.texture);
-          this.slotHeldUntil[slot] = this.clock + (sample.inTrough ? 8.0 : 5.0);
+          this.slotHeldUntil[slot] = this.clock + (sample.inTrough ? 13.0 : 9.0);
         } else {
           const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
           const src = this.proc(`fallback:${asset.id}`, kind);

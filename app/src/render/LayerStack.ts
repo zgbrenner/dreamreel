@@ -112,7 +112,7 @@ export class LayerStack {
    * newest is a near-opaque NormalBlending "hero" so the current image always reads clearly;
    * older ones fan behind it, additively/blended and fading with age, for the dense collage.
    */
-  applyPlan(plan: LayerPlan): void {
+  applyPlan(plan: LayerPlan, pinnedSlots?: ReadonlySet<number>): void {
     // Feedback trail strength is owned solely by setFeedback() now (the director's single source
     // of truth), so applyPlan no longer touches fbMat — two sources must not fight over it.
 
@@ -121,13 +121,21 @@ export class LayerStack {
     for (let i = 0; i < MAX_LAYERS; i++) if (this.mats[i].map !== null) ranked.push(i);
     ranked.sort((a, b) => this.writeSeq[b] - this.writeSeq[a]);
 
-    const visibleCount = Math.min(plan.layerCount, ranked.length);
+    // Pinned slots (e.g. a playing video held by the conductor) are prepended to the ranking so
+    // they are always included in the visible set — a held clip can't be ranked out of view as
+    // newer swaps fire. Only pinned slots that actually hold a texture are promoted.
+    const pin = pinnedSlots ?? new Set<number>();
+    const pinnedWithTex = ranked.filter((i) => pin.has(i));
+    const rest = ranked.filter((i) => !pin.has(i));
+    const finalRanked = [...pinnedWithTex, ...rest];
+
+    const visibleCount = Math.min(plan.layerCount, finalRanked.length);
     for (let i = 0; i < MAX_LAYERS; i++) {
       this.layers[i].visible = false;
       this.fadeTarget[i] = 0;
     }
     for (let rank = 0; rank < visibleCount; rank++) {
-      const slot = ranked[rank];
+      const slot = finalRanked[rank];
       this.layers[slot].visible = true;
       const mat = this.mats[slot];
       if (rank === 0) {
