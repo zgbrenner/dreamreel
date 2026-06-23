@@ -64,6 +64,8 @@
       -0.09491579957524991
     ]
   },
+  "audioEmbeddingDim": 8,
+  "audio": [],
   "assets": [
     {
       "id": "proc-leader",

@@ -19,6 +19,24 @@ export const MOOD_AXES: MoodAxis[] = [
   'mechanical',
 ];
 
+export type AudioKind = 'music' | 'voice' | 'foley';
+
+export interface AudioAsset {
+  id: string;
+  kind: AudioKind;
+  src: string;
+  embedding: number[]; // L2-normalized CLAP embedding
+  mood: Record<MoodAxis, number>; // 0..1 per axis
+  tags: string[];
+  durationSec: number;
+  loopable: boolean;
+  dwellBase: number;
+  source: string;
+  license: string;
+  attribution?: string;
+  attributionUrl?: string;
+}
+
 export type AssetType = 'image' | 'video' | 'procedural' | 'titlecard';
 
 export type ProceduralKind =
@@ -47,6 +65,7 @@ export interface Asset {
   license: string; // "CC0" | "PD" | "CC-BY-4.0" | ...
   attribution?: string; // required text when license starts with "CC-BY"
   attributionUrl?: string;
+  claptext?: number[]; // optional CLAP embedding bridge for visual assets
 }
 
 export interface Manifest {
@@ -56,4 +75,6 @@ export interface Manifest {
   moodAxes: Record<MoodAxis, number[]>; // axis vectors in embedding space, for projection
   assets: Asset[]; // visual pool
   texts: Asset[]; // text pool (titlecard + drifting lines), each with an embedding
+  audioEmbeddingDim: number; // e.g. 512 (CLAP dimension)
+  audio: AudioAsset[]; // audio pool
 }
