@@ -84,7 +84,8 @@ async function defaultLoad(url: string): Promise<PooledAudio> {
 
   // Create the MediaElementAudioSourceNode immediately.
   // Tone graph routing (connecting to a bus) is done by show() once the bus is known.
-  const sourceNode = Tone.getContext().rawContext.createMediaElementSource(el);
+  const rawCtx = Tone.getContext().rawContext as unknown as AudioContext;
+  const sourceNode = rawCtx.createMediaElementSource(el);
 
   // Start buffering early; bus gain gates the audible output.
   await el.play().catch(() => {
@@ -275,13 +276,15 @@ export function createMixer(deps: MixerDeps): Mixer {
     let sourceNode = videoSources.get(el);
     if (!sourceNode) {
       try {
-        sourceNode = Tone.getContext().rawContext.createMediaElementSource(el);
+        const rawCtx = Tone.getContext().rawContext as unknown as AudioContext;
+        sourceNode = rawCtx.createMediaElementSource(el);
         videoSources.set(el, sourceNode);
       } catch {
         // Web Audio threw (e.g. element already belongs to another context). Skip silently.
         return;
       }
     }
+    if (!sourceNode) return;
 
     connectToBus(sourceNode, 'filmclip');
     filmclipVideoEl = el;
