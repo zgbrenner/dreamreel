@@ -6,6 +6,7 @@ import { Compositor } from '../render/Compositor';
 import { PostFX } from '../render/postfx';
 import { AudioEngine } from '../audio/engine';
 import { DreamConductor } from '../dream/conductor';
+import { deriveSeedParams } from '../dream/seedParams';
 import { readShareState } from '../state/url';
 
 /**
@@ -34,13 +35,16 @@ export function Gate({ manifest }: { manifest: Manifest }) {
     reduce.addEventListener('change', applyReduce);
 
     const s = useStore.getState();
+    // Surreality + tempo are this dream's character, derived from its seed — not user controls.
+    // Archive is always on (no procedural-only toggle); wake is a non-UI engine mode flag.
+    const { surreality, tempo } = deriveSeedParams(s.seed);
     const conductor = new DreamConductor(
       manifest,
       compositor,
       postfx,
       audio,
       { setCaption: s._setCaption, setMood: s._setMood },
-      { seed: s.seed, surreality: s.surreality, tempoMul: s.tempoMul, archiveOn: s.archiveOn, wake: readShareState().wake },
+      { seed: s.seed, surreality, tempoMul: tempo, archiveOn: true, wake: readShareState().wake },
     );
     useStore.getState().attachRuntime(conductor);
     // Render a held first frame even before play.

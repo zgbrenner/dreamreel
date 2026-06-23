@@ -19,12 +19,18 @@ spend is the one-time offline tagging pass.
 - **The Dreamwalker** is the Infinite-Jukebox model applied to mixed media: maintain a
   current point in CLIP embedding space, drift it (Brownian) and occasionally leap
   (non-sequitur), select the next asset by cosine similarity with a softmax temperature.
-  The Surreality control is that temperature plus the leap probability. Reference: the
-  Infinite Jukebox / Remixatron family. Reimplement the algorithm; do not copy code.
-- **Determinism.** Given the same seed and surreality, the *sequence of assets and text*
-  (the "dream script") — and, in wake mode, the sequence of coherence troughs and
-  layer-swap events — is identical, even if frame timing varies. Seeds are shareable via
-  URL (`?seed=...&s=...&t=...`).
+  Surreality is that temperature plus the leap probability — **derived from the seed, not a
+  user control** (see `dream/seedParams.ts`). Reference: the Infinite Jukebox / Remixatron
+  family. Reimplement the algorithm; do not copy code.
+- **Single-verb UX.** The viewer can only summon a **new dream** (a fresh seed) — they can
+  never tune or edit the one they're given. There are no dream-shaping sliders, toggles, or
+  switches: surreality and tempo are derived deterministically from the seed, so each dream has
+  its own character (one seed calm, another frenzied) and variety lives *across* dreams. The only
+  controls are **New dream**, play/pause, and a sound on/off output toggle.
+- **Determinism.** Given the same seed, the *sequence of assets and text* (the "dream script")
+  — and, in wake mode, the sequence of coherence troughs and layer-swap events — is identical,
+  even if frame timing varies. The seed is the **only** shareable dream param: `?seed=...`
+  (surreality/tempo fold into what the seed produces; `?wake=0` is a non-UI engine-mode opt-out).
 - **Two compositing modes, both seeded and deterministic.**
   - *Classic clocks:* three desynced layer clocks (image, ghost/double-exposure, text)
     advance independently so layers recombine.
@@ -121,7 +127,7 @@ film grade rises and falls with the wake intensity signal, and warp/density vary
 ## Coding conventions
 
 - TypeScript strict. No `any` in committed code. ESLint + Prettier.
-- No browser storage for shareable state (use URL params for seed/surreality/tempo).
-  localStorage is allowed only for non-essential UI prefs.
+- No browser storage for shareable state (the URL carries `?seed=` — the only shareable dream
+  param). localStorage is allowed only for non-essential UI prefs.
 - No secrets in client code. Pipeline secrets via env.
 - Tests: Vitest for `dream/` and `manifest/`; Playwright smoke test for the app.

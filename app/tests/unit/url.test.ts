@@ -24,22 +24,26 @@ function installWindow(search = '') {
 describe('shareable URL state', () => {
   beforeEach(() => installWindow());
 
-  it('round-trips seed/surreality/tempo through the URL', async () => {
+  it('round-trips the seed through the URL — the only shareable dream param', async () => {
     const { writeShareState, readShareState } = await import('../../src/state/url');
-    writeShareState({ seed: 'abc123', surreality: 0.7, tempo: 1.25 });
-    const read = readShareState();
-    expect(read.seed).toBe('abc123');
-    expect(read.surreality).toBeCloseTo(0.7, 2);
-    expect(read.tempo).toBeCloseTo(1.25, 2);
+    writeShareState({ seed: 'abc123' });
+    expect(readShareState().seed).toBe('abc123');
   });
 
-  it('clamps out-of-range values and supplies a random seed when absent', async () => {
-    installWindow('?s=9&t=-1');
+  it('drops any legacy s=/t= params on write (surreality/tempo are seed-derived now)', async () => {
+    installWindow('?seed=keep&s=0.7&t=1.25');
+    const { writeShareState } = await import('../../src/state/url');
+    writeShareState({ seed: 'keep' });
+    const search = window.location.search;
+    expect(search).toContain('seed=keep');
+    expect(search).not.toContain('s=');
+    expect(search).not.toContain('t=');
+  });
+
+  it('supplies a random seed when absent', async () => {
+    installWindow();
     const { readShareState } = await import('../../src/state/url');
-    const read = readShareState();
-    expect(read.surreality).toBeLessThanOrEqual(1);
-    expect(read.tempo).toBeGreaterThanOrEqual(0.5);
-    expect(read.seed.length).toBeGreaterThan(0);
+    expect(readShareState().seed.length).toBeGreaterThan(0);
   });
 });
 

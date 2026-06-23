@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import type { MoodAxis } from '../manifest/types';
 import { blankMood } from '../dream/mood';
+import { deriveSeedParams } from '../dream/seedParams';
 import type { DreamRuntime } from './runtime';
 import { readShareState, writeShareState, randomSeed } from './url';
 
@@ -14,22 +15,20 @@ export interface Caption {
   attributionUrl?: string;
 }
 
+// The viewer can only summon a NEW dream — never tune or edit the one they're given. So the
+// store holds no dream-shaping knobs: surreality, tempo, and archive are derived from the seed
+// (see dream/seedParams.ts) and applied internally, not exposed as settable state. The only
+// dream actions are reseed ("New dream") and play/pause; sound on/off is a pure output control.
 export interface PlayerState {
   playing: boolean;
-  surreality: number; // 0..1
-  tempoMul: number; // 0.5..2
   seed: string;
   soundOn: boolean;
-  archiveOn: boolean; // include networked PD media vs procedural-only
   mood: Record<MoodAxis, number>;
   caption: Caption;
   // actions
   togglePlay(): void;
-  setSurreality(v: number): void;
-  setTempo(v: number): void;
   reseed(seed?: string): void;
   setSound(on: boolean): void;
-  setArchive(on: boolean): void;
 }
 
 // Internal extensions the runtime/conductor use; not part of the public contract.
@@ -44,11 +43,8 @@ const initial = readShareState();
 
 export const useStore = create<InternalState>((set, get) => ({
   playing: false,
-  surreality: initial.surreality,
-  tempoMul: initial.tempo,
   seed: initial.seed,
   soundOn: true,
-  archiveOn: true,
   mood: blankMood(),
   caption: { reel: 'DREAMREEL', source: '', whisper: '' },
 
@@ -65,47 +61,20 @@ export const useStore = create<InternalState>((set, get) => ({
     else _runtime?.pause();
   },
 
-  setSurreality: (v) => {
-    const surreality = clamp(v, 0, 1);
-    set({ surreality });
-    get()._runtime?.setSurreality(surreality);
-    persist(get);
-  },
-
-  setTempo: (v) => {
-    const tempoMul = clamp(v, 0.5, 2);
-    set({ tempoMul });
-    get()._runtime?.setTempo(tempoMul);
-    persist(get);
-  },
-
   reseed: (seed) => {
     const next = seed && seed.trim() ? seed.trim() : randomSeed();
     set({ seed: next });
-    const { surreality, tempoMul, _runtime } = get();
-    _runtime?.reseed(next, surreality, tempoMul);
-    persist(get);
+    // Surreality + tempo are this dream's character, derived from its seed — not user input.
+    const { surreality, tempo } = deriveSeedParams(next);
+    get()._runtime?.reseed(next, surreality, tempo);
+    writeShareState({ seed: next });
   },
 
   setSound: (on) => {
     set({ soundOn: on });
     get()._runtime?.setSound(on);
   },
-
-  setArchive: (on) => {
-    set({ archiveOn: on });
-    get()._runtime?.setArchive(on);
-  },
 }));
 
-function persist(get: () => InternalState): void {
-  const { seed, surreality, tempoMul } = get();
-  writeShareState({ seed, surreality, tempo: tempoMul });
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
-
-// Persist the initial share state so a freshly generated seed is in the URL immediately.
-writeShareState({ seed: initial.seed, surreality: initial.surreality, tempo: initial.tempo });
+// Persist the initial seed so a freshly generated dream is shareable from the URL immediately.
+writeShareState({ seed: initial.seed });
