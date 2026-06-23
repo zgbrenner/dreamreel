@@ -13,11 +13,23 @@
 import type { Asset, MoodAxis } from '../manifest/types';
 import { makeRng, type Rng } from './prng';
 import { cosine, l2norm, projectMood } from './mood';
+import type { SteeringState } from './steering';
 
 export interface DreamwalkerConfig {
   seed: string;
   surreality: number; // 0..1
 }
+
+// --- behavioral bend tuning (see the seeded-spine-plus-bend model in CLAUDE.md) ---
+// The walk keeps a pure seeded SPINE per layer and, on top of it, a decaying BEND offset driven by
+// ambient steering. The bend is capped (BEND_MAX) so a steered viewer always gets a recognizable
+// variant of the SAME seeded dream, and it RELAXES (BEND_RELAX per beat) back to the spine once the
+// signal fades — snapping to exactly zero below BEND_EPS so the walk returns to the spine bit-for-bit.
+export const BEND_MAX = 0.34; // cap on ‖bend‖ (spine is unit-length) ⇒ max angular deviation ≈ 19°
+const BEND_PUSH = 0.16; // per-beat push from full pointer attention along a seeded basis
+const BEND_RELAX = 0.5; // per-beat decay toward the spine when the push eases
+const BEND_EPS = 5e-3; // below this ‖bend‖ snaps to exactly 0 ⇒ the walk returns to the pure spine
+const IDLE_DWELL_GAIN = 0.6; // idle stretches dwell up to ×1.6 — TIMING only, never reorders the script
 
 export interface Beat {
   asset: Asset;
@@ -34,6 +46,17 @@ export interface Dreamwalker {
   setConvergence(on: boolean): void;
   reseed(seed: string): void;
   currentMood(): Record<MoodAxis, number>;
+  /**
+   * Apply ambient behavioral steering. `null` or `neutralSteering()` means "no input": the bend
+   * relaxes to zero and the walk reproduces the pure seeded spine bit-for-bit. The walk consumes
+   * only the CONTENT fields (pointer attention ⇒ a bounded, self-relaxing bend; idle ⇒ longer dwell);
+   * presentation-only fields (tilt, pointer speed, time-of-day, focus) are ignored here.
+   */
+  setSteering(s: SteeringState | null): void;
+  /** ‖bend‖ for a layer — 0 means the walk is exactly on its seeded spine. Queryable for tests/UI. */
+  bendMagnitude(layer: DreamLayer): number;
+  /** The pure seeded spine embedding for a layer (a copy) — the baseline the bend deviates from. */
+  spineEmbedding(layer: DreamLayer): number[];
 }
 
 const RECENT_WINDOW = 6;
@@ -48,7 +71,11 @@ function isCard(a: Asset): boolean {
 
 interface LayerState {
   rng: Rng;
-  e: number[]; // current embedding point for this layer's walk
+  e: number[]; // SPINE: the pure seeded embedding point. Advanced only by the seeded rng — never by
+  // steering — so it stays the deterministic baseline the bend measures deviation against.
+  eLive: number[]; // the BENT point used for scoring = normalize(e + bend); === e when bend is zero.
+  bend: number[]; // accumulated steering offset; decays toward 0 (relax) and is capped (BEND_MAX).
+  bendActive: boolean; // false when bend is exactly the zero vector — the fast path that equals the spine.
   recent: string[];
 }
 
@@ -91,6 +118,12 @@ class DreamwalkerImpl implements Dreamwalker {
   private text!: LayerState;
   private lastLeaped = false;
   private converging = false;
+
+  // Ambient steering + the seeded basis the pointer-attention bend pushes along. The basis is
+  // derived from the seed so a given dream always bends in its own characteristic directions.
+  private steering: SteeringState | null = null;
+  private basisX!: number[];
+  private basisY!: number[];
 
   constructor(pools: DreamwalkerPools, config: DreamwalkerConfig, hooks?: DreamwalkerHooks) {
     this.hooks = hooks;
@@ -137,10 +170,27 @@ class DreamwalkerImpl implements Dreamwalker {
   }
 
   currentMood(): Record<MoodAxis, number> {
-    return projectMood(this.image.e, this.moodAxes);
+    // Mood follows the BENT point so the steered experience feels its own; === spine when unsteered.
+    return projectMood(this.image.eLive, this.moodAxes);
+  }
+
+  setSteering(s: SteeringState | null): void {
+    this.steering = s;
+  }
+
+  bendMagnitude(layer: DreamLayer): number {
+    return mag(this.layer(layer).bend);
+  }
+
+  spineEmbedding(layer: DreamLayer): number[] {
+    return this.layer(layer).e.slice();
   }
 
   // --- internals ---
+
+  private layer(layer: DreamLayer): LayerState {
+    return layer === 'image' ? this.image : layer === 'ghost' ? this.ghost : this.text;
+  }
 
   private resetState(): void {
     const base = makeRng(this.seed);
@@ -148,10 +198,27 @@ class DreamwalkerImpl implements Dreamwalker {
       const r = base.fork(tag);
       return [...this.visual[r.int(this.visual.length)].embedding];
     };
-    this.image = { rng: base.fork('image'), e: startEmbedding('seed-image'), recent: [] };
-    this.ghost = { rng: base.fork('ghost'), e: startEmbedding('seed-ghost'), recent: [] };
-    this.text = { rng: base.fork('text'), e: startEmbedding('seed-text'), recent: [] };
+    const fresh = (rngTag: string, embTag: string): LayerState => {
+      const e = startEmbedding(embTag);
+      return {
+        rng: base.fork(rngTag),
+        e,
+        eLive: e, // identical reference until a non-zero bend forks it off
+        bend: new Array(this.dim).fill(0),
+        bendActive: false,
+        recent: [],
+      };
+    };
+    this.image = fresh('image', 'seed-image');
+    this.ghost = fresh('ghost', 'seed-ghost');
+    this.text = fresh('text', 'seed-text');
     this.lastLeaped = false;
+
+    // Seeded bend basis: two unit directions in embedding space the pointer-attention bend leans
+    // along. A dedicated `:steer` stream keeps it from perturbing the walk/leap draws.
+    const sr = base.fork('steer');
+    this.basisX = randUnit(sr, this.dim);
+    this.basisY = randUnit(sr, this.dim);
   }
 
   private temperature(): number {
@@ -176,14 +243,103 @@ class DreamwalkerImpl implements Dreamwalker {
     return leaped;
   }
 
-  /** Softmax sample over candidates (excluding the layer's recent ids) by cosine to e. */
+  /**
+   * Relax then re-bend this layer's offset by the current steering, and recompute the bent point.
+   * The SPINE (st.e) is never touched here — only the bend and the derived eLive — so the seeded
+   * baseline stays pure. With no/neutral steering the bend decays to exactly 0 and eLive === st.e.
+   */
+  private advanceBend(st: LayerState): void {
+    const push = this.steerPush();
+    // Fast path: an already-relaxed walk with no push stays exactly on the spine (no per-beat work).
+    if (!push && !st.bendActive) {
+      st.eLive = st.e;
+      return;
+    }
+    let active = false;
+    for (let i = 0; i < this.dim; i++) {
+      let b = st.bend[i] * BEND_RELAX; // relax toward the spine
+      if (push) b += push[i]; // bend by ambient attention
+      st.bend[i] = b;
+      if (b !== 0) active = true;
+    }
+    if (active) {
+      // Cap the deviation so a steered dream is always a variant of the same seeded identity.
+      const m = mag(st.bend);
+      if (m > BEND_MAX) {
+        const k = BEND_MAX / m;
+        for (let i = 0; i < this.dim; i++) st.bend[i] *= k;
+      }
+    }
+    // Snap a spent bend to exactly zero so the walk returns to the spine bit-for-bit.
+    if (!active || mag(st.bend) < BEND_EPS) {
+      if (st.bendActive) st.bend.fill(0);
+      st.bendActive = false;
+      st.eLive = st.e;
+      return;
+    }
+    st.bendActive = true;
+    st.eLive = l2norm(addVec(st.e, st.bend));
+  }
+
+  /** The per-beat push vector from pointer attention along the seeded basis, or null when neutral. */
+  private steerPush(): number[] | null {
+    const s = this.steering;
+    if (!s) return null;
+    const px = s.pointerX;
+    const py = s.pointerY;
+    if (px === 0 && py === 0) return null;
+    const out = new Array<number>(this.dim);
+    for (let i = 0; i < this.dim; i++) out[i] = (this.basisX[i] * px + this.basisY[i] * py) * BEND_PUSH;
+    return out;
+  }
+
+  /**
+   * Softmax sample over candidates (excluding the layer's recent ids). Scores come from BOTH the
+   * spine point and the bent point, sharing ONE uniform draw: the spine pick drives all persistent
+   * state (recent window + convergence snap) so the spine stays steering-independent, while the bent
+   * pick is what's actually returned. Sharing the draw means steering never changes the number of
+   * RNG draws — the spine advances in lockstep regardless — so the walk can relax back exactly.
+   */
   private pick(layer: DreamLayer, st: LayerState, pool: Asset[]): Asset {
     const recent = new Set(st.recent);
     let candidates = pool.filter((a) => !recent.has(a.id));
     if (candidates.length === 0) candidates = pool;
 
     const T = this.temperature();
-    const scores = candidates.map((a) => cosine(st.e, a.embedding) / T);
+    const spine = this.weigh(candidates, st.e, T);
+
+    if (this.hooks?.onSelect) {
+      let h = 0;
+      for (const w of spine.weights) {
+        const p = w / spine.sum;
+        if (p > 0) h -= p * Math.log2(p);
+      }
+      this.hooks.onSelect(layer, h, candidates.length);
+    }
+
+    const u = st.rng.next(); // single shared draw
+    const spineChosen = candidates[selectIndex(spine.weights, spine.sum, u)];
+
+    // Bent pick re-ranks the same candidates by the bent point. When bend is inactive eLive === e,
+    // so this is bit-identical to spineChosen (and we skip the work).
+    let liveChosen = spineChosen;
+    if (st.bendActive) {
+      const live = this.weigh(candidates, st.eLive, T);
+      liveChosen = candidates[selectIndex(live.weights, live.sum, u)];
+    }
+
+    // Persistent state advances on the SPINE pick only -> the spine is independent of steering.
+    st.recent.push(spineChosen.id);
+    if (st.recent.length > RECENT_WINDOW) st.recent.shift();
+    // Rhyme moments: snap the spine onto its chosen embedding so the next pick stays near it,
+    // producing a tight thematic cluster. Drift/temperature alone don't converge fast enough.
+    if (this.converging) st.e = spineChosen.embedding.slice();
+    return liveChosen;
+  }
+
+  /** Softmax weights (with type weighting) of candidates at point `e` and temperature `T`. */
+  private weigh(candidates: Asset[], e: number[], T: number): { weights: number[]; sum: number } {
+    const scores = candidates.map((a) => cosine(e, a.embedding) / T);
     const max = Math.max(...scores);
     let sum = 0;
     const weights = scores.map((s, i) => {
@@ -191,34 +347,12 @@ class DreamwalkerImpl implements Dreamwalker {
       sum += w;
       return w;
     });
-    if (this.hooks?.onSelect) {
-      let h = 0;
-      for (const w of weights) {
-        const p = w / sum;
-        if (p > 0) h -= p * Math.log2(p);
-      }
-      this.hooks.onSelect(layer, h, candidates.length);
-    }
-    let roll = st.rng.next() * sum;
-    let idx = 0;
-    for (let i = 0; i < weights.length; i++) {
-      roll -= weights[i];
-      if (roll <= 0) {
-        idx = i;
-        break;
-      }
-    }
-    const chosen = candidates[idx];
-    st.recent.push(chosen.id);
-    if (st.recent.length > RECENT_WINDOW) st.recent.shift();
-    // Rhyme moments: snap the walk onto the chosen embedding so the next pick stays near it,
-    // producing a tight thematic cluster. Drift/temperature alone don't converge fast enough.
-    if (this.converging) st.e = chosen.embedding.slice();
-    return chosen;
+    return { weights, sum };
   }
 
   private nextImage(tempoMul: number): Beat {
     this.lastLeaped = this.advancePoint(this.image, this.visual);
+    this.advanceBend(this.image);
 
     // Title-card interjection: surreality- and leap-dependent.
     const pCard = 0.02 + (this.lastLeaped ? 0.05 : 0) + this.surreality * 0.03;
@@ -232,14 +366,14 @@ class DreamwalkerImpl implements Dreamwalker {
         if (this.image.recent.length > RECENT_WINDOW) this.image.recent.shift();
         return {
           asset: card,
-          dwellMs: (card.dwellBase * 1000) / tempoMul,
+          dwellMs: (this.idleDwellMul() * card.dwellBase * 1000) / tempoMul,
           titleCard: true,
         };
       }
     }
 
     const asset = this.pick('image', this.image, this.visual);
-    const mood = projectMood(this.image.e, this.moodAxes);
+    const mood = projectMood(this.image.eLive, this.moodAxes);
     const dwellMs = this.dwellFor(asset, mood, tempoMul);
 
     // Ghost proposal only when the dream feels uncanny/ominous.
@@ -253,19 +387,31 @@ class DreamwalkerImpl implements Dreamwalker {
 
   private nextGhost(tempoMul: number): Beat {
     this.advancePoint(this.ghost, this.visual);
+    this.advanceBend(this.ghost);
     const asset = this.pick('ghost', this.ghost, this.visual);
     // ghost cadence is a touch quicker than the image it doubles
-    const dwellMs = (asset.dwellBase * 700) / tempoMul;
+    const dwellMs = (this.idleDwellMul() * asset.dwellBase * 700) / tempoMul;
     return { asset, dwellMs, titleCard: false };
   }
 
   private nextText(tempoMul: number): Beat {
     const pool = this.drift.length > 0 ? this.drift : this.texts;
     this.advancePoint(this.text, pool);
+    this.advanceBend(this.text);
     const asset = this.pick('text', this.text, pool);
     // text drifts faster than imagery
-    const dwellMs = (asset.dwellBase * 1000 * 0.6) / tempoMul;
+    const dwellMs = (this.idleDwellMul() * asset.dwellBase * 1000 * 0.6) / tempoMul;
     return { asset, dwellMs, titleCard: false };
+  }
+
+  /**
+   * Idle stretches how long every beat lingers (up to ×1+IDLE_DWELL_GAIN). This is the one CONTENT
+   * effect a purely passive viewer feels — and it touches only TIMING, never which assets/text/events
+   * occur or their order, so the seeded script is preserved. Returns 1 when not idle.
+   */
+  private idleDwellMul(): number {
+    const idle = this.steering?.idle ?? 0;
+    return 1 + clamp(idle, 0, 1) * IDLE_DWELL_GAIN;
   }
 
   private proposeGhost(): Asset {
@@ -292,7 +438,7 @@ class DreamwalkerImpl implements Dreamwalker {
     const linger = (mood.tender + mood.nostalgic) / 2;
     const hurry = (mood.uncanny + mood.mechanical) / 2;
     const factor = clamp(1 + 0.5 * linger - 0.5 * hurry, 0.4, 1.8);
-    return (asset.dwellBase * 1000 * factor) / tempoMul;
+    return (this.idleDwellMul() * asset.dwellBase * 1000 * factor) / tempoMul;
   }
 }
 
@@ -301,4 +447,41 @@ function clamp01(v: number): number {
 }
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+/**
+ * Weighted-roulette index from softmax weights, given a shared uniform u in [0,1). Matches the
+ * walk's original inline selection exactly — including its fall-through to index 0 — so unsteered
+ * picks stay bit-for-bit identical to the pre-bend code.
+ */
+function selectIndex(weights: number[], sum: number, u: number): number {
+  let roll = u * sum;
+  let idx = 0;
+  for (let i = 0; i < weights.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) {
+      idx = i;
+      break;
+    }
+  }
+  return idx;
+}
+
+function mag(v: number[]): number {
+  let s = 0;
+  for (let i = 0; i < v.length; i++) s += v[i] * v[i];
+  return Math.sqrt(s);
+}
+
+function addVec(a: number[], b: number[]): number[] {
+  const out = new Array<number>(a.length);
+  for (let i = 0; i < a.length; i++) out[i] = a[i] + b[i];
+  return out;
+}
+
+/** A deterministic unit vector of length `dim` drawn from `rng` (zero-vector guarded). */
+function randUnit(rng: Rng, dim: number): number[] {
+  const v = new Array<number>(dim);
+  for (let i = 0; i < dim; i++) v[i] = rng.gaussian();
+  return l2norm(v);
 }

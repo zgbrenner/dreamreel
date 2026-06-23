@@ -9,6 +9,12 @@ import type { Manifest, Asset, MoodAxis, ProceduralKind } from '../manifest/type
 import { createDreamwalker, type Dreamwalker } from './dreamwalker';
 import { makeRng, type Rng } from './prng';
 import { createIntensityEngine, type IntensityEngine } from './intensity';
+import {
+  createSteeringController,
+  shimmerFromSteering,
+  type SteeringController,
+  type SteeringState,
+} from './steering';
 import { coherenceForTrough } from './coherence';
 import { filterStrengths, capDistortion } from './filterDirector';
 import { pickSwapSlot } from './slotHold';
@@ -67,6 +73,14 @@ export class DreamConductor implements DreamRuntime {
   private soundOn = true;
   private audioCadence: AudioCadence = makeAudioCadence();
 
+  // --- ambient behavioral steering ---
+  // A live, native-API steering source (NO webcam). Each tick its normalized SteeringState is split
+  // two ways: CONTENT fields bend the seeded walk (walker.setSteering) and ease the wake intensity on
+  // blur; PRESENTATION fields drive the compositor shimmer. The bend is bounded and relaxes back to
+  // the seeded spine when input fades, so a passive viewer gets the exact seeded dream.
+  private readonly steering: SteeringController;
+  private readonly baseMaxIntensity: number;
+
   private playing = false;
   private clock = 0; // internal seconds, advanced only while playing
   private nextImageAt = 0;
@@ -101,7 +115,9 @@ export class DreamConductor implements DreamRuntime {
     this.wake = init.wake ?? false;
     this.intensity = createIntensityEngine(this.seed);
     this.layerStack = this.wake ? new LayerStack(compositor) : null;
-    if (this.postfx.params.reduceMotion) this.intensity.setMaxIntensity(0.45);
+    this.baseMaxIntensity = this.postfx.params.reduceMotion ? 0.45 : 1;
+    this.intensity.setMaxIntensity(this.baseMaxIntensity);
+    this.steering = createSteeringController({ reduceMotion: this.postfx.params.reduceMotion });
     // AudioWalker is pure (no DOM/Tone); build it eagerly so its seeded state is ready.
     // The Mixer is built lazily inside play() because it needs engine.masterGain, which
     // only exists after audio.start() has returned.
@@ -203,6 +219,7 @@ export class DreamConductor implements DreamRuntime {
 
   dispose(): void {
     this.unsub?.();
+    this.steering.dispose();
     this.layerStack?.dispose();
     for (const p of this.procCache.values()) p.dispose();
     this.procCache.clear();
@@ -235,6 +252,15 @@ export class DreamConductor implements DreamRuntime {
   }
 
   private tick(dt: number): void {
+    // Read ambient steering every frame (even while paused, so the held gate frame still parallaxes).
+    // CONTENT split goes to the walk; PRESENTATION split goes to the camera shimmer — kept separate
+    // so the shimmer can never alter which assets/text/events occur.
+    const steer = this.steering.state;
+    this.walker.setSteering(steer);
+    this.applySteeringToFilm(steer);
+    const sh = shimmerFromSteering(steer);
+    this.compositor.setShimmer(sh.dx, sh.dy, sh.zoom);
+
     if (!this.playing) return;
     this.clock += dt;
     // keep any live procedural sources animating on the internal clock
@@ -248,6 +274,19 @@ export class DreamConductor implements DreamRuntime {
     if (this.clock >= this.nextImageAt) this.imageBeat();
     if (this.clock >= this.nextGhostAt) this.ghostBeat();
     if (this.clock >= this.nextTextAt) this.textBeat();
+  }
+
+  /**
+   * Content bend from focus: when the document is BLURRED (the viewer looks away), ease the wake
+   * intensity ceiling down so the reel drifts calmer and is more likely to settle into a coherence
+   * trough — then relax back to the seed's baseline ceiling when focus returns. Bounded, and a no-op
+   * for a focused (passive-attentive) viewer, so the seeded dream is preserved. Classic mode (no
+   * intensity engine driving the reel) is unaffected beyond the harmless setMaxIntensity bookkeeping.
+   */
+  private applySteeringToFilm(steer: SteeringState): void {
+    const blur = 1 - steer.focus; // 0 focused, 1 fully blurred
+    const ceiling = this.baseMaxIntensity * (1 - 0.55 * blur);
+    this.intensity.setMaxIntensity(ceiling);
   }
 
   // --- wake mode ---
