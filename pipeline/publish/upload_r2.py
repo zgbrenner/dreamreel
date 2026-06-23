@@ -52,6 +52,7 @@ def publish_manifest(manifest: dict, media_urls: dict[str, str]) -> dict:
         if a["id"] in media_urls:
             a["src"] = media_urls[a["id"]]
         a.pop("_local", None)  # internal pipeline key — never ship local paths
+        a.pop("_clipStart", None)  # internal pipeline key — never ship chosen timestamp
 
     version = manifest["version"]
     bucket = os.environ["R2_BUCKET"]

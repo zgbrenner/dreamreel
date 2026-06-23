@@ -66,7 +66,8 @@ def build_derivatives(
             raw = a.get("_local")
             local = Path(raw) if raw else None
             if local and local.exists():
-                start = clip_start_seconds(probe_duration(local))
+                clip_start = a.get("_clipStart")
+                start = clip_start if clip_start is not None else clip_start_seconds(probe_duration(local))
                 dst = transcode_video(local, deriv_dir, start_seconds=start)
                 if dst is not None:
                     derivatives[a["id"]] = dst

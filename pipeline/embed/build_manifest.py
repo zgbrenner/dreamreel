@@ -86,6 +86,7 @@ def build_video_assets(embedder, axes, videos_path: Path | None) -> list[dict]:
                 "type": "video",
                 "src": c["source_url"],  # rewritten to the R2 mp4 URL in publish/upload_r2
                 "_local": r["video_path"],  # internal; stripped before upload
+                "_clipStart": r.get("clip_start_seconds", 0.0),  # internal; stripped before upload
                 "embedding": _emb_list(emb),
                 "mood": project_mood(emb, axes),
                 "tags": c.get("tags", []),

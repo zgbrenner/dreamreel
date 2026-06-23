@@ -1,10 +1,10 @@
 """Video download step (candidates.jsonl -> fetched_videos.jsonl).
 
-Network and ffmpeg-poster are mocked; proves only videos are recorded, each row carries a
-local video path and a poster path, and fetch/poster failures are dropped.
+Network and frame_selector are mocked; proves only videos are recorded, each row carries a
+local video path, poster path, and clip_start_seconds, and fetch/poster failures are dropped.
 
-Also validates that the computed clip_start_seconds offset (based on probe_duration) is
-forwarded to extract_poster so the poster frame matches the interior of the film.
+The content-aware frame selection (select_best_frame) is now responsible for poster extraction
+and choosing the clip timestamp; this module's tests mock at that boundary.
 """
 from __future__ import annotations
 
@@ -26,6 +26,11 @@ class FakeResp:
             raise requests.HTTPError(str(self.status_code))
 
 
+class FakeEmbedder:
+    backend = "hash-fallback"
+    dim = 4
+
+
 def _candidates(tmp_path: Path):
     img, _ = make_candidate(
         source_url="https://media.example/ok.jpg", type="image",
@@ -38,16 +43,28 @@ def _candidates(tmp_path: Path):
     return [img, vid]
 
 
-def test_download_videos_records_only_videos_with_poster(tmp_path, monkeypatch):
-    monkeypatch.setattr(dl.requests, "get", lambda url, headers=None, timeout=None: FakeResp())
-    monkeypatch.setattr(dl, "probe_duration", lambda path: 1000.0)
-    # poster extraction succeeds: write a stub jpg next to the asked-for dst
-    def fake_poster(video, dst_dir, at_seconds=1.0):
+def _patch_frame_selector(monkeypatch, tmp_path, poster_path=None, clip_ts=300.0):
+    """Monkeypatch all frame_selector entry points on the download module."""
+    monkeypatch.setattr(dl, "get_embedder", lambda: FakeEmbedder())
+    monkeypatch.setattr(dl, "build_avoid_vector", lambda emb: None)
+    _poster = poster_path  # closed over
+
+    def fake_select(video, dst_dir, embedder, avoid_vec, duration):
+        if _poster is None:
+            return (None, 0.0)
         dst_dir.mkdir(parents=True, exist_ok=True)
         p = dst_dir / (video.stem + ".jpg")
         p.write_bytes(b"jpeg")
-        return p
-    monkeypatch.setattr(dl, "extract_poster", fake_poster)
+        return (p, clip_ts)
+
+    monkeypatch.setattr(dl, "select_best_frame", fake_select)
+    return fake_select
+
+
+def test_download_videos_records_only_videos_with_poster(tmp_path, monkeypatch):
+    monkeypatch.setattr(dl.requests, "get", lambda url, headers=None, timeout=None: FakeResp())
+    monkeypatch.setattr(dl, "probe_duration", lambda path: 1000.0)
+    _patch_frame_selector(monkeypatch, tmp_path, poster_path=True, clip_ts=300.0)
 
     rows = dl.download_videos(_candidates(tmp_path), tmp_path)
 
@@ -55,6 +72,7 @@ def test_download_videos_records_only_videos_with_poster(tmp_path, monkeypatch):
     assert rows[0]["candidate"]["type"] == "video"
     assert Path(rows[0]["video_path"]).exists()
     assert Path(rows[0]["poster_path"]).exists()
+    assert rows[0]["clip_start_seconds"] == 300.0
 
     written = [
         json.loads(line)
@@ -62,12 +80,13 @@ def test_download_videos_records_only_videos_with_poster(tmp_path, monkeypatch):
         if line.strip()
     ]
     assert len(written) == 1
+    assert written[0]["clip_start_seconds"] == 300.0
 
 
 def test_download_videos_drops_when_poster_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(dl.requests, "get", lambda url, headers=None, timeout=None: FakeResp())
     monkeypatch.setattr(dl, "probe_duration", lambda path: 1000.0)
-    monkeypatch.setattr(dl, "extract_poster", lambda video, dst_dir, at_seconds=1.0: None)
+    _patch_frame_selector(monkeypatch, tmp_path, poster_path=None)
 
     rows = dl.download_videos(_candidates(tmp_path), tmp_path)
     assert rows == []
@@ -76,45 +95,17 @@ def test_download_videos_drops_when_poster_fails(tmp_path, monkeypatch):
 def test_download_videos_drops_when_fetch_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(dl.requests, "get", lambda url, headers=None, timeout=None: FakeResp(status=404))
     monkeypatch.setattr(dl, "probe_duration", lambda path: None)
-    monkeypatch.setattr(dl, "extract_poster", lambda video, dst_dir, at_seconds=1.0: None)
+    _patch_frame_selector(monkeypatch, tmp_path, poster_path=None)
     rows = dl.download_videos(_candidates(tmp_path), tmp_path)
     assert rows == []
 
 
-def test_download_videos_passes_computed_offset_to_poster(tmp_path, monkeypatch):
-    """extract_poster must be called with at_seconds=300.0 for a 1000-second film."""
+def test_download_videos_clip_start_seconds_in_row(tmp_path, monkeypatch):
+    """Each row must carry clip_start_seconds from select_best_frame."""
     monkeypatch.setattr(dl.requests, "get", lambda url, headers=None, timeout=None: FakeResp())
-    # 1000-second film → 30% = 300.0
     monkeypatch.setattr(dl, "probe_duration", lambda path: 1000.0)
-    captured = {}
+    _patch_frame_selector(monkeypatch, tmp_path, poster_path=True, clip_ts=650.0)
 
-    def fake_poster(video, dst_dir, at_seconds=1.0):
-        captured["at_seconds"] = at_seconds
-        dst_dir.mkdir(parents=True, exist_ok=True)
-        p = dst_dir / (video.stem + ".jpg")
-        p.write_bytes(b"jpeg")
-        return p
-
-    monkeypatch.setattr(dl, "extract_poster", fake_poster)
-
-    dl.download_videos(_candidates(tmp_path), tmp_path)
-    assert captured["at_seconds"] == 300.0
-
-
-def test_download_videos_uses_zero_offset_when_probe_fails(tmp_path, monkeypatch):
-    """When probe_duration returns None, at_seconds falls back to 0.0 (no crash)."""
-    monkeypatch.setattr(dl.requests, "get", lambda url, headers=None, timeout=None: FakeResp())
-    monkeypatch.setattr(dl, "probe_duration", lambda path: None)
-    captured = {}
-
-    def fake_poster(video, dst_dir, at_seconds=1.0):
-        captured["at_seconds"] = at_seconds
-        dst_dir.mkdir(parents=True, exist_ok=True)
-        p = dst_dir / (video.stem + ".jpg")
-        p.write_bytes(b"jpeg")
-        return p
-
-    monkeypatch.setattr(dl, "extract_poster", fake_poster)
-
-    dl.download_videos(_candidates(tmp_path), tmp_path)
-    assert captured["at_seconds"] == 0.0
+    rows = dl.download_videos(_candidates(tmp_path), tmp_path)
+    assert len(rows) == 1
+    assert rows[0]["clip_start_seconds"] == 650.0
