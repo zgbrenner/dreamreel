@@ -37,6 +37,9 @@ export interface Dreamwalker {
 }
 
 const RECENT_WINDOW = 6;
+// Bias selection toward scarce moving-image so video reads as a real part of the reel, not a
+// rarity. Multiplicative on the pre-softmax weight (deterministic — no extra RNG draw).
+const TYPE_WEIGHTS: Record<string, number> = { video: 3.5 };
 const CARD_TAGS = new Set(['card', 'intertitle', 'titlecard']);
 
 function isCard(a: Asset): boolean {
@@ -183,8 +186,8 @@ class DreamwalkerImpl implements Dreamwalker {
     const scores = candidates.map((a) => cosine(st.e, a.embedding) / T);
     const max = Math.max(...scores);
     let sum = 0;
-    const weights = scores.map((s) => {
-      const w = Math.exp(s - max);
+    const weights = scores.map((s, i) => {
+      const w = Math.exp(s - max) * (TYPE_WEIGHTS[candidates[i].type] ?? 1);
       sum += w;
       return w;
     });
