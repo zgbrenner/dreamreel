@@ -221,7 +221,7 @@ class DreamwalkerImpl implements Dreamwalker {
     this.lastLeaped = this.advancePoint(this.image, this.visual);
 
     // Title-card interjection: surreality- and leap-dependent.
-    const pCard = 0.05 + (this.lastLeaped ? 0.12 : 0) + this.surreality * 0.06;
+    const pCard = 0.02 + (this.lastLeaped ? 0.05 : 0) + this.surreality * 0.03;
     if (this.cards.length > 0 && this.image.rng.next() < pCard) {
       const recent = new Set(this.image.recent);
       const pool = this.cards.filter((c) => !recent.has(c.id));

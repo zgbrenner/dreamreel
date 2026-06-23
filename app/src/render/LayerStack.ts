@@ -146,7 +146,7 @@ export class LayerStack {
    * no extra render happens, so the output is byte-identical to feedback-off / classic mode.
    */
   captureFeedback(renderer: THREE.WebGLRenderer): void {
-    this.fbMat.opacity = this.feedbackTrail * 0.85;
+    this.fbMat.opacity = this.feedbackTrail * 0.55;
     this.fbMesh.visible = this.feedbackTrail > 0.01;
     if (this.feedbackTrail <= 0.01) return;
 

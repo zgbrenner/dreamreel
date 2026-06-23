@@ -245,10 +245,10 @@ export class DreamConductor implements DreamRuntime {
       ...baseWakeFilm(),
       // Keep the media readable: a lighter grade floor and much less bloom so imagery isn't
       // washed to milk; warp/chroma still surge with the heartbeat.
-      filmGrade: 0.62 - intensity * 0.4,
+      filmGrade: 0.38 - intensity * 0.25,
       warp: Math.min(1, intensity * intensity * 0.3),
       chroma: 0.12 + intensity * 0.45,
-      bloom: 0.16 + intensity * 0.3,
+      bloom: 0.10 + intensity * 0.18,
     });
 
     if (this.lastWakeMood) {
@@ -605,13 +605,14 @@ function ccByAttribution(asset: Asset): string | undefined {
  */
 function baseWakeFilm(): Partial<FilmParams> {
   return {
-    vignette: 0.3,
-    grain: 0.12,
-    sepia: 0.16,
-    scanline: 0.05,
-    desat: 0.14,
-    halation: 0.1,
-    haze: 0.05,
+    vignette: 0.16,
+    grain: 0.06,
+    sepia: 0.08,
+    scanline: 0.02,
+    desat: 0.08,
+    halation: 0.05,
+    haze: 0.03,
+    flicker: 0.02,
   };
 }
 
