@@ -37,18 +37,21 @@ describe('IntensityEngine range + sporadicity', () => {
 });
 
 describe('IntensityEngine troughs (coherent moments)', () => {
-  it('troughs are rare and brief over 5 minutes', () => {
+  it('troughs are regular and lingering over 5 minutes (more frequent + longer than before)', () => {
     const eng = createIntensityEngine('troughs');
     const ids = new Set<number>();
     let troughSamples = 0;
-    const total = 3000;
+    const total = 3000; // 300 logical seconds at 0.1s step
     for (let i = 0; i < total; i++) {
       const s = eng.sample(i * 0.1);
       if (s.inTrough) { troughSamples++; ids.add(s.troughId); }
     }
-    expect(ids.size).toBeGreaterThanOrEqual(5);
-    expect(ids.size).toBeLessThanOrEqual(14);
-    expect(troughSamples / total).toBeLessThan(0.15);
+    // gaps 14..30s + 4s duration => ~9-16 troughs over 300s (was 5-14, rarer + briefer)
+    expect(ids.size).toBeGreaterThanOrEqual(8);
+    expect(ids.size).toBeLessThanOrEqual(20);
+    // lucid time is now a meaningful slice (was <0.15), but still not dominating
+    expect(troughSamples / total).toBeGreaterThan(0.1);
+    expect(troughSamples / total).toBeLessThan(0.3);
   });
 
   it('intensity is low inside a trough and high outside', () => {
