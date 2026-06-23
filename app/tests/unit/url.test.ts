@@ -44,11 +44,20 @@ describe('shareable URL state', () => {
 });
 
 describe('wake flag', () => {
-  it('readShareState reads ?wake=1 as true and defaults false', async () => {
-    installWindow('?wake=1');
+  it('defaults wake ON, and only ?wake=0 / ?wake=false opt out', async () => {
     const { readShareState } = await import('../../src/state/url');
-    expect(readShareState().wake).toBe(true);
+    // Default (no param): wake is the default-intended experience -> ON.
     installWindow();
+    expect(readShareState().wake).toBe(true);
+    // Explicit opt-out.
+    installWindow('?wake=0');
     expect(readShareState().wake).toBe(false);
+    installWindow('?wake=false');
+    expect(readShareState().wake).toBe(false);
+    // Explicit opt-in still works.
+    installWindow('?wake=1');
+    expect(readShareState().wake).toBe(true);
+    installWindow('?wake=true');
+    expect(readShareState().wake).toBe(true);
   });
 });

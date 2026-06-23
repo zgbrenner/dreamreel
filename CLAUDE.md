@@ -33,7 +33,7 @@ spend is the one-time offline tagging pass.
     breathing N-layer density (the LayerStack compositor fanning out and collapsing), and
     rare **coherence troughs** where the walk briefly converges before dissolving again.
     The per-seed sequence of assets, text, layer events, and coherence troughs is preserved
-    (timing may vary). Reachable today via `?wake=1`.
+    (timing may vary). **Now the default** experience; the classic reel is opt-out via `?wake=0`.
 - **Live WebGL compositing** is the primary renderer. Offline pre-render (editly) is an
   optional secondary path, behind a flag, not the default.
 

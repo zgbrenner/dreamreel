@@ -18,7 +18,10 @@ export function readShareState(): ShareState {
   const seed = q.get('seed') || randomSeed();
   const surreality = clampNum(parseFloat(q.get('s') ?? ''), 0, 1, 0.45);
   const tempo = clampNum(parseFloat(q.get('t') ?? ''), 0.5, 2, 1);
-  const wake = q.get('wake') === '1' || q.get('wake') === 'true';
+  // Wake mode is the default-intended experience: ON unless explicitly disabled with
+  // ?wake=0 (or ?wake=false). The classic three-clock reel remains reachable as an opt-out.
+  const wakeParam = q.get('wake');
+  const wake = wakeParam !== '0' && wakeParam !== 'false';
   return { seed, surreality, tempo, wake };
 }
 

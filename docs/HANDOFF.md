@@ -5,9 +5,9 @@ _Last updated: 2026-06-23. Read this first when resuming._
 ## TL;DR — where we are
 
 DREAMREEL is being redesigned from a tasteful old-film reel into a **chaotic, fluid, multi-modal,
-Finnegans-Wake-style stream of consciousness**, reachable via **`?wake=1`** (the classic reel is
-still the default until wake is flipped default-on). The redesign is well advanced — all merged to
-`main`:
+Finnegans-Wake-style stream of consciousness**. As of 2026-06-23, **wake mode is the default
+experience**; the classic three-clock reel is now opt-out via **`?wake=0`**. The redesign is well
+advanced — all merged to `main`:
 
 - **Chaos engine + fluid layering** (rounds 6/3): a seeded `intensity` heartbeat drives sporadic
   layer-swaps, breathing N-layer density (`LayerStack`), and rare **coherence troughs**.
@@ -84,11 +84,11 @@ values after the 2026-06-23 polish:
 ## What's left to do
 
 ### Immediate / decisions for the owner
-- **Flip wake mode default-ON** once happy with the look. One line in `app/src/state/url.ts`
-  (`readShareState`): default `wake` to `true` unless `?wake=0`. Add a test. Still opt-in pending the
-  owner's sign-off as the production default (the look has been iterated against the live reel but not
-  formally flipped).
-- **Photosensitivity hardening** before going default-on publicly: `IntensityEngine` has a single
+- ✅ **Wake mode flipped default-ON** (2026-06-23). `app/src/state/url.ts` `readShareState` now
+  defaults `wake` to `true` unless `?wake=0` / `?wake=false`. Unit test updated (`url.test.ts`); the
+  smoke spec now covers classic via `?wake=0` and wake as the bare-`/` default.
+- ⚠️ **Photosensitivity hardening** — now the top remaining gate, since wake (with its flicker/
+  feedback/strobe-capable layers) is the default the public lands on. `IntensityEngine` has a single
   `setMaxIntensity` clamp (reduced-motion already clamps to 0.45) — needs a proper strobe/flash-rate
   cap + possibly a warning gate. Flicker is now low (0.02 in wake) but this is the remaining safety gate.
 

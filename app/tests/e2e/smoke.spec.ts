@@ -71,20 +71,22 @@ async function playAndAssert(page: Page, runSeconds: number, errors: string[]): 
   expect(errors, `console errors:\n${errors.join('\n')}`).toEqual([]);
 }
 
-test('DREAMREEL loads, plays, and runs without console errors or runaway heap', async ({
+test('DREAMREEL classic mode (?wake=0) loads, plays, and runs without console errors or runaway heap', async ({
   page,
 }) => {
   test.setTimeout((RUN_SECONDS + 40) * 1000);
   const errors = collectErrors(page);
-  await page.goto('/');
+  // Wake is now the default; ?wake=0 opts back into the classic three-clock reel.
+  await page.goto('/?wake=0');
   await playAndAssert(page, RUN_SECONDS, errors);
 });
 
-test('DREAMREEL wake mode (?wake=1) loads, plays, and runs without console errors or runaway heap', async ({
+test('DREAMREEL wake mode (default) loads, plays, and runs without console errors or runaway heap', async ({
   page,
 }) => {
   test.setTimeout((WAKE_SECONDS + 40) * 1000);
   const errors = collectErrors(page);
-  await page.goto('/?wake=1');
+  // No param -> wake (the default-intended experience).
+  await page.goto('/');
   await playAndAssert(page, WAKE_SECONDS, errors);
 });
