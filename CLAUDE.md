@@ -39,13 +39,32 @@ spend is the one-time offline tagging pass.
   never tune or edit the one they're given. There are no dream-shaping sliders, toggles, or
   switches: surreality and tempo are derived deterministically from the seed, so each dream has
   its own character (one seed calm, another frenzied) and variety lives *across* dreams. The only
-  controls are **New dream**, play/pause, and a sound on/off output toggle.
-- **Determinism.** Given the same seed, the *sequence of assets and text* (the "dream script")
-  — and, in wake mode, the sequence of coherence troughs and layer-swap events — is identical,
-  even if frame timing varies. A given seed therefore yields a given **emotional identity** (its
-  surreality/tempo and the mood vectors of the assets its walk surfaces) and the same dream. The
-  seed is the **only** shareable dream param: `?seed=...` (surreality/tempo fold into what the
-  seed produces; `?wake=0` is a non-UI engine-mode opt-out).
+  controls are **New dream**, play/pause, and a sound on/off output toggle. (The behavioral bend
+  below is **not a control** and does not violate this: it reads *ambient, passive* signals — never
+  a slider, toggle, or dream-shaping knob — and any steering is bounded and relaxes back to the
+  seeded dream, so the viewer still can't tune or pin the dream they're given.)
+- **Determinism — a seeded spine that bends to behavior and relaxes back.** The seed defines a
+  pure **spine** (the deterministic "ghost track"): given the same seed, the *sequence of assets
+  and text* (the "dream script") — and, in wake mode, the sequence of coherence troughs and
+  layer-swap events — is identical, even if frame timing varies. A **PASSIVE viewer** (no
+  interaction) gets exactly this seeded dream, in the same order, bit-for-bit — `?seed=` stays
+  reproducible. On top of the spine, **ambient behavioral signals** (pointer attention, idle,
+  document focus/blur, device tilt, time-of-day — native APIs only, **no webcam**) apply
+  **bounded** nudges: an engaged viewer gets a *steered variant of the same dream identity*, never
+  a different dream. The bend is **capped** (max deviation from the spine is bounded) and
+  **relaxes** — when signals fade it decays back to the spine on a time constant, snapping to
+  exactly the seeded sequence once spent. Determinism holds given **(seed + the recorded steering
+  signal)**; with zero signal it equals the pure seeded sequence bit-for-bit. The spine is kept
+  explicit and queryable so the bend can measure its own deviation and pull back (see
+  `dream/dreamwalker.ts` spine/`bend`/`setSteering` and `dream/steering.ts`). Two paths stay
+  strictly separate: the **content bend** can change *which* assets/text/events occur (pointer
+  attention leans the next pick within the cap; blur eases toward a coherence trough; idle only
+  *lengthens dwell*, never reordering the script), while **presentation shimmer** (pointer/tilt →
+  subtle parallax/breathing in `render/Compositor.ts`) only reframes the picture and can never
+  alter the dream script. A given seed therefore still yields a given **emotional identity** (its
+  surreality/tempo and the mood vectors of the assets its walk surfaces). The seed remains the
+  **only** shareable dream param: `?seed=...` (surreality/tempo fold into what the seed produces;
+  steering is live/ambient and never serialized; `?wake=0` is a non-UI engine-mode opt-out).
 - **Two compositing modes, both seeded and deterministic.**
   - *Classic clocks:* three desynced layer clocks (image, ghost/double-exposure, text)
     advance independently so layers recombine.

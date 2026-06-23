@@ -43,6 +43,14 @@ export class Compositor {
   private videoPool = new VideoPool({ cap: 3 });
   private current: THREE.Texture | null = null;
   private crossfade: Crossfade | null = null;
+
+  // --- presentation shimmer (pointer/tilt parallax + breathing) ---
+  // A subtle camera nudge driven by ambient steering. This path is PRESENTATION-ONLY and lives
+  // entirely outside the dream script: it pans/zooms the camera and never selects assets, text, or
+  // layer events. The conductor feeds targets via setShimmer; advance() eases toward them so the
+  // framing breathes smoothly. Defaults (0,0,1) are a no-op, so the dream looks identical when idle.
+  private shimmerTarget = { dx: 0, dy: 0, zoom: 1 };
+  private shimmer = { dx: 0, dy: 0, zoom: 1 };
   private rafId = 0;
   private running = false;
   private lastMs = 0;
@@ -210,6 +218,17 @@ export class Compositor {
     this.crossfade = { startMs: performance.now(), durationMs: Math.max(1, durationMs), to };
   }
 
+  /**
+   * Set the presentation shimmer target: a bounded camera pan (NDC units) and breathing zoom.
+   * PRESENTATION-ONLY — this never touches the Dreamwalker, so it cannot change which assets/text/
+   * events occur. advance() eases the live shimmer toward this target each frame.
+   */
+  setShimmer(dx: number, dy: number, zoom: number): void {
+    this.shimmerTarget.dx = dx;
+    this.shimmerTarget.dy = dy;
+    this.shimmerTarget.zoom = zoom;
+  }
+
   /** Set or clear the ghost (double-exposure) layer. */
   setGhost(tex: THREE.Texture | null, opacity: number): void {
     if (!tex || opacity <= 0) {
@@ -246,6 +265,7 @@ export class Compositor {
   }
 
   private advance(now: number): void {
+    this.advanceShimmer();
     const cf = this.crossfade;
     if (!cf) return;
     const p = (now - cf.startMs) / cf.durationMs;
@@ -253,6 +273,24 @@ export class Compositor {
       this.settleCrossfade(cf.to);
     } else {
       this.stageMaterial.setProgress(p);
+    }
+  }
+
+  /**
+   * Ease the live shimmer toward its target and apply it to the orthographic camera as a tiny pan
+   * (position x/y) plus a breathing zoom. Purely presentational — the scene contents are untouched.
+   */
+  private advanceShimmer(): void {
+    const k = 0.08; // gentle smoothing so framing drifts rather than snaps
+    this.shimmer.dx += (this.shimmerTarget.dx - this.shimmer.dx) * k;
+    this.shimmer.dy += (this.shimmerTarget.dy - this.shimmer.dy) * k;
+    this.shimmer.zoom += (this.shimmerTarget.zoom - this.shimmer.zoom) * k;
+    this.camera.position.x = this.shimmer.dx;
+    this.camera.position.y = this.shimmer.dy;
+    const zoom = this.shimmer.zoom || 1;
+    if (this.camera.zoom !== zoom) {
+      this.camera.zoom = zoom;
+      this.camera.updateProjectionMatrix();
     }
   }
 
