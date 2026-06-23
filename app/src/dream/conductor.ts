@@ -21,6 +21,8 @@ import { parseGrade, type FilmParams } from '../render/filmParams';
 import { attributionFor } from '../manifest/attribution';
 import { TRANSITION_NAMES } from '../render/transitions';
 import type { AudioEngine } from '../audio/engine';
+import { createAudioWalker, type AudioWalker } from './audioWalker';
+import { createMixer, type Mixer } from '../audio/mixer';
 import type { DreamRuntime } from '../state/runtime';
 import type { Caption } from '../state/store';
 
@@ -58,6 +60,14 @@ export class DreamConductor implements DreamRuntime {
   // when a swap fires, then held steady between swaps so density/blends don't strobe per frame.
   private currentPlan: LayerPlan | null = null;
 
+  // --- audio walker + mixer (sampled audio layer) ---
+  private readonly audioWalker: AudioWalker | null;
+  private mixer: Mixer | null = null;
+  private soundOn = true;
+  private audioElapsedMs = 0;
+  private audioDwellMs = 0;
+  private currentClaptext: number[] | undefined = undefined;
+
   private playing = false;
   private clock = 0; // internal seconds, advanced only while playing
   private nextImageAt = 0;
@@ -93,6 +103,15 @@ export class DreamConductor implements DreamRuntime {
     this.intensity = createIntensityEngine(this.seed);
     this.layerStack = this.wake ? new LayerStack(compositor) : null;
     if (this.postfx.params.reduceMotion) this.intensity.setMaxIntensity(0.45);
+    // AudioWalker is pure (no DOM/Tone); build it eagerly so its seeded state is ready.
+    // The Mixer is built lazily inside play() because it needs engine.masterGain, which
+    // only exists after audio.start() has returned.
+    this.audioWalker = manifest.audio.length
+      ? createAudioWalker(
+          { audio: manifest.audio, audioEmbeddingDim: manifest.audioEmbeddingDim },
+          { seed: this.seed, surreality: this.surreality },
+        )
+      : null;
     this.unsub = compositor.addFrameListener((dt) => this.tick(dt));
   }
 
@@ -104,8 +123,20 @@ export class DreamConductor implements DreamRuntime {
     this.compositor.resumeVideos();
     try {
       await this.audio.start();
-      this.audio.setVolume(true);
+      this.audio.setVolume(this.soundOn);
       this.audio.setTempo(this.tempoMul);
+      // Build the Mixer lazily here — after start() — because engine.masterGain is only
+      // available once the Tone graph has been constructed inside audio.start().
+      if (this.audioWalker && !this.mixer) {
+        const master = this.audio.masterGain;
+        if (master) {
+          this.safeAudio(() => {
+            this.mixer = createMixer({ master: master });
+            this.mixer!.setEnabled(this.soundOn);
+            this.mixer!.resume();
+          });
+        }
+      }
     } catch {
       // audio is best-effort; the dream plays regardless
     }
@@ -115,6 +146,7 @@ export class DreamConductor implements DreamRuntime {
     this.playing = false;
     this.compositor.pauseVideos();
     this.safeAudio(() => this.audio.suspend());
+    this.safeAudio(() => this.mixer?.pause());
   }
 
   /** Audio is best-effort: a failing audio call must never break the dream (see CLAUDE.md). */
@@ -137,7 +169,9 @@ export class DreamConductor implements DreamRuntime {
   }
 
   setSound(on: boolean): void {
+    this.soundOn = on;
     this.safeAudio(() => this.audio.setVolume(on));
+    this.safeAudio(() => this.mixer?.setEnabled(on));
   }
 
   setArchive(on: boolean): void {
@@ -145,6 +179,7 @@ export class DreamConductor implements DreamRuntime {
     this.archiveOn = on;
     this.walker = this.buildWalker();
     this.hardCut();
+    this.safeAudio(() => this.mixer?.setArchiveAudio(on));
   }
 
   reseed(seed: string, surreality: number, tempoMul: number): void {
@@ -160,6 +195,11 @@ export class DreamConductor implements DreamRuntime {
     this.currentPlan = null;
     this.lastWakeMood = null;
     this.safeAudio(() => this.audio.setTempo(tempoMul));
+    // Reset audio walk accumulators so the new seed starts a fresh audio sequence.
+    this.audioWalker?.reseed(seed);
+    this.audioElapsedMs = 0;
+    this.audioDwellMs = 0;
+    this.currentClaptext = undefined;
     this.hardCut();
   }
 
@@ -169,6 +209,7 @@ export class DreamConductor implements DreamRuntime {
     for (const p of this.procCache.values()) p.dispose();
     this.procCache.clear();
     this.textCardTex?.dispose();
+    this.safeAudio(() => this.mixer?.dispose());
   }
 
   // --- internals ---
@@ -200,6 +241,20 @@ export class DreamConductor implements DreamRuntime {
     this.clock += dt;
     // keep any live procedural sources animating on the internal clock
     for (const p of this.liveProcs) p.update(this.clock);
+
+    // Audio walk cadence: advance on its own independent accumulator regardless of mode.
+    // audioDwellMs starts at 0 so the very first tick immediately takes the first pick.
+    if (this.audioWalker && this.mixer) {
+      this.audioElapsedMs += dt * 1000;
+      if (this.audioElapsedMs >= this.audioDwellMs) {
+        const pick = this.audioWalker.next(this.currentClaptext, this.tempoMul);
+        if (pick) {
+          this.safeAudio(() => this.mixer!.show(pick));
+          this.audioDwellMs = pick.dwellMs;
+          this.audioElapsedMs = 0;
+        }
+      }
+    }
 
     if (this.wake) {
       this.wakeTick(dt);
@@ -311,6 +366,8 @@ export class DreamConductor implements DreamRuntime {
     this.lastWakeMood = mood;
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
+    // Update the text bridge so the audio walker can bias toward the on-screen concept.
+    this.currentClaptext = beat.asset.claptext;
 
     const { slot, nextCursor } = pickSwapSlot(
       this.layerCursor,
@@ -343,12 +400,15 @@ export class DreamConductor implements DreamRuntime {
       void this.compositor.showImage(asset.src, asset.grade).then((res) => {
         if (res.ok) {
           stack.setLayerTexture(slot, res.texture);
+          // Non-video asset becomes the displayed image — clear film-clip audio.
+          this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
         } else {
           // deterministic procedural fallback so the slot is never empty
           const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
           const src = this.proc(`fallback:${asset.id}`, kind);
           this.markLive(src);
           stack.setLayerTexture(slot, src.texture);
+          this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
         }
       });
     } else if (asset.type === 'video' && asset.src) {
@@ -356,11 +416,15 @@ export class DreamConductor implements DreamRuntime {
         if (res.ok) {
           stack.setLayerTexture(slot, res.texture);
           this.slotHeldUntil[slot] = this.clock + (sample.inTrough ? 13.0 : 9.0);
+          // Route film-clip native audio through the mixer (best-effort).
+          const el = res.texture.userData.video as HTMLVideoElement | undefined;
+          this.safeAudio(() => this.mixer?.setFilmClipAudio(true, el));
         } else {
           const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
           const src = this.proc(`fallback:${asset.id}`, kind);
           this.markLive(src);
           stack.setLayerTexture(slot, src.texture);
+          this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
         }
       });
     } else {
@@ -403,6 +467,8 @@ export class DreamConductor implements DreamRuntime {
     const mood = this.walker.currentMood();
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
+    // Update the text bridge for the audio walker.
+    this.currentClaptext = beat.asset.claptext;
     this.applyMoodToFilm(mood, beat.asset);
 
     const transition = TRANSITION_NAMES[this.presRng.int(TRANSITION_NAMES.length)];
@@ -459,6 +525,8 @@ export class DreamConductor implements DreamRuntime {
       const src = this.proc(asset.id, asset.kind ?? 'fog');
       this.markLive(src);
       this.compositor.crossfadeTo(src.texture, transition, this.crossfadeMs());
+      // Non-video: clear any active film-clip audio.
+      this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
       return;
     }
     if (asset.type === 'image' && asset.src) {
@@ -472,6 +540,8 @@ export class DreamConductor implements DreamRuntime {
           this.markLive(src);
           this.compositor.crossfadeTo(src.texture, transition, this.crossfadeMs());
         }
+        // Non-video: clear any active film-clip audio.
+        this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
       });
       return;
     }
@@ -479,11 +549,16 @@ export class DreamConductor implements DreamRuntime {
       void this.compositor.showVideo(asset.src, asset.grade).then((res) => {
         if (res.ok) {
           this.compositor.crossfadeTo(res.texture, transition, this.crossfadeMs());
+          // Route film-clip native audio through the mixer (best-effort).
+          const el = res.texture.userData.video as HTMLVideoElement | undefined;
+          this.safeAudio(() => this.mixer?.setFilmClipAudio(true, el));
         } else {
           const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
           const src = this.proc(`fallback:${asset.id}`, kind);
           this.markLive(src);
           this.compositor.crossfadeTo(src.texture, transition, this.crossfadeMs());
+          // Video failed to load; treat as non-video.
+          this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
         }
       });
       return;
@@ -491,6 +566,8 @@ export class DreamConductor implements DreamRuntime {
     // titlecard-type asset used as a visual, or anything else -> text card
     const tex = this.makeTitleCard(asset.text ?? '');
     this.compositor.crossfadeTo(tex, transition, this.crossfadeMs());
+    // Non-video: clear any active film-clip audio.
+    this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
   }
 
   private textureForAsset(asset: Asset): THREE.Texture | null {
