@@ -45,3 +45,14 @@ def test_procedural_assets_present(tmp_path: Path):
     m = json.loads(build(tmp_path, fetched_path=None).read_text())
     kinds = {a.get("kind") for a in m["assets"] if a["type"] == "procedural"}
     assert {"leader", "fog", "static"} <= kinds
+
+
+def test_manifest_includes_audio_pool_and_claptext(tmp_path):
+    from embed.build_manifest import build
+    out = build(tmp_path, fetched_path=None, videos_path=None)
+    import json
+    m = json.loads(out.read_text())
+    assert "audio" in m and isinstance(m["audio"], list)
+    assert "audioEmbeddingDim" in m and m["audioEmbeddingDim"] == 512
+    # claptext is present on visual assets that have tags (procedural assets have tag lists too)
+    assert all(("claptext" in a) for a in m["assets"])

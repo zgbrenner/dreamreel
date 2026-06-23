@@ -17,6 +17,9 @@ from pathlib import Path
 
 import numpy as np
 
+from audio.build_audio import build_audio_assets, claptext_for
+from audio.clap_backend import get_audio_embedder
+
 from .clip_backend import get_embedder, l2_normalize
 from .curate import DEFAULT_CUTOFF, VIDEO_CUTOFF, curate
 from .embed_images import embed_image_paths
@@ -61,7 +64,7 @@ def curate_image_assets(image_assets: list[dict]) -> list[dict]:
     return kept
 
 
-def build_video_assets(embedder, axes, videos_path: Path | None) -> list[dict]:
+def build_video_assets(embedder, axes, videos_path: Path | None, audio_embedder=None) -> list[dict]:
     """Read fetched_videos.jsonl, embed each poster frame, emit curated video assets.
 
     Each asset carries an internal _local source path (consumed by publish/transcode, stripped
@@ -91,6 +94,7 @@ def build_video_assets(embedder, axes, videos_path: Path | None) -> list[dict]:
                 "mood": project_mood(emb, axes),
                 "tags": c.get("tags", []),
                 "dwellBase": _dwell_for("video", c.get("tags", [])),
+                "claptext": claptext_for(audio_embedder, c.get("tags", [])) if audio_embedder is not None else [],
                 "source": c["source"],
                 "license": c["license"],
                 **({"attribution": c["attribution"]} if c.get("attribution") else {}),
@@ -109,6 +113,10 @@ def build(out_dir: Path, fetched_path: Path | None, videos_path: Path | None = N
     embedder = get_embedder()
     print(f"[build_manifest] embedder backend: {embedder.backend}, dim={embedder.dim}")
     axes = build_axes(embedder)
+
+    audio_embedder = get_audio_embedder()
+    print(f"[build_manifest] audio embedder backend: {audio_embedder.backend}, dim={audio_embedder.dim}")
+    audio_axes = build_axes(audio_embedder)
 
     assets: list[dict] = []
     image_assets: list[dict] = []
@@ -133,6 +141,7 @@ def build(out_dir: Path, fetched_path: Path | None, videos_path: Path | None = N
                     "mood": project_mood(emb, axes),
                     "tags": c.get("tags", []),
                     "dwellBase": _dwell_for("image", c.get("tags", [])),
+                    "claptext": claptext_for(audio_embedder, c.get("tags", [])),
                     "source": c["source"],
                     "license": c["license"],
                     **({"attribution": c["attribution"]} if c.get("attribution") else {}),
@@ -143,7 +152,7 @@ def build(out_dir: Path, fetched_path: Path | None, videos_path: Path | None = N
     assets.extend(curate_image_assets(image_assets))
 
     # --- video assets from the video download step ---
-    assets.extend(build_video_assets(embedder, axes, videos_path))
+    assets.extend(build_video_assets(embedder, axes, videos_path, audio_embedder=audio_embedder))
 
     # --- procedural placeholder assets (runtime needs these for archive-off) ---
     proc_emb = procedural_seed_embeddings(embedder)
@@ -158,10 +167,26 @@ def build(out_dir: Path, fetched_path: Path | None, videos_path: Path | None = N
                 "mood": project_mood(emb, axes),
                 "tags": [kind, "procedural"],
                 "dwellBase": 6.0 if kind != "leader" else 4.0,
+                "claptext": claptext_for(audio_embedder, [kind, "procedural"]),
                 "source": "DREAMREEL / procedural",
                 "license": "CC0",
             }
         )
+
+    # --- audio pool from the audio download/transcode step ---
+    audio_assets: list[dict] = []
+    audio_path = out_dir / "fetched_audio.jsonl"
+    if audio_path.exists():
+        import json as _json
+        from audio.ingest import normalize_audio
+        with audio_path.open(encoding="utf-8") as f:
+            raw_audio = [_json.loads(line) for line in f if line.strip()]
+        cands = normalize_audio(raw_audio)
+        # Thread _local onto candidates via by-id lookup (normalize_audio does not carry _local)
+        local_by_id = {r["id"]: r.get("_local", "") for r in raw_audio}
+        for cand in cands:
+            cand["_local"] = local_by_id.get(cand["id"], "")
+        audio_assets = build_audio_assets(audio_embedder, audio_axes, cands)
 
     # --- text pool ---
     texts: list[dict] = []
@@ -185,8 +210,10 @@ def build(out_dir: Path, fetched_path: Path | None, videos_path: Path | None = N
         "version": datetime.now(timezone.utc).strftime("%Y.%m.%d-%H%M"),
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "embeddingDim": int(embedder.dim),
+        "audioEmbeddingDim": int(audio_embedder.dim),
         "moodAxes": {axis: _emb_list(axes[axis]) for axis in MOOD_AXES},
         "assets": assets,
+        "audio": audio_assets,
         "texts": texts,
     }
 
