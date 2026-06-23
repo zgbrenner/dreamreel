@@ -200,6 +200,7 @@ export class DreamConductor implements DreamRuntime {
     this.audioElapsedMs = 0;
     this.audioDwellMs = 0;
     this.currentClaptext = undefined;
+    this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
     this.hardCut();
   }
 
