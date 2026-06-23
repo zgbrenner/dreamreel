@@ -143,7 +143,9 @@ export class LayerStack {
         this.fadeTarget[slot] = 0.92;
       } else {
         mat.blending = BLEND_MAP[plan.blends[rank] ?? 'screen'];
-        this.fadeTarget[slot] = Math.max(0.18, 0.6 - rank * 0.09);
+        let target = Math.max(0.18, 0.6 - rank * 0.09);
+        if (pin.has(slot)) target = Math.max(target, 0.72);
+        this.fadeTarget[slot] = target;
       }
     }
   }
