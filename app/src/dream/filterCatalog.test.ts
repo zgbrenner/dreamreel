@@ -60,6 +60,26 @@ describe('catalog integrity', () => {
   it('the catalog grew to a curated ~20+ set', () => {
     expect(Object.keys(TRANSITIONS).length).toBeGreaterThanOrEqual(20);
   });
+
+  it('every catalog shader defines a transition() entry point', () => {
+    for (const [name, def] of Object.entries(TRANSITIONS)) {
+      expect(def.glsl, `${name} has glsl`).toBeTruthy();
+      expect(def.glsl.includes('vec4 transition(vec2 uv)'), `${name} defines transition()`).toBe(true);
+    }
+  });
+
+  it('the 2026-06-24 expansion shaders are defined and each is wired into a mood family', () => {
+    const added = [
+      'windowBlinds', 'crossZoom', 'inkBleed', 'chromaDrift',
+      'waterDrop', 'diagonalWipe', 'mirrorFold', 'staticDissolve',
+    ];
+    const familyNames = new Set(Object.values(TRANSITION_BY_AXIS).flat());
+    for (const name of added) {
+      expect(TRANSITIONS[name], `${name} defined`).toBeTruthy();
+      expect(familyNames.has(name), `${name} wired into a mood family`).toBe(true);
+    }
+    expect(Object.keys(TRANSITIONS).length).toBeGreaterThanOrEqual(29);
+  });
 });
 
 describe('pickTransition — determinism + blends + defaults', () => {

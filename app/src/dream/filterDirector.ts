@@ -84,18 +84,18 @@ export function capDistortion(fs: FilterStrengths): FilterStrengths {
 
 /** Per-axis transition families. Names MUST exist in render/transitions.ts TRANSITIONS. */
 export const TRANSITION_BY_AXIS: Record<MoodAxis, readonly string[]> = {
-  melancholy: ['crossLuma', 'fade', 'fadeBlack'],
-  uncanny: ['solarizeWipe', 'swirl', 'glitch'],
-  nostalgic: ['liquidWave', 'ripple', 'crossLuma'],
-  ominous: ['cut', 'slideHarsh', 'barWipe'],
-  tender: ['bloomDissolve', 'lightFlash', 'crossLuma'],
-  mechanical: ['glitch', 'pixelize', 'posterizeWipe'],
-  love: ['bloomDissolve', 'lightFlash', 'irisOpen'],
-  loss: ['fadeBlack', 'fade', 'crossLuma'],
-  joy: ['irisOpen', 'radialReveal', 'bloomDissolve'],
-  fear: ['cut', 'glitch', 'slideHarsh'],
-  absurdity: ['dreamWarp', 'melt', 'swirl'],
-  strange: ['swirl', 'ripple', 'dreamWarp'],
+  melancholy: ['crossLuma', 'fade', 'fadeBlack', 'diagonalWipe'],
+  uncanny: ['solarizeWipe', 'swirl', 'glitch', 'chromaDrift', 'staticDissolve'],
+  nostalgic: ['liquidWave', 'ripple', 'crossLuma', 'waterDrop', 'diagonalWipe'],
+  ominous: ['cut', 'slideHarsh', 'barWipe', 'inkBleed'],
+  tender: ['bloomDissolve', 'lightFlash', 'crossLuma', 'waterDrop'],
+  mechanical: ['glitch', 'pixelize', 'posterizeWipe', 'windowBlinds', 'staticDissolve'],
+  love: ['bloomDissolve', 'lightFlash', 'irisOpen', 'waterDrop'],
+  loss: ['fadeBlack', 'fade', 'crossLuma', 'inkBleed'],
+  joy: ['irisOpen', 'radialReveal', 'bloomDissolve', 'crossZoom'],
+  fear: ['cut', 'glitch', 'slideHarsh', 'staticDissolve', 'crossZoom'],
+  absurdity: ['dreamWarp', 'melt', 'swirl', 'mirrorFold', 'chromaDrift'],
+  strange: ['swirl', 'ripple', 'dreamWarp', 'mirrorFold', 'waterDrop'],
 };
 
 /** Gentle, luminous defaults used when no emotion dominates (the identity path). */

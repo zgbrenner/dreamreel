@@ -166,8 +166,9 @@ film grade rises and falls with the wake intensity signal, and warp/density vary
   filter strengths, crossfade **transition** choice, **procedural-source** params, AND whether the
   optional **Butterchurn** layer engages. Keep new look decisions here (pure, seed-deterministic via
   a caller-supplied `roll`) so the look stays coherent and unit-testable.
-  - *Transitions* (`render/transitions.ts`, ~20 original gl-transitions-spec GLSL shaders, MIT — see
-    `app/NOTICE`): each of the 12 mood axes nominates a transition family (e.g. fear/ominous→hard
+  - *Transitions* (`render/transitions.ts`, ~30 original gl-transitions-spec GLSL shaders, MIT — see
+    `app/NOTICE`; every shader is compile+link-checked in real WebGL by `tests/e2e/transitions-compile.spec.ts`):
+    each of the 12 mood axes nominates a transition family (e.g. fear/ominous→hard
     cuts, tender/love→luminous dissolves, absurdity/strange→warped/melting, nostalgic→liquid,
     mechanical→glitch/posterize, joy→iris/radial); the live mood **blends** those families and
     `pickTransition` selects deterministically. Neutral mood → a gentle identity default; coherence

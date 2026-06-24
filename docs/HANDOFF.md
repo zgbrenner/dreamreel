@@ -73,7 +73,8 @@ advanced — all merged to `main`:
 | — | **Single-verb UX (new-dream-only; seed-derived surreality/tempo)** | ✅ merged (`main` `fc1af01`) |
 | — | **Emotion taxonomy: 12 blendable axes (data+types+docs)** | ✅ done |
 | — | **12-axis wiring through visuals/audio/text** | ✅ merged (`main` `2ff5ca9`); live R2 corpus remooded to 12 axes (`v2026.06.24-1859`) |
-| — | **Musical pacing (librosa tempo/energy → bar-quantized audio)** | ✅ code merged; ⬜ live R2 audio needs an `add_tempo` reship to carry bpm/energy |
+| — | **Musical pacing (librosa tempo/energy → bar-quantized audio)** | ✅ code merged + live (`v2026.06.24-2058`, 44/44 clips carry bpm/energy) |
+| — | **Transition catalog expansion (21 → 29 shaders)** | ✅ 8 new original gl-transitions-spec shaders wired into mood families; all compile-checked in WebGL |
 | — | **Photosensitivity hardening** | ⬜ deferred (clamp seam exists in `IntensityEngine`) |
 
 ## Wake-mode tuning surface (where to nudge the live feel)
