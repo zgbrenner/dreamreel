@@ -12,7 +12,29 @@ export interface TextureLoadFail {
 export type TextureLoadResult = TextureLoadOk | TextureLoadFail;
 
 const MAX_SIDE = 1600; // cap input resolution to protect mobile memory
-const DEFAULT_TIMEOUT_MS = 6000;
+const DEFAULT_TIMEOUT_MS = 15000; // full-res PD scans (Wikimedia, archive) can be many MB / slow
+
+/**
+ * Rewrite a Wikimedia `Special:FilePath/<file>` URL to request a server-sized thumbnail
+ * (`?width=MAX_SIDE`). The originals are frequently 10–50 MB master scans that blow the load
+ * timeout; the thumbnail endpoint returns a fast, CORS-clean (Access-Control-Allow-Origin: *)
+ * downscale that is plenty for our MAX_SIDE cap. Non-Wikimedia / already-sized URLs pass through.
+ */
+export function preferredImageUrl(url: string): string {
+  try {
+    const u = new URL(url, 'https://x.invalid');
+    const isWikiFilePath =
+      /(^|\.)wikimedia\.org$|(^|\.)wikipedia\.org$/.test(u.hostname) &&
+      u.pathname.includes('/Special:FilePath/');
+    if (isWikiFilePath && !u.searchParams.has('width')) {
+      u.searchParams.set('width', String(MAX_SIDE));
+      return u.toString();
+    }
+  } catch {
+    // malformed URL — fall through and let the loader try it verbatim
+  }
+  return url;
+}
 
 /**
  * Load an image URL into a THREE.Texture, downscaling so the longest side is <= MAX_SIDE.
@@ -51,7 +73,7 @@ export function loadImageTexture(
       }
     };
     img.onerror = () => finish({ ok: false, reason: 'error' });
-    img.src = url;
+    img.src = preferredImageUrl(url);
   });
 }
 

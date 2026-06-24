@@ -23,7 +23,10 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+    // Pin the build to the bundled seed manifest so the smoke test stays offline-deterministic —
+    // production builds now default to the remote R2 corpus, which CI must not depend on.
+    command:
+      'VITE_MANIFEST_URL=/manifest.seed.json npm run build && npm run preview -- --port 4173 --strictPort',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

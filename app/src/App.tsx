@@ -6,7 +6,15 @@ import { Gate } from './ui/Gate';
 import { ProjectorPanel } from './ui/ProjectorPanel';
 import { Captions } from './ui/Captions';
 
-const MANIFEST_URL = import.meta.env.VITE_MANIFEST_URL || '/manifest.seed.json';
+// The bundled 26-asset seed manifest is a dev placeholder whose external hotlinks are flaky; the
+// real corpus (326 media assets) lives on R2. Production/preview BUILDS default to the R2 manifest
+// so they never silently fall back to the procedural-heavy seed when the Pages env var is missing
+// on a given deployment; local `npm run dev` defaults to the fast, offline seed. `VITE_MANIFEST_URL`
+// overrides either, and a failed remote load still falls back to the bundled seed below.
+const R2_MANIFEST_URL = 'https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json';
+const SEED_MANIFEST_URL = '/manifest.seed.json';
+const DEFAULT_MANIFEST_URL = import.meta.env.PROD ? R2_MANIFEST_URL : SEED_MANIFEST_URL;
+const MANIFEST_URL = import.meta.env.VITE_MANIFEST_URL || DEFAULT_MANIFEST_URL;
 
 const PANEL_PREF_KEY = 'dreamreel.panelOpen';
 
@@ -40,8 +48,8 @@ export default function App() {
       .catch((e: unknown) => {
         if (cancelled) return;
         // Fall back to the bundled seed manifest if a remote manifest URL fails.
-        if (MANIFEST_URL !== '/manifest.seed.json') {
-          loadManifest('/manifest.seed.json')
+        if (MANIFEST_URL !== SEED_MANIFEST_URL) {
+          loadManifest(SEED_MANIFEST_URL)
             .then((m) => !cancelled && setManifest(m))
             .catch((e2: unknown) =>
               setError(e2 instanceof ManifestError ? e2.message : String(e2)),

@@ -31,6 +31,7 @@ import { ButterchurnLayer } from '../render/ButterchurnLayer';
 import type { Compositor } from '../render/Compositor';
 import type { PostFX } from '../render/postfx';
 import { getProceduralTexture, type ProceduralSource } from '../render/procedural';
+import { visualPool } from './visualPool';
 import { parseGrade, type FilmParams } from '../render/filmParams';
 import { attributionFor } from '../manifest/attribution';
 import type { AudioEngine } from '../audio/engine';
@@ -267,10 +268,7 @@ export class DreamConductor implements DreamRuntime {
   // --- internals ---
 
   private buildWalker(): Dreamwalker {
-    const visual = this.manifest.assets.filter((a) =>
-      this.archiveOn ? true : a.type === 'procedural' || a.type === 'titlecard',
-    );
-    const pool = visual.length > 0 ? visual : this.manifest.assets.filter((a) => a.type === 'procedural');
+    const pool = visualPool(this.manifest.assets, this.archiveOn);
     return createDreamwalker(
       { visual: pool, texts: this.manifest.texts, moodAxes: this.manifest.moodAxes, embeddingDim: this.manifest.embeddingDim },
       { seed: this.seed, surreality: this.surreality },
