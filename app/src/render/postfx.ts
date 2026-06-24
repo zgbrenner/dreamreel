@@ -33,6 +33,13 @@ import { makeRng, type Rng } from '../dream/prng';
 import { DreamFilter } from './DreamFilter';
 import type { FilterStrengths } from '../dream/filterDirector';
 import { SNOISE3D_GLSL } from './shaderNoise';
+import {
+  generalBrightnessGuard,
+  generalExposureGuard,
+  REDUCED_MOTION_FLASHES,
+  REDUCED_MOTION_BRIGHT_CEIL,
+  REDUCED_MOTION_EXPO_CEIL,
+} from './flashGuard';
 
 const FILM_FRAG = /* glsl */ `
 ${SNOISE3D_GLSL}
@@ -213,6 +220,11 @@ export class PostFX {
   private weavePhase = 0;
   private flickerPhase = 0;
 
+  // Photosensitivity governors on the (non-deterministic) brightness path: cap rapid full-frame
+  // luminance oscillation to a WCAG 2.3.1-style flash rate. Always on; tightened under reduced motion.
+  private readonly brightGuard = generalBrightnessGuard(1);
+  private readonly expoGuard = generalExposureGuard(1);
+
   // dream-event engine
   private readonly rng: Rng = makeRng('dreamfx');
   private readonly events: DreamEvent[] = [];
@@ -278,6 +290,15 @@ export class PostFX {
   setIntensity(reduceMotion: boolean): void {
     this.params.reduceMotion = reduceMotion;
     this.dust.setIntensity(reduceMotion);
+    // Reduced motion → at most one flash/sec and a tight brightness ceiling; otherwise the
+    // general ≤3/sec governor with a higher ceiling.
+    if (reduceMotion) {
+      this.brightGuard.setLimits(REDUCED_MOTION_FLASHES, REDUCED_MOTION_BRIGHT_CEIL);
+      this.expoGuard.setLimits(REDUCED_MOTION_FLASHES, REDUCED_MOTION_EXPO_CEIL);
+    } else {
+      this.brightGuard.setLimits(3, 1.8);
+      this.expoGuard.setLimits(3, 2.0);
+    }
     this.applyParams();
   }
 
@@ -353,11 +374,12 @@ export class PostFX {
     const flick = 1 - p.flicker * motion * (0.5 + 0.5 * Math.sin(this.flickerPhase)) * 0.5;
     p.spliceFlash = Math.max(0, p.spliceFlash - dt * 4);
     p.bleach = Math.max(0, p.bleach - dt * 1.2);
-    this.effect.u('uBright').value = flick + p.spliceFlash * 0.6;
+    const rawBright = flick + p.spliceFlash * 0.6;
+    this.effect.u('uBright').value = this.brightGuard.limit(rawBright, dt);
 
     // exposure: base + breath + decaying bleach + blowout events
-    const expo = p.exposure + breath * breatheDepth * 0.12 + p.bleach * 0.5 + this.envelope('bleach') * 0.45;
-    this.effect.u('uExposure').value = expo;
+    const rawExpo = p.exposure + breath * breatheDepth * 0.12 + p.bleach * 0.5 + this.envelope('bleach') * 0.45;
+    this.effect.u('uExposure').value = this.expoGuard.limit(rawExpo, dt);
 
     // vignette: base + (inverted) breath + iris-breath events, clamped
     const vig = p.vignette + (0.5 - breath) * breatheDepth * 0.18 + this.envelope('vignette') * 0.35;

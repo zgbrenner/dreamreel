@@ -75,7 +75,7 @@ advanced — all merged to `main`:
 | — | **12-axis wiring through visuals/audio/text** | ✅ merged (`main` `2ff5ca9`); live R2 corpus remooded to 12 axes (`v2026.06.24-1859`) |
 | — | **Musical pacing (librosa tempo/energy → bar-quantized audio)** | ✅ code merged + live (`v2026.06.24-2058`, 44/44 clips carry bpm/energy) |
 | — | **Transition catalog expansion (21 → 29 shaders)** | ✅ 8 new original gl-transitions-spec shaders wired into mood families; all compile-checked in WebGL |
-| — | **Photosensitivity hardening** | ⬜ deferred (clamp seam exists in `IntensityEngine`) |
+| — | **Photosensitivity hardening** | ✅ runtime flash-rate governor shipped (`render/flashGuard.ts`, WCAG ≤3/sec, ≤1/sec reduced-motion); ⬜ offline content-flash (hard-cut) analysis still open |
 
 ## Wake-mode tuning surface (where to nudge the live feel)
 
@@ -114,10 +114,19 @@ values after the 2026-06-23 polish:
 - ✅ **Wake mode flipped default-ON** (2026-06-23). `app/src/state/url.ts` `readShareState` now
   defaults `wake` to `true` unless `?wake=0` / `?wake=false`. Unit test updated (`url.test.ts`); the
   smoke spec now covers classic via `?wake=0` and wake as the bare-`/` default.
-- ⚠️ **Photosensitivity hardening** — now the top remaining gate, since wake (with its flicker/
-  feedback/strobe-capable layers) is the default the public lands on. `IntensityEngine` has a single
-  `setMaxIntensity` clamp (reduced-motion already clamps to 0.45) — needs a proper strobe/flash-rate
-  cap + possibly a warning gate. Flicker is now low (0.02 in wake) but this is the remaining safety gate.
+- ✅ **Photosensitivity — runtime flash-rate governor** (`render/flashGuard.ts`, wired in `postfx.ts`).
+  Caps rapid full-frame brightness oscillation on the (non-deterministic) brightness + exposure path
+  to a WCAG 2.3.1-style rate: ≤3 flash onsets/sec generally, ≤1/sec + tight ceiling under
+  prefers-reduced-motion (engaged via `Gate.tsx` matchMedia). A single dramatic flash still passes;
+  only strobing is suppressed. Always-on (general cap is the constructor default). Pure + unit-tested
+  (`tests/unit/flashGuard.test.ts`). Reduced-motion also already routes transitions to the gentle
+  no-cut set and clamps intensity to 0.45.
+  - ⬜ **Still open — content flashes:** rapid hard CUTS between high-contrast *media* frames during a
+    frenzy aren't caught by the brightness governor (they're image content, not a brightness multiplier).
+    Two complementary fixes remain: (a) an offline FFmpeg `vf_photosensitivity` pass baking a per-clip
+    flash-risk score into the manifest (operational reship), and (b) optionally a runtime swap-rate cap
+    during high intensity (determinism-safe — timing may vary, sequence preserved). A framebuffer
+    luminance sampler (PEAT-style) is the robust-but-perf-costly alternative; deferred for the `readPixels` stall.
 
 ### Emotion taxonomy — status (✅ WIRED 2026-06-24)
 The 12-axis mood vector exists end-to-end (offline → manifest → runtime types) AND now drives the
