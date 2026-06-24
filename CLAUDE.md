@@ -174,12 +174,14 @@ film grade rises and falls with the wake intensity signal, and warp/density vary
     original look bit-for-bit** (`NEUTRAL_PROC_PARAMS`).
   - *Butterchurn psychedelic layer* (`render/ButterchurnLayer.ts`, `render/LayerStack.setPsychedelic`):
     a reactive Milkdrop wash engaged ONLY in high-intensity frenzy (`butterchurnEngaged`), off under
-    reduced-motion and eased at troughs. **Behind the `?butterchurn=1` engine flag, default OFF**, lazily
-    loaded, and degrades to a no-op (missing packages / no WebGL → base reel untouched). ⚠ **License
-    flag (commercial product):** the `butterchurn` engine is MIT, but community Milkdrop **preset packs**
-    are of uncertain provenance — they must be vetted (MIT/CC0 or hand-picked, with attribution) before
-    shipping. Until then the packages are intentionally NOT in `package.json` and nothing psychedelic
-    ships. See `app/NOTICE`.
+    reduced-motion and eased at troughs. **Behind the `?butterchurn=1` engine flag, default OFF.** The
+    `butterchurn` + `butterchurn-presets` deps (both **MIT**, pass the CI license check) are **lazily
+    code-split** — `import()`ed only on first engage, so they never enter the default bundle — and the
+    whole path degrades to a no-op if WebGL2/the packages are unavailable (base reel untouched). It taps
+    the Tone audio bed for reactivity via `AudioEngine.getVisualizerTap()`. ⚠ **Commercial-ship note:**
+    the bundled presets are community-authored Milkdrop conversions under the package's MIT grant; if
+    stricter per-author provenance is needed, swap the full pack for a hand-picked MIT/CC0 subset before
+    enabling. Default-OFF keeps that a deliberate call. See `app/NOTICE`.
 - Respect `prefers-reduced-motion`: dampen weave/flicker/dust, keep dissolves slow; transitions fall
   back to the gentle set and the Butterchurn layer never engages.
 

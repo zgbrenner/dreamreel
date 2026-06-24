@@ -1,69 +1,54 @@
 // app/src/render/ButterchurnLayer.ts
 //
-// An optional psychedelic dream layer rendered by Butterchurn (a WebGL Milkdrop visualizer; the
-// butterchurn library is MIT). It engages ONLY during high-intensity "frenzy" regimes (decided by
-// dream/filterDirector.butterchurnEngaged) to give those moments an ever-changing, audio-reactive
-// surreal wash, then disengages so the base reel resumes.
+// An optional psychedelic dream layer rendered by Butterchurn (a WebGL Milkdrop visualizer; both
+// `butterchurn` and `butterchurn-presets` are MIT — see app/NOTICE). It engages ONLY during
+// high-intensity "frenzy" regimes (decided by dream/filterDirector.butterchurnEngaged) to give
+// those moments an ever-changing, audio-reactive surreal wash, then disengages so the base reel
+// resumes.
 //
-// ── Why it's optional + lazily loaded ──────────────────────────────────────────────────────────
-// Butterchurn and its preset packs are NOT bundled by default:
-//   • LICENSE: the `butterchurn` engine is MIT, but the community Milkdrop PRESETS shipped by
-//     `butterchurn-presets` are of mixed/uncertain provenance. Per CLAUDE.md's hard license rules
-//     (this is a commercial product), those presets must be vetted (prefer MIT/CC0 or hand-picked,
-//     with rendered/recorded attribution) BEFORE anything is shipped. Until then we ship nothing.
-//   • To enable: `npm i butterchurn butterchurn-presets`, vet the preset licensing, then run with
-//     the `?butterchurn=1` flag. With the packages absent or the flag off, this module is a no-op.
-// Everything here degrades gracefully: any failure (no packages, no WebGL2, perf/throw) leaves
-// `texture` null and the base reel completely unaffected — it can NEVER break the dream.
+// ── Loading + safety ───────────────────────────────────────────────────────────────────────────
+//   • The packages are LAZILY code-split: `import('butterchurn')` only runs on the first engage,
+//     so they never bloat the default bundle (the layer is off unless ?butterchurn=1).
+//   • Butterchurn is browser-only (it touches `window`/WebGL2 at load), so it is NEVER imported at
+//     module top level — keeping tests / non-DOM environments clean.
+//   • Everything is guarded: a missing WebGL2 context, a load failure, or any throw leaves
+//     `texture` null and the base reel completely unaffected — it can never break the dream.
+//   • LICENSE note: `butterchurn-presets` is MIT, but the bundled Milkdrop presets are
+//     community-authored; their upstream provenance is documented in app/NOTICE for the
+//     commercial-ship decision. The layer stays default-OFF until that call is made.
 
 import * as THREE from 'three';
-
-// Minimal structural types for the (optionally present) butterchurn packages. We never import them
-// statically — a runtime dynamic import keeps the build/bundle free of the dependency — so these
-// describe just the surface we touch. Using `unknown`-narrowed casts avoids `any` in committed code.
-interface BCVisualizer {
-  loadPreset(preset: unknown, blendTime: number): void;
-  setRendererSize(w: number, h: number): void;
-  render(): void;
-  connectAudio?(node: unknown): void;
-}
-interface BCFactory {
-  createVisualizer(ctx: unknown, canvas: HTMLCanvasElement, opts: Record<string, unknown>): BCVisualizer;
-}
+import type { ButterchurnVisualizer } from 'butterchurn';
 
 export interface ButterchurnLayerOptions {
   width?: number;
   height?: number;
-  /** Optional audio node (e.g. Tone.getContext().rawContext.destination analyser) for reactivity. */
-  audioNode?: unknown;
-  /** Optional audio context the visualizer should attach to. */
-  audioContext?: unknown;
 }
 
 /**
  * A lazily-initialized Butterchurn visualizer wrapped as a THREE texture source. Construction is
- * cheap and synchronous; the heavy WebGL/library load happens on the first `engage(true)` and is
- * fully guarded. `texture` is null until (and unless) it successfully initializes.
+ * cheap and synchronous; the heavy WebGL/library load happens on the first `engage(true)` (once an
+ * audio context has been attached) and is fully guarded. `texture` is null until — and unless — it
+ * initializes successfully.
  */
 export class ButterchurnLayer {
   private readonly canvas: HTMLCanvasElement | null;
   private _texture: THREE.CanvasTexture | null = null;
-  private viz: BCVisualizer | null = null;
+  private viz: ButterchurnVisualizer | null = null;
   private presets: unknown[] = [];
   private engaged = false;
   private loading = false;
   private failed = false;
   private readonly width: number;
   private readonly height: number;
-  private readonly opts: ButterchurnLayerOptions;
+  private audioContext: unknown = null;
+  private audioNode: unknown = null;
 
   constructor(opts: ButterchurnLayerOptions = {}) {
-    this.opts = opts;
     this.width = opts.width ?? 512;
     this.height = opts.height ?? 288;
     // Guard for non-DOM (tests) — no canvas means this stays a permanent no-op.
-    this.canvas =
-      typeof document !== 'undefined' ? document.createElement('canvas') : null;
+    this.canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
     if (this.canvas) {
       this.canvas.width = this.width;
       this.canvas.height = this.height;
@@ -81,17 +66,30 @@ export class ButterchurnLayer {
   }
 
   /**
-   * Engage or disengage the layer. The first engage kicks off the guarded async load; if it fails
-   * (packages missing, no WebGL2, or any throw) the layer is marked failed and stays a no-op.
+   * Attach the Web Audio context + a source node (the audio bed's master) for reactivity. Supplied
+   * by the conductor once audio has started. Safe to call with null/undefined (stays silent).
+   */
+  attachAudio(context: unknown, node: unknown): void {
+    this.audioContext = context ?? null;
+    this.audioNode = node ?? null;
+    if (this.viz && this.audioNode) this.tryConnectAudio();
+    // If we were waiting on an audio context to initialize, kick it now.
+    if (this.engaged && !this.viz && this.audioContext) void this.lazyInit();
+  }
+
+  /**
+   * Engage or disengage the layer. The first engage (with an audio context attached) kicks off the
+   * guarded async load; if it fails (no packages, no WebGL2, or any throw) the layer is marked
+   * failed and stays a no-op.
    */
   engage(on: boolean): void {
     this.engaged = on;
-    if (on && !this.viz && !this.loading && !this.failed && this.canvas) {
+    if (on && !this.viz && !this.loading && !this.failed && this.canvas && this.audioContext) {
       void this.lazyInit();
     }
   }
 
-  /** Pick the next preset (caller supplies a deterministic index from filterDirector). */
+  /** Pick a preset (caller supplies a deterministic index from filterDirector). */
   selectPreset(index: number): void {
     if (!this.viz || index < 0 || index >= this.presets.length) return;
     try {
@@ -101,7 +99,7 @@ export class ButterchurnLayer {
     }
   }
 
-  /** Render one visualizer frame and flag the texture dirty. Safe to call every frame; no-op if idle. */
+  /** Render one visualizer frame and flag the texture dirty. Safe every frame; no-op if idle. */
   update(): void {
     if (!this.engaged || !this.viz || !this._texture) return;
     try {
@@ -119,46 +117,40 @@ export class ButterchurnLayer {
     this.presets = [];
   }
 
+  private tryConnectAudio(): void {
+    if (!this.viz || !this.audioNode) return;
+    try {
+      this.viz.connectAudio(this.audioNode);
+    } catch {
+      // reactivity is best-effort; the visual still animates without audio
+    }
+  }
+
   private async lazyInit(): Promise<void> {
     this.loading = true;
     try {
       if (!this.canvas) throw new Error('no canvas');
-      // Runtime-only dynamic import so the bundler never tries to resolve the optional packages.
-      // The specifier is built at runtime + @vite-ignore'd; when the package is absent this rejects
-      // and we degrade to a no-op.
-      const bcSpec = 'butterchurn';
-      const presetSpec = 'butterchurn-presets';
-      const bcMod = (await import(/* @vite-ignore */ bcSpec)) as unknown as { default?: BCFactory } & BCFactory;
-      const factory: BCFactory = (bcMod.default ?? bcMod) as BCFactory;
-
-      const audioCtx = this.opts.audioContext ?? null;
-      const viz = factory.createVisualizer(audioCtx, this.canvas, {
+      if (!this.audioContext) throw new Error('no audio context');
+      // Lazy + code-split: these chunks load only when the layer actually engages.
+      const bcMod = await import('butterchurn');
+      const factory = bcMod.default;
+      const viz = factory.createVisualizer(this.audioContext, this.canvas, {
         width: this.width,
         height: this.height,
         pixelRatio: 1,
         textureRatio: 1,
       });
-      if (this.opts.audioNode && typeof viz.connectAudio === 'function') {
-        try {
-          viz.connectAudio(this.opts.audioNode);
-        } catch {
-          // reactivity is best-effort; the visual still animates without audio
-        }
-      }
 
-      // Presets are optional + license-gated (see header). Load whatever the pack exposes, if present.
+      // Presets (MIT package; see header + app/NOTICE for the provenance note).
       try {
-        const pMod = (await import(/* @vite-ignore */ presetSpec)) as unknown as {
-          default?: { getPresets?: () => Record<string, unknown> };
-          getPresets?: () => Record<string, unknown>;
-        };
-        const getPresets = pMod.default?.getPresets ?? pMod.getPresets;
+        const pMod = await import('butterchurn-presets');
+        const getPresets = pMod.default?.getPresets;
         if (typeof getPresets === 'function') {
           this.presets = Object.values(getPresets());
           if (this.presets.length > 0) viz.loadPreset(this.presets[0], 0);
         }
       } catch {
-        // no preset pack → the visualizer still renders its default; fine.
+        // no preset pack → the visualizer still renders its default state; fine.
       }
 
       const tex = new THREE.CanvasTexture(this.canvas);
@@ -171,6 +163,7 @@ export class ButterchurnLayer {
 
       this.viz = viz;
       this._texture = tex;
+      this.tryConnectAudio();
     } catch {
       // Packages missing, no WebGL2, or any other failure: permanently degrade to a no-op.
       this.failed = true;

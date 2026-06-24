@@ -63,6 +63,23 @@ export class AudioEngine {
     return this.master;
   }
 
+  /**
+   * A raw Web Audio context + a native node carrying the master output, for an external visualizer
+   * (the optional Butterchurn layer). Creates a native tap gain off the Tone master so the analyser
+   * sees the full bed. Returns null until started or if anything goes wrong — callers degrade.
+   */
+  getVisualizerTap(): { context: unknown; node: unknown } | null {
+    if (!this.master) return null;
+    try {
+      const raw = Tone.getContext().rawContext as unknown as AudioContext;
+      const tap = raw.createGain();
+      this.master.connect(tap); // Tone node → native node
+      return { context: raw, node: tap };
+    } catch {
+      return null;
+    }
+  }
+
   /** Must be called from a user gesture. Idempotent. */
   async start(): Promise<void> {
     if (this.started) {

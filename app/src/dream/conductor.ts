@@ -176,6 +176,13 @@ export class DreamConductor implements DreamRuntime {
           });
         }
       }
+      // Give the (optional) Butterchurn layer a Web Audio tap for reactivity — best-effort.
+      if (this.butterchurn) {
+        this.safeAudio(() => {
+          const tap = this.audio.getVisualizerTap();
+          this.butterchurn?.attachAudio(tap?.context, tap?.node);
+        });
+      }
     } catch {
       // audio is best-effort; the dream plays regardless
     }
