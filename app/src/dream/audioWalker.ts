@@ -18,6 +18,7 @@ export interface AudioWalkerConfig {
   surreality: number; // 0..1
   coupling?: number; // text-bridge strength; default COUPLING
   moodCoupling?: number; // mood-vector bias strength; default MOOD_COUPLING
+  energyCoupling?: number; // energy×arousal selection-bias strength; default ENERGY_COUPLING
 }
 
 export interface AudioPick {
@@ -41,6 +42,33 @@ const RECENT_WINDOW = 4;
 const TYPE_WEIGHTS: Record<AudioKind, number> = { music: 1.0, voice: 0.5, foley: 0.8 };
 const COUPLING = 0.6;
 const MOOD_COUPLING = 0.8;
+const ENERGY_COUPLING = 1.6;
+const BEATS_PER_BAR = 4;
+
+// Axes that read as high vs. low physiological arousal. Arousal is the (high - low) mean of the
+// signed deviations from neutral (0.5), so a tender/melancholy dream is calm and a joy/fear/manic
+// one is excited — used to pull louder clips into excited moments and gentler ones into calm.
+const HIGH_AROUSAL: MoodAxis[] = ['joy', 'fear', 'absurdity', 'uncanny', 'strange'];
+const LOW_AROUSAL: MoodAxis[] = ['tender', 'melancholy', 'loss', 'nostalgic'];
+
+/** Signed arousal of a mood blend, roughly -0.5..0.5 (0 at neutral). Pure + exported for tests. */
+export function audioArousal(mood: Record<MoodAxis, number>): number {
+  const mean = (axes: MoodAxis[]) =>
+    axes.reduce((s, a) => s + ((mood[a] ?? 0.5) - 0.5), 0) / axes.length;
+  return mean(HIGH_AROUSAL) - mean(LOW_AROUSAL);
+}
+
+/**
+ * Snap a dwell to a whole number of musical bars at the clip's tempo, so sampled clips swap on a
+ * bar boundary instead of an arbitrary instant. `bpm` undefined/non-finite → returns `baseMs`
+ * unchanged (legacy manifests behave exactly as before). Always ≥ one bar. Pure + exported.
+ */
+export function musicalDwellMs(baseMs: number, bpm?: number): number {
+  if (bpm === undefined || !Number.isFinite(bpm) || bpm <= 0) return baseMs;
+  const barMs = (BEATS_PER_BAR * 60_000) / bpm;
+  const bars = Math.max(1, Math.round(baseMs / barMs));
+  return bars * barMs;
+}
 
 export function createAudioWalker(
   pools: AudioWalkerPools,
@@ -54,6 +82,7 @@ class AudioWalkerImpl implements AudioWalker {
   private readonly dim: number;
   private readonly coupling: number;
   private readonly moodCoupling: number;
+  private readonly energyCoupling: number;
   private surreality: number;
   private seed: string;
   private rng!: Rng;
@@ -65,6 +94,7 @@ class AudioWalkerImpl implements AudioWalker {
     this.dim = pools.audioEmbeddingDim;
     this.coupling = config.coupling ?? COUPLING;
     this.moodCoupling = config.moodCoupling ?? MOOD_COUPLING;
+    this.energyCoupling = config.energyCoupling ?? ENERGY_COUPLING;
     this.surreality = clamp01(config.surreality);
     this.seed = config.seed;
     this.resetState();
@@ -74,7 +104,9 @@ class AudioWalkerImpl implements AudioWalker {
     if (this.audio.length === 0) return null;
     this.advancePoint();
     const asset = this.pick(claptext, mood);
-    const dwellMs = (asset.dwellBase * 1000) / Math.max(0.1, tempoMul);
+    const baseMs = (asset.dwellBase * 1000) / Math.max(0.1, tempoMul);
+    // Bar-quantize so clip swaps land on a musical boundary (no-op when bpm is absent).
+    const dwellMs = musicalDwellMs(baseMs, asset.bpm);
     return { asset, dwellMs };
   }
 
@@ -124,12 +156,18 @@ class AudioWalkerImpl implements AudioWalker {
     const T = this.temperature();
     const useBridge = !!claptext && claptext.length > 0 && this.coupling !== 0;
     const useMood = !!mood && this.moodCoupling !== 0;
-    // Pre-softmax score: cosine-to-point/T plus text-bridge and mood-alignment terms.
+    // Energy bias: lean toward louder clips when the mood is excited, gentler ones when it's calm.
+    // Vanishes when no mood is supplied, when coupling is 0, or for clips lacking baked energy.
+    const useEnergy = !!mood && this.energyCoupling !== 0;
+    const arousal = useEnergy ? audioArousal(mood as Record<MoodAxis, number>) : 0;
+    // Pre-softmax score: cosine-to-point/T plus text-bridge, mood-alignment, and energy×arousal terms.
     const scores = candidates.map((a) => {
       const base = cosine(this.e, a.embedding) / T;
       const bridge = useBridge ? this.coupling * cosine(a.embedding, claptext as number[]) : 0;
       const moodTerm = useMood ? this.moodCoupling * moodAffinity(a.mood, mood as Record<MoodAxis, number>) : 0;
-      return base + bridge + moodTerm;
+      const energyTerm =
+        useEnergy && a.energy !== undefined ? this.energyCoupling * arousal * (a.energy - 0.5) : 0;
+      return base + bridge + moodTerm + energyTerm;
     });
     const max = Math.max(...scores);
     let sum = 0;

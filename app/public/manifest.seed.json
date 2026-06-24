@@ -158,6 +158,8 @@
       "durationSec": 0.1,
       "loopable": true,
       "dwellBase": 12,
+      "bpm": 96,
+      "energy": 0.4,
       "source": "DREAMREEL / procedural",
       "license": "CC0"
     }

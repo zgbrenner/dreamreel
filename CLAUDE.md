@@ -87,11 +87,15 @@ spend is the one-time offline tagging pass.
 - **Rendering:** **three.js** core; transitions via the **gl-transitions** spec
   implemented as a custom three.js `ShaderMaterial`; post-FX via **pmndrs/postprocessing**
   (`EffectComposer`).
-- **Audio:** **Tone.js**.
+- **Audio:** **Tone.js**. Sampled clips also carry optional offline **rhythmic analysis**
+  (tempo + energy via **librosa**, ISC) so the audio walk swaps clips on musical-bar boundaries
+  and leans toward louder clips in high-arousal moods — both pure, seed-deterministic, and a
+  graceful no-op on legacy manifests (`dream/audioWalker.ts` `musicalDwellMs`/`audioArousal`).
 - **Offline pipeline:** Python. Ingest via the **Openverse API** and the **Archive.org
   HTTP API** (Advanced Search + Metadata); museum **CC0** datasets (Met, Smithsonian)
   optional. Download/resize via **img2dataset**; embeddings via **clip-retrieval** /
-  **open_clip**. Output a static manifest plus an embeddings file.
+  **open_clip**. Audio rhythm (tempo/energy) via **librosa** (`pipeline/audio/tempo.py`, the
+  optional `audio` extra). Output a static manifest plus an embeddings file.
 - **Hosting:** Cloudflare **Pages** for the SPA, Cloudflare **R2** for media and manifest.
   `wrangler` for deploy.
 

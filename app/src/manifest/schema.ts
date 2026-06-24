@@ -24,6 +24,8 @@ export const audioAssetSchema = z.object({
   durationSec: z.number().positive(),
   loopable: z.boolean(),
   dwellBase: z.number().positive(),
+  bpm: z.number().positive().optional(),
+  energy: z.number().min(0).max(1).optional(),
   source: z.string().min(1),
   license: z.string().min(1),
   attribution: z.string().optional(),

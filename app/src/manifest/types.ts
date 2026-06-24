@@ -48,6 +48,10 @@ export interface AudioAsset {
   durationSec: number;
   loopable: boolean;
   dwellBase: number;
+  // Optional offline rhythmic analysis (librosa, ISC; pipeline/audio/tempo.py). Absent on
+  // legacy manifests — the runtime degrades gracefully to the un-quantized behaviour.
+  bpm?: number; // detected tempo in beats/min; drives bar-quantized audio dwell
+  energy?: number; // normalized rhythmic energy 0..1; biases selection by mood arousal
   source: string;
   license: string;
   attribution?: string;

@@ -14,6 +14,8 @@ dependencies = [
 [project.optional-dependencies]
 embed = ["open_clip_torch>=2.24", "torch>=2.2", "img2dataset>=1.45"]
 publish = ["boto3>=1.34", "imagehash>=4.3"]
+# Offline rhythmic analysis of audio clips (tempo + energy). librosa is ISC; soundfile is BSD.
+audio = ["librosa>=0.10", "soundfile>=0.12"]
 dev = ["pytest>=8.0", "mypy>=1.9"]
 
 [build-system]
