@@ -1,6 +1,6 @@
 # DREAMREEL — Handoff / Pick-Up Doc
 
-_Last updated: 2026-06-23 (emotion-taxonomy expansion). Read this first when resuming._
+_Last updated: 2026-06-24 (12-axis wiring landed + media-first fix). Read this first when resuming._
 
 ## TL;DR — where we are
 
@@ -33,20 +33,31 @@ advanced — all merged to `main`:
   not user knobs; the UI is just **New dream / play-pause / sound on-off**. Shareable state reduced to
   **`?seed=`** only (`?wake=0` remains a non-UI engine-mode opt-out). Store no longer holds
   surreality/tempo/archive.
-- **Emotion-taxonomy expansion to 12 blendable axes** (2026-06-23, *data + types + docs only — NOT
-  yet wired to visuals/audio/text*): added **love, loss, joy, fear, absurdity, strange** to the
-  original six CLIP mood axes. Mood is a continuous, blendable vector over all axes (never a single
-  label). New helpers `dominantAxes` + `blendMoods` in `dream/mood.ts` for later prompts. The filter
-  catalog is deliberately still pinned to the original six (`filterDirector.ts` `FILTER_AXES`); the
-  new axes are inert until a later wiring prompt. See "Emotion taxonomy — next steps" below.
+- **Emotion-taxonomy expansion to 12 blendable axes** (2026-06-23, data + types + docs): added
+  **love, loss, joy, fear, absurdity, strange** to the original six CLIP mood axes. Mood is a
+  continuous, blendable vector over all axes (never a single label). Helpers `dominantAxes`,
+  `blendMoods`, and `moodAffinity` in `dream/mood.ts`.
+- **12-axis wiring through visuals, audio, and text** (2026-06-24, `main` `2ff5ca9` — *the six new
+  axes are no longer data-only*): `filterDirector.ts` now maps **all twelve** axes (paired 2:1 onto
+  the six filters) for post-FX strength + transition family + procedural params; `audio/params.ts`
+  `bedParamsFor` reshapes the whole bed off all twelve; the CLAP audio walk gains a `moodAffinity`
+  bias (`audioWalker.ts` `MOOD_COUPLING`); `dreamwalker.ts` biases text + intertitle picks by mood
+  (`pickCardByMood`) and widens the ghost trigger to fear/strange; `textDirector.ts` tints whispers +
+  title cards by the live blend, consumed by `Captions.tsx` and `conductor.makeTitleCard`. Mood flows
+  live to the store each beat (`conductor.setMood` → `Gate` → `_setMood` → `s.mood`) in **both** wake
+  and classic. `moodAffinity` (signed dot of mood deviations) is the shared bias currency.
+- **Manifest remood tool** (2026-06-24, `main` `673b62b`): `pipeline/embed/remood_manifest.py` fetches
+  the live R2 manifest, rebuilds the 12 CLIP/CLAP axis vectors, re-projects every baked mood from the
+  **existing** embeddings (no re-download/re-transcode), bumps the version, and can upload
+  **manifest-only** to R2. **Ran 2026-06-24** — the live corpus is now 12-axis (see below).
 
 - Live app: **https://dreamreel.pages.dev** (**wake by default**; add **`?wake=0`** for the classic
   three-clock reel). **Production deploys from `main`** via Cloudflare Pages Git integration.
 - Production manifest: `VITE_MANIFEST_URL` on Cloudflare Pages (prod **and** preview) →
   `https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json`. **Now serving
-  v`2026.06.23-1515`: 326 visual assets (277 PD images + 40 film clips + 9 procedural) + 42 texts +
+  v`2026.06.24-1859`: 326 visual assets (277 PD images + 40 film clips + 9 procedural) + 42 texts +
   `claptext` on every visual asset, plus a `44`-clip `audio[]` pool (16 music / 14 voice / 14 foley),
-  `audioEmbeddingDim 512`.**
+  `audioEmbeddingDim 512`. Moods re-projected onto all 12 axes via `embed.remood_manifest` (2026-06-24).**
 
 ## The 6-round roadmap
 
@@ -60,7 +71,8 @@ advanced — all merged to `main`:
 | — | **Wake pacing + restraint polish** | ✅ merged (PR #20, 2026-06-23) |
 | 5 | **Sampled audio (music + voice + foley + film-clip native audio)** | ✅ shipped to R2 (CLAP walk, 44 audio clips, v2026.06.23-1515) |
 | — | **Single-verb UX (new-dream-only; seed-derived surreality/tempo)** | ✅ merged (`main` `fc1af01`) |
-| — | **Emotion taxonomy: 12 blendable axes (data+types+docs)** | ✅ done; ⬜ not yet wired to visuals/audio/text |
+| — | **Emotion taxonomy: 12 blendable axes (data+types+docs)** | ✅ done |
+| — | **12-axis wiring through visuals/audio/text** | ✅ merged (`main` `2ff5ca9`); live R2 corpus remooded to 12 axes (`v2026.06.24-1859`) |
 | — | **Photosensitivity hardening** | ⬜ deferred (clamp seam exists in `IntensityEngine`) |
 
 ## Wake-mode tuning surface (where to nudge the live feel)
@@ -105,24 +117,28 @@ values after the 2026-06-23 polish:
   `setMaxIntensity` clamp (reduced-motion already clamps to 0.45) — needs a proper strobe/flash-rate
   cap + possibly a warning gate. Flicker is now low (0.02 in wake) but this is the remaining safety gate.
 
-### Emotion taxonomy — next steps (the wiring prompts)
-The 12-axis mood vector now exists end-to-end (offline → manifest → runtime types), but the six
-**new** axes (love/loss/joy/fear/absurdity/strange) are carried in data only — nothing reacts to them
-yet. This was deliberate (the expansion prompt was data+types+docs). Remaining wiring work:
-- **Visuals:** extend `dream/filterDirector.ts` beyond `FILTER_AXES` (currently the original six) so
-  the new emotions select/scale treatments. CLAUDE.md's "Mood-mapped filter catalog" documents the
-  original six 1:1 mappings — agree new mappings (or blend-based selection) before changing it.
-- **Audio:** `audio/params.ts` `bedParamsFor` reads only a few named axes; decide how love/joy/fear/etc.
-  reshape the bed (and whether the CLAP audio walk should bias on the new axes).
-- **Text:** the drifting/intertitle text could be selected/tinted by the dominant emotional blend.
-- Helpers ready to consume: `dream/mood.ts` `dominantAxes(mood, k)` (top-k without collapsing the
-  blend) and `blendMoods(moods, weights)` (per-axis weighted average — e.g. tender+loss = bittersweet).
-- **Real-corpus reship:** the live R2 manifest (`v2026.06.23-1515`) still has 6-axis moods. A reship
-  via `pipeline/embed/build_manifest.py` (real CLIP) will re-project all assets onto the 12 axes — do
-  this before the wiring lands so production assets carry the new axes. (The committed dev seed
-  `app/public/manifest.seed.json` is already 12-axis; the generator `app/scripts/gen-seed.mjs` is
-  updated too, but a raw regen still drops the augmented `vid-seed-0` + `audio[]` — pre-existing
-  generator limitation, so the seed was migrated additively rather than regenerated.)
+### Emotion taxonomy — status (✅ WIRED 2026-06-24)
+The 12-axis mood vector exists end-to-end (offline → manifest → runtime types) AND now drives the
+runtime: visuals, audio, and text all react to all twelve axes (see the TL;DR "12-axis wiring" bullet
+for the per-file map). `FILTER_AXES` is now `MOOD_AXES` (all twelve), `bedParamsFor` reads all twelve,
+the CLAP walk + text/card picks bias on `moodAffinity`, and whispers/title-cards tint by the blend.
+Helpers in `dream/mood.ts`: `dominantAxes(mood, k)`, `blendMoods(moods, weights)`, `moodAffinity(a, b)`.
+
+**Live R2 corpus remooded to 12 axes (✅ 2026-06-24, `v2026.06.24-1859`).** Every visual/text/audio
+asset now carries moods on all twelve axes (re-projected from the existing CLIP/CLAP embeddings — no
+media re-download), so the six new axes drive the live runtime, not just the dev seed. To re-run the
+remood (e.g. after a corpus change) use the **remood tool** (no media re-download):
+```bash
+cd pipeline   # needs CLIP + CLAP backends; ffmpeg on PATH for the transformers CLAP path
+python -m embed.remood_manifest --out out                 # fetch live manifest, re-project to 12 axes
+cd ../app && npx tsx scripts/validate-manifest.ts ../pipeline/out/manifest.json
+cd ../pipeline && R2_ACCOUNT_ID=… R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=… \
+  R2_BUCKET=dreamreel-media R2_PUBLIC_BASE=https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev \
+  python -m embed.remood_manifest --upload               # manifest-only upload; media URLs untouched
+```
+Real CLIP/CLAP projections are subtle (per-axis spread ≈ ±0.05–0.08 around 0.5, same scale as the
+original six), which is what the `moodAffinity` / `d(axis)=mood-0.5` bias math expects.
+(The committed dev seed `app/public/manifest.seed.json` is already 12-axis.)
 
 ### Round 4 — Video (✅ SHIPPED, content-aware frames)
 Pipeline: a video is sourced by sampling several interior frames and using CLIP to pick the one
