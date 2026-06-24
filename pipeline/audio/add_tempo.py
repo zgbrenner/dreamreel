@@ -111,8 +111,11 @@ def main() -> None:
     )
 
     if args.upload:
-        if annotated == 0:
-            raise SystemExit("[tempo] refusing to upload: 0 clips annotated (is librosa installed?)")
+        # Guard against uploading a manifest with no tempo data at all (e.g. librosa missing on a
+        # fresh manifest). A re-upload of an already-enriched manifest annotates 0 but is fine.
+        have_tempo = sum(1 for a in enriched.get("audio", []) if "energy" in a or "bpm" in a)
+        if have_tempo == 0:
+            raise SystemExit("[tempo] refusing to upload: no clips carry tempo data (is librosa installed?)")
         required = ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET", "R2_PUBLIC_BASE")
         missing = [k for k in required if not os.environ.get(k)]
         if missing:
