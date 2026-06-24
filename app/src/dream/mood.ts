@@ -67,12 +67,6 @@ export function dominantAxes(mood: Record<MoodAxis, number>, k = 2): MoodWeight[
 }
 
 /**
- * Weighted blend of several mood vectors into one (per-axis weighted average), e.g. to mix the
- * current visual's mood with an audio clip's. Weights default to equal; non-positive total
- * weight falls back to a blank (neutral) mood rather than dividing by zero. Result stays 0..1
- * when inputs are 0..1.
- */
-/**
  * Signed alignment of two mood vectors (0 when both are neutral at 0.5). Roughly in [-0.25, 0.25]
  * when inputs are 0..1 — used to bias text/audio picks toward emotionally matching assets.
  */
@@ -82,6 +76,12 @@ export function moodAffinity(a: Record<MoodAxis, number>, b: Record<MoodAxis, nu
   return acc / MOOD_AXES.length;
 }
 
+/**
+ * Weighted blend of several mood vectors into one (per-axis weighted average), e.g. to mix the
+ * current visual's mood with an audio clip's. Weights default to equal; non-positive total
+ * weight falls back to a blank (neutral) mood rather than dividing by zero. Result stays 0..1
+ * when inputs are 0..1.
+ */
 export function blendMoods(
   moods: Record<MoodAxis, number>[],
   weights?: number[],
