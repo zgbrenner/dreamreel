@@ -21,5 +21,19 @@ Zlib, ISC, CC0, public domain, and CC-BY (with rendered attribution).
   zod ............... MIT
   react / react-dom . MIT
 
+Optional psychedelic layer — lazily code-split, engaged only behind the ?butterchurn=1
+engine flag (default OFF). Both packages are MIT and pass the CI license check:
+
+  butterchurn ........... MIT (Copyright (c) 2013-2018 Jordan Berg) — WebGL Milkdrop
+                          visualizer engine. Ship-safe.
+  butterchurn-presets ... MIT (Copyright (c) 2013-2018 Jordan Berg). The package and its
+                          LICENSE are MIT and cover the bundled presets. ⚠ NOTE for the
+                          commercial-ship decision: the presets are community-authored
+                          Milkdrop conversions; their MIT grant comes from this package, but
+                          if stricter per-author provenance is required, replace the full pack
+                          with a hand-picked MIT/CC0 subset (with attribution). The layer is
+                          default-OFF and lazily loaded, so this decision can be made before any
+                          shipping build turns it on. Wiring: app/src/render/ButterchurnLayer.ts.
+
 Media assets in the shipped corpus each carry license, source, and (where required)
 attribution metadata in the manifest, and CC-BY attributions are rendered on screen.

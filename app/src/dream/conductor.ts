@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import type { Manifest, Asset, MoodAxis, ProceduralKind } from '../manifest/types';
 import { createDreamwalker, type Dreamwalker } from './dreamwalker';
 import { makeRng, type Rng } from './prng';
-import { createIntensityEngine, type IntensityEngine } from './intensity';
+import { createIntensityEngine, type IntensityEngine, type IntensityRegime } from './intensity';
 import {
   createSteeringController,
   shimmerFromSteering,
@@ -16,16 +16,23 @@ import {
   type SteeringState,
 } from './steering';
 import { coherenceForTrough } from './coherence';
-import { filterStrengths, capDistortion } from './filterDirector';
+import {
+  filterStrengths,
+  capDistortion,
+  pickTransition,
+  proceduralParams,
+  butterchurnEngaged,
+  butterchurnPresetIndex,
+} from './filterDirector';
 import { pickSwapSlot } from './slotHold';
 import { planLayers, MAX_LAYERS, type LayerPlan } from './layerPlan';
 import { LayerStack } from '../render/LayerStack';
+import { ButterchurnLayer } from '../render/ButterchurnLayer';
 import type { Compositor } from '../render/Compositor';
 import type { PostFX } from '../render/postfx';
 import { getProceduralTexture, type ProceduralSource } from '../render/procedural';
 import { parseGrade, type FilmParams } from '../render/filmParams';
 import { attributionFor } from '../manifest/attribution';
-import { TRANSITION_NAMES } from '../render/transitions';
 import type { AudioEngine } from '../audio/engine';
 import { createAudioWalker, type AudioWalker } from './audioWalker';
 import { createMixer, type Mixer } from '../audio/mixer';
@@ -58,6 +65,13 @@ export class DreamConductor implements DreamRuntime {
   private readonly wake: boolean;
   private intensity: IntensityEngine;
   private layerStack: LayerStack | null;
+  // Optional psychedelic Butterchurn layer (flag-gated, wake-only, frenzy-only). Null unless
+  // ?butterchurn=1; degrades to a no-op if the optional packages/WebGL aren't available.
+  private butterchurn: ButterchurnLayer | null = null;
+  private bcPresetTrough = -1; // last trough id we re-rolled a preset on
+  // Latest mood + intensity, so procedural sources can be styled via filterDirector.proceduralParams.
+  private lastMood: Record<MoodAxis, number> | null = null;
+  private lastIntensity = 0.5;
   private layerCursor = 0;
   private slotHeldUntil: number[] = new Array(MAX_LAYERS).fill(0);
   private activeTrough = -1;
@@ -99,7 +113,14 @@ export class DreamConductor implements DreamRuntime {
     postfx: PostFX,
     audio: AudioEngine,
     hooks: ConductorHooks,
-    init: { seed: string; surreality: number; tempoMul: number; archiveOn: boolean; wake?: boolean },
+    init: {
+      seed: string;
+      surreality: number;
+      tempoMul: number;
+      archiveOn: boolean;
+      wake?: boolean;
+      butterchurn?: boolean;
+    },
   ) {
     this.manifest = manifest;
     this.compositor = compositor;
@@ -115,6 +136,9 @@ export class DreamConductor implements DreamRuntime {
     this.wake = init.wake ?? false;
     this.intensity = createIntensityEngine(this.seed);
     this.layerStack = this.wake ? new LayerStack(compositor) : null;
+    // Butterchurn engages only in wake mode and only when explicitly opted in. Its heavy WebGL load
+    // is deferred to first engage; everything degrades gracefully so the base reel is never at risk.
+    this.butterchurn = this.wake && init.butterchurn ? new ButterchurnLayer() : null;
     this.baseMaxIntensity = this.postfx.params.reduceMotion ? 0.45 : 1;
     this.intensity.setMaxIntensity(this.baseMaxIntensity);
     this.steering = createSteeringController({ reduceMotion: this.postfx.params.reduceMotion });
@@ -151,6 +175,13 @@ export class DreamConductor implements DreamRuntime {
             this.mixer!.resume();
           });
         }
+      }
+      // Give the (optional) Butterchurn layer a Web Audio tap for reactivity — best-effort.
+      if (this.butterchurn) {
+        this.safeAudio(() => {
+          const tap = this.audio.getVisualizerTap();
+          this.butterchurn?.attachAudio(tap?.context, tap?.node);
+        });
       }
     } catch {
       // audio is best-effort; the dream plays regardless
@@ -209,6 +240,11 @@ export class DreamConductor implements DreamRuntime {
     this.slotHeldUntil.fill(0);
     this.currentPlan = null;
     this.lastWakeMood = null;
+    this.lastMood = null;
+    this.lastIntensity = 0.5;
+    this.bcPresetTrough = -1;
+    this.butterchurn?.engage(false);
+    this.layerStack?.setPsychedelic(null, 0);
     this.safeAudio(() => this.audio.setTempo(tempoMul));
     // Reset audio walk accumulators so the new seed starts a fresh audio sequence.
     this.audioWalker?.reseed(seed);
@@ -220,6 +256,7 @@ export class DreamConductor implements DreamRuntime {
   dispose(): void {
     this.unsub?.();
     this.steering.dispose();
+    this.butterchurn?.dispose();
     this.layerStack?.dispose();
     for (const p of this.procCache.values()) p.dispose();
     this.procCache.clear();
@@ -367,8 +404,45 @@ export class DreamConductor implements DreamRuntime {
       stack.setFeedback(fs.feedback);
     }
 
+    this.driveButterchurn(stack, s.intensity, s.regime, s.inTrough, s.troughId);
+
     stack.update(dt); // advance per-slot opacity ramps (cross-fade layer swaps)
     stack.captureFeedback(this.compositor.renderer);
+  }
+
+  /**
+   * Drive the optional psychedelic layer. filterDirector.butterchurnEngaged is the SINGLE decision
+   * point (frenzy + high intensity, off under reduced-motion); on a new trough we re-roll a preset
+   * deterministically; the blend opacity rises with intensity but is capped so the base image still
+   * reads. A null/disabled layer (the default) short-circuits to a hidden overlay — zero effect on
+   * the base reel. The whole path is guarded so it can never break the dream.
+   */
+  private driveButterchurn(
+    stack: LayerStack,
+    intensity: number,
+    regime: IntensityRegime,
+    inTrough: boolean,
+    troughId: number,
+  ): void {
+    const bc = this.butterchurn;
+    if (!bc) return;
+    const reduce = this.postfx.params.reduceMotion;
+    const engaged = butterchurnEngaged(intensity, regime, reduce);
+    bc.engage(engaged);
+    if (!engaged || !bc.active) {
+      stack.setPsychedelic(null, 0);
+      return;
+    }
+    // Re-roll the preset once per trough boundary (deterministic per seed/trough).
+    if (inTrough && troughId !== this.bcPresetTrough) {
+      this.bcPresetTrough = troughId;
+      const roll = makeRng(`${this.seed}:bc:${troughId}`).next();
+      bc.selectPreset(butterchurnPresetIndex(roll, 64));
+    }
+    bc.update();
+    // Cap the wash so the picture beneath still reads; eases off inside a coherence trough.
+    const opacity = inTrough ? 0.12 : Math.min(0.5, 0.18 + intensity * 0.4);
+    stack.setPsychedelic(bc.texture, opacity);
   }
 
   /**
@@ -394,6 +468,8 @@ export class DreamConductor implements DreamRuntime {
     const beat = this.walker.next('image', this.tempoMul);
     const mood = this.walker.currentMood();
     this.lastWakeMood = mood;
+    this.lastMood = mood;
+    this.lastIntensity = intensity;
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
 
@@ -505,6 +581,10 @@ export class DreamConductor implements DreamRuntime {
 
     const beat = this.walker.next('image', this.tempoMul);
     const mood = this.walker.currentMood();
+    // Classic mode has no intensity engine; surreality stands in as the intensity proxy for the
+    // filterDirector transition/procedural choices.
+    this.lastMood = mood;
+    this.lastIntensity = this.surreality;
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
     this.applyMoodToFilm(mood, beat.asset);
@@ -522,7 +602,15 @@ export class DreamConductor implements DreamRuntime {
       }
     }
 
-    const transition = TRANSITION_NAMES[this.presRng.int(TRANSITION_NAMES.length)];
+    // Mood-mapped transition: filterDirector is the single source of truth. presRng supplies the
+    // seeded roll so the choice stays deterministic per seed; reduced-motion gets the gentle set.
+    const transition = pickTransition(
+      mood,
+      this.surreality,
+      false,
+      this.presRng.next(),
+      this.postfx.params.reduceMotion,
+    );
 
     if (beat.titleCard) {
       // Cut to a black Bodoni intertitle instead of an image.
@@ -683,6 +771,16 @@ export class DreamConductor implements DreamRuntime {
       src = getProceduralTexture(kind, `${this.seed}:${key}`);
       this.procCache.set(key, src);
     }
+    return this.styled(src);
+  }
+
+  /**
+   * Apply the current emotion+intensity procedural params (filterDirector is the single source of
+   * truth) to a source. With no mood yet (e.g. the academy leader on first play) it stays neutral,
+   * so the source renders exactly as it did before this variation wiring.
+   */
+  private styled(src: ProceduralSource): ProceduralSource {
+    if (this.lastMood) src.setParams(proceduralParams(this.lastMood, this.lastIntensity));
     return src;
   }
 

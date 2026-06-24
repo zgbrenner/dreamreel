@@ -112,12 +112,267 @@ const lightFlash: TransitionDef = {
   `,
 };
 
+// ============================================================================
+// Expanded mood-mapped catalog. These are original implementations of the
+// gl-transitions v1 spec shape (vec4 transition(vec2 uv)); no shader source was
+// copied verbatim. The spec + reference collection are MIT — see app/NOTICE.
+// dream/filterDirector.ts maps blended emotion + intensity to a CHOICE among
+// these; the names below are the contract it selects from.
+// ============================================================================
+
+// An instant hard cut at the midpoint — fear/ominous punctuation.
+const cut: TransitionDef = {
+  name: 'cut',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      return progress < 0.5 ? getFromColor(uv) : getToColor(uv);
+    }
+  `,
+};
+
+// Venetian-bar wipe: horizontal slats fill in — mechanical/ominous.
+const barWipe: TransitionDef = {
+  name: 'barWipe',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      float bars = 14.0;
+      float local = fract(uv.y * bars);
+      float t = step(local, progress);
+      return mix(getFromColor(uv), getToColor(uv), t);
+    }
+  `,
+};
+
+// Luminance-led dissolve: brighter regions of the new frame resolve first — melancholy/loss.
+const crossLuma: TransitionDef = {
+  name: 'crossLuma',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec4 from = getFromColor(uv);
+      vec4 to = getToColor(uv);
+      float lum = dot(to.rgb, vec3(0.299, 0.587, 0.114));
+      float t = smoothstep(0.0, 1.0, progress * 1.4 - (1.0 - lum) * 0.4);
+      return mix(from, to, clamp(t, 0.0, 1.0));
+    }
+  `,
+};
+
+// A luminous bloom dissolve — tender/love/joy: the crossover glows warm.
+const bloomDissolve: TransitionDef = {
+  name: 'bloomDissolve',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec4 from = getFromColor(uv);
+      vec4 to = getToColor(uv);
+      vec4 base = mix(from, to, smoothstep(0.0, 1.0, progress));
+      float bloom = sin(progress * 3.14159);
+      base.rgb += vec3(0.9, 0.85, 0.7) * bloom * bloom * 0.6;
+      return base;
+    }
+  `,
+};
+
+// A rotational swirl of the outgoing frame as the new one settles — absurdity/strange.
+const swirl: TransitionDef = {
+  name: 'swirl',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec2 c = uv - 0.5;
+      float r = length(c);
+      float a = atan(c.y, c.x);
+      a += sin(progress * 3.14159) * 3.0 * (0.5 - r);
+      vec2 suv = 0.5 + vec2(cos(a), sin(a)) * r;
+      vec4 from = getFromColor(clamp(suv, 0.0, 1.0));
+      vec4 to = getToColor(uv);
+      return mix(from, to, smoothstep(0.3, 0.95, progress));
+    }
+  `,
+};
+
+// A dripping vertical melt: the new frame oozes down in ragged columns — absurdity.
+const melt: TransitionDef = {
+  name: 'melt',
+  glsl: /* glsl */ `
+    float meltHash(float x) { return fract(sin(x * 127.1) * 43758.5453); }
+    vec4 transition(vec2 uv) {
+      float drip = meltHash(floor(uv.x * 42.0)) * 0.3;
+      float edge = progress * 1.35 - drip;
+      float t = step(1.0 - uv.y, edge);
+      return mix(getFromColor(uv), getToColor(uv), t);
+    }
+  `,
+};
+
+// A radial ripple distortion that resolves to the new frame — nostalgic/strange.
+const ripple: TransitionDef = {
+  name: 'ripple',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec2 c = uv - 0.5;
+      float r = length(c);
+      float w = sin(r * 40.0 - progress * 12.0) * 0.02 * (1.0 - progress);
+      vec2 ruv = uv + normalize(c + 1e-5) * w;
+      vec4 from = getFromColor(clamp(ruv, 0.0, 1.0));
+      vec4 to = getToColor(uv);
+      return mix(from, to, smoothstep(0.2, 0.9, progress));
+    }
+  `,
+};
+
+// A sinusoidal liquid wipe with a wavering seam — nostalgic.
+const liquidWave: TransitionDef = {
+  name: 'liquidWave',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      float wave = sin(uv.y * 10.0 + progress * 6.28318) * 0.05;
+      float edge = progress * 1.1;
+      float t = smoothstep(edge - 0.1, edge + 0.1, uv.x + wave);
+      return mix(getToColor(uv), getFromColor(uv), t);
+    }
+  `,
+};
+
+// A blocky RGB-split glitch that peaks at the crossover — mechanical/fear.
+const glitch: TransitionDef = {
+  name: 'glitch',
+  glsl: /* glsl */ `
+    float glHash(vec2 p) {
+      p = fract(p * vec2(123.34, 345.45));
+      p += dot(p, p + 34.345);
+      return fract(p.x * p.y);
+    }
+    vec4 transition(vec2 uv) {
+      float t = step(0.5, progress);
+      float amt = 1.0 - abs(progress - 0.5) * 2.0;
+      float blk = glHash(vec2(floor(uv.y * 20.0), floor(progress * 30.0)));
+      vec2 off = vec2((blk - 0.5) * 0.08 * amt, 0.0);
+      vec4 a = mix(getFromColor(uv + off), getToColor(uv + off), t);
+      vec4 b = mix(getFromColor(uv - off), getToColor(uv - off), t);
+      vec4 c = mix(getFromColor(uv), getToColor(uv), t);
+      return vec4(a.r, c.g, b.b, c.a);
+    }
+  `,
+};
+
+// A pixelation cross: dissolve through a coarse mosaic — mechanical.
+const pixelize: TransitionDef = {
+  name: 'pixelize',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      float amt = 1.0 - abs(progress - 0.5) * 2.0;
+      float blocks = mix(220.0, 14.0, amt);
+      vec2 puv = (floor(uv * blocks) + 0.5) / blocks;
+      float t = step(0.5, progress);
+      return mix(getFromColor(puv), getToColor(puv), t);
+    }
+  `,
+};
+
+// A directional wipe whose seam is posterized into hard colour steps — mechanical.
+const posterizeWipe: TransitionDef = {
+  name: 'posterizeWipe',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      float edge = progress;
+      float t = step(uv.x, edge);
+      vec4 col = mix(getFromColor(uv), getToColor(uv), t);
+      vec3 post = floor(col.rgb * 4.0) / 4.0;
+      float near = 1.0 - clamp(abs(uv.x - edge) / 0.15, 0.0, 1.0);
+      col.rgb = mix(col.rgb, post, near);
+      return col;
+    }
+  `,
+};
+
+// A circular iris opening from the centre — joy/love.
+const irisOpen: TransitionDef = {
+  name: 'irisOpen',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      float r = length(uv - 0.5);
+      float rad = progress * 0.8;
+      float t = smoothstep(rad + 0.05, rad - 0.05, r);
+      return mix(getFromColor(uv), getToColor(uv), t);
+    }
+  `,
+};
+
+// An angular clock-wipe sweeping around the centre — joy.
+const radialReveal: TransitionDef = {
+  name: 'radialReveal',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec2 c = uv - 0.5;
+      float a = atan(c.y, c.x) / 6.28318 + 0.5;
+      float t = step(a, progress);
+      return mix(getFromColor(uv), getToColor(uv), t);
+    }
+  `,
+};
+
+// A dip to black at the midpoint before the new frame rises — loss.
+const fadeBlack: TransitionDef = {
+  name: 'fadeBlack',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec4 mixed = mix(getFromColor(uv), getToColor(uv), step(0.5, progress));
+      float dip = 1.0 - abs(progress - 0.5) * 2.0;
+      return vec4(mixed.rgb * (1.0 - dip), mixed.a);
+    }
+  `,
+};
+
+// A wipe whose seam solarizes (tone-inverts) as it passes — uncanny.
+const solarizeWipe: TransitionDef = {
+  name: 'solarizeWipe',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      float edge = progress;
+      float t = step(uv.x, edge);
+      vec4 col = mix(getFromColor(uv), getToColor(uv), t);
+      vec3 sol = mix(col.rgb, 1.0 - col.rgb, step(vec3(0.5), col.rgb));
+      float near = 1.0 - clamp(abs(uv.x - edge) / 0.2, 0.0, 1.0);
+      col.rgb = mix(col.rgb, sol, near);
+      return col;
+    }
+  `,
+};
+
+// A hard horizontal push: the new frame shoves the old one off-screen — fear/ominous.
+const slideHarsh: TransitionDef = {
+  name: 'slideHarsh',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      if (uv.x < 1.0 - progress) {
+        return getFromColor(uv + vec2(progress, 0.0));
+      }
+      return getToColor(uv - vec2(1.0 - progress, 0.0));
+    }
+  `,
+};
+
 export const TRANSITIONS: Record<string, TransitionDef> = {
   fade,
   filmBurn,
   wipe,
   dreamWarp,
   lightFlash,
+  cut,
+  barWipe,
+  crossLuma,
+  bloomDissolve,
+  swirl,
+  melt,
+  ripple,
+  liquidWave,
+  glitch,
+  pixelize,
+  posterizeWipe,
+  irisOpen,
+  radialReveal,
+  fadeBlack,
+  solarizeWipe,
+  slideHarsh,
 };
 
 export const TRANSITION_NAMES = Object.keys(TRANSITIONS);

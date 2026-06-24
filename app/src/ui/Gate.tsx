@@ -44,7 +44,14 @@ export function Gate({ manifest }: { manifest: Manifest }) {
       postfx,
       audio,
       { setCaption: s._setCaption, setMood: s._setMood },
-      { seed: s.seed, surreality, tempoMul: tempo, archiveOn: true, wake: readShareState().wake },
+      {
+        seed: s.seed,
+        surreality,
+        tempoMul: tempo,
+        archiveOn: true,
+        wake: readShareState().wake,
+        butterchurn: readShareState().butterchurn,
+      },
     );
     useStore.getState().attachRuntime(conductor);
     // Render a held first frame even before play.
