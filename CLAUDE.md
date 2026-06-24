@@ -171,7 +171,11 @@ film grade rises and falls with the wake intensity signal, and warp/density vary
   - *Procedural variants* (`render/procedural.ts`): the existing kinds read `proceduralParams`
     (speed/density/brightness/warmth/jitter) so fog thickens on ominous/fear, ripple quickens/brightens
     on joy + intensity, stars sparsen on loss, etc. A **neutral mood at zero intensity reproduces the
-    original look bit-for-bit** (`NEUTRAL_PROC_PARAMS`).
+    original look bit-for-bit** (`NEUTRAL_PROC_PARAMS`). **Procedural sources are a fallback medium, not
+    a primary visual:** the Dreamwalker walks real media + title cards (`dream/visualPool.ts` — media-first
+    when archive is on); procedural is surfaced only when a real asset fails to load, to texture
+    transitions, or as ghost echoes. Do not re-add procedural assets to the primary walk pool — that is
+    what made dreams drift to an all-shaders look.
   - *Butterchurn psychedelic layer* (`render/ButterchurnLayer.ts`, `render/LayerStack.setPsychedelic`):
     a reactive Milkdrop wash engaged ONLY in high-intensity frenzy (`butterchurnEngaged`), off under
     reduced-motion and eased at troughs. **Behind the `?butterchurn=1` engine flag, default OFF.** The
