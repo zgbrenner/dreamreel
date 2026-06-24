@@ -76,7 +76,9 @@ advanced — all merged to `main`:
 | — | **Musical pacing (librosa tempo/energy → bar-quantized audio)** | ✅ code merged + live (`v2026.06.24-2058`, 44/44 clips carry bpm/energy) |
 | — | **Transition catalog expansion (21 → 29 shaders)** | ✅ 8 new original gl-transitions-spec shaders wired into mood families; all compile-checked in WebGL |
 | — | **Organic film grain (Ashima webgl-noise, MIT)** | ✅ merged — simplex grain replaces hash noise in post-FX (`render/shaderNoise.ts`) |
-| — | **SemDeDup visual corpus pruning** | ✅ tool merged (`embed/semdedup.py`, exact pairwise); ⬜ live reship pending owner OK — at 0.92 it prunes 36 near-dupes (326→290) |
+| — | **SemDeDup visual corpus pruning** | ✅ tool merged + **live** (`embed/semdedup.py`, exact pairwise); pruned 36 near-dupes → `v2026.06.24-2338` (290 assets) |
+| — | **Aesthetic-predictor quality bias** | ✅ code merged (`embed/aesthetic.py` LAION head over OpenAI-CLIP; `dreamwalker.aestheticBoost`); ⬜ scoring run + reship in progress |
+| — | **Generative text engine** | ✅ tool merged (`embed/textgen.py`, deterministic DREAMREEL-voice grammar); ⬜ embed run + reship pending. PD-poetry ingest = clean extension once rights-cleared |
 | — | **Photosensitivity hardening** | ✅ runtime flash-rate governor shipped (`render/flashGuard.ts`, WCAG ≤3/sec, ≤1/sec reduced-motion); ⬜ offline content-flash (hard-cut) analysis still open |
 
 ## Wake-mode tuning surface (where to nudge the live feel)
