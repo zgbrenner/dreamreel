@@ -87,6 +87,9 @@ export interface Asset {
   attribution?: string; // required text when license starts with "CC-BY"
   attributionUrl?: string;
   claptext?: number[]; // optional CLAP embedding bridge for visual assets
+  // Optional offline LAION aesthetic score (~0..10) baked by pipeline/embed/aesthetic.py. Absent
+  // on legacy manifests → the walk's aesthetic bias is a graceful no-op.
+  aesthetic?: number;
 }
 
 export interface Manifest {
