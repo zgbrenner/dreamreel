@@ -64,6 +64,18 @@ const TEXT_MOOD_COUPLING = 1.2;
 // Bias selection toward scarce moving-image so video reads as a real part of the reel, not a
 // rarity. Multiplicative on the pre-softmax weight (deterministic — no extra RNG draw).
 const TYPE_WEIGHTS: Record<string, number> = { video: 7.0 };
+// Gentle aesthetic bias: assets scored above/below the neutral aesthetic lean the softmax toward
+// better-composed media without collapsing variety. Added to the pre-softmax exponent (so it
+// scales the weight multiplicatively). Deterministic — `aesthetic` is baked per asset. A missing
+// score contributes nothing, so legacy manifests are unaffected.
+const AESTHETIC_COUPLING = 0.12;
+const AESTHETIC_NEUTRAL = 5.5; // LAION scores cluster around here; the pivot for above/below
+
+/** Signed pre-softmax aesthetic boost for an asset (0 when it carries no score). Exported for tests. */
+export function aestheticBoost(aesthetic: number | undefined): number {
+  if (aesthetic === undefined || !Number.isFinite(aesthetic)) return 0;
+  return AESTHETIC_COUPLING * (aesthetic - AESTHETIC_NEUTRAL);
+}
 const CARD_TAGS = new Set(['card', 'intertitle', 'titlecard']);
 
 function isCard(a: Asset): boolean {
@@ -350,7 +362,8 @@ class DreamwalkerImpl implements Dreamwalker {
     const weights = scores.map((s, i) => {
       const moodBoost =
         moodBias !== undefined ? TEXT_MOOD_COUPLING * moodAffinity(candidates[i].mood, moodBias) : 0;
-      const w = Math.exp(s - max + moodBoost) * (TYPE_WEIGHTS[candidates[i].type] ?? 1);
+      const aesBoost = aestheticBoost(candidates[i].aesthetic);
+      const w = Math.exp(s - max + moodBoost + aesBoost) * (TYPE_WEIGHTS[candidates[i].type] ?? 1);
       sum += w;
       return w;
     });

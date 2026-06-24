@@ -61,6 +61,7 @@ export const assetSchema = z.object({
   attribution: z.string().optional(),
   attributionUrl: z.string().optional(),
   claptext: z.array(z.number()).optional(),
+  aesthetic: z.number().optional(),
 });
 
 export const manifestSchema = z

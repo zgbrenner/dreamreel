@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   createDreamwalker,
+  aestheticBoost,
   type DreamwalkerPools,
   type DreamLayer,
 } from '../../src/dream/dreamwalker';
 import { cosine } from '../../src/dream/mood';
-import { MOOD_AXES } from '../../src/manifest/types';
+import { MOOD_AXES, type Asset, type MoodAxis } from '../../src/manifest/types';
 import { parseManifest } from '../../src/manifest/loader';
 import seed from '../../public/manifest.seed.json';
 
@@ -157,6 +158,62 @@ describe('Dreamwalker layers', () => {
       expect(v).toBeGreaterThanOrEqual(0);
       expect(v).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('Dreamwalker aesthetic bias', () => {
+  // A synthetic pool where every asset shares ONE embedding (so the spatial cosine term is equal
+  // for all) — selection differences then come ONLY from the aesthetic bias + anti-repeat.
+  function synthPools(nHigh: number, nLow: number): DreamwalkerPools {
+    const moodAxes = Object.fromEntries(MOOD_AXES.map((a) => [a, [0, 0, 0, 0]])) as Record<
+      MoodAxis,
+      number[]
+    >;
+    const neutralMood = Object.fromEntries(MOOD_AXES.map((a) => [a, 0.5])) as Record<MoodAxis, number>;
+    const mk = (id: string, aesthetic: number): Asset => ({
+      id,
+      type: 'image',
+      embedding: [1, 0, 0, 0],
+      mood: neutralMood,
+      tags: [],
+      dwellBase: 5,
+      source: 'x',
+      license: 'PD',
+      aesthetic,
+    });
+    const assets: Asset[] = [];
+    for (let i = 0; i < nHigh; i++) assets.push(mk(`hi-${i}`, 8.0));
+    for (let i = 0; i < nLow; i++) assets.push(mk(`lo-${i}`, 3.0));
+    return { visual: assets, texts: assets, moodAxes, embeddingDim: 4 };
+  }
+
+  it('aestheticBoost: 0 when absent, positive above neutral, negative below, monotonic', () => {
+    expect(aestheticBoost(undefined)).toBe(0);
+    expect(aestheticBoost(5.5)).toBeCloseTo(0, 6);
+    expect(aestheticBoost(8)).toBeGreaterThan(0);
+    expect(aestheticBoost(3)).toBeLessThan(0);
+    expect(aestheticBoost(9)).toBeGreaterThan(aestheticBoost(7));
+  });
+
+  it('leans image selection toward higher-aesthetic assets without collapsing variety', () => {
+    const w = createDreamwalker(synthPools(5, 5), { seed: 'aes', surreality: 0.5 });
+    let hi = 0;
+    let lo = 0;
+    for (let i = 0; i < 600; i++) {
+      const id = w.next('image', 1).asset.id;
+      if (id.startsWith('hi')) hi++;
+      else lo++;
+    }
+    expect(hi).toBeGreaterThan(lo); // pretty assets surface more
+    expect(lo).toBeGreaterThan(0); // ...but the low ones still appear (variety preserved)
+  });
+
+  it('aesthetic-biased selection is deterministic per seed', () => {
+    const seq = () => {
+      const w = createDreamwalker(synthPools(5, 5), { seed: 'aes-det', surreality: 0.5 });
+      return Array.from({ length: 40 }, () => w.next('image', 1).asset.id);
+    };
+    expect(seq()).toEqual(seq());
   });
 });
 
