@@ -30,12 +30,13 @@ spend is the one-time offline tagging pass.
   The intended emotional range is love, loss, joy, absurdity, fear, nostalgia, the strange — and
   their combinations. Each axis is a CLIP text-prompt anchor (a contrast of descriptive prompts,
   L2-normalized — see `pipeline/embed/mood_axes.py`); an asset's mood is the projection of its
-  embedding onto each axis (`dream/mood.ts` `projectMood`, with blend/query helpers `dominantAxes`
-  and `blendMoods`). Axis order is frozen and shared by `manifest/types.ts`, the pipeline, and the
-  seed generator. The full 12-axis blend now drives **transition choice** (mood→transition family)
-  and **procedural-source variation** (mood/intensity→speed/density/brightness/warmth/jitter) — see
-  `dream/filterDirector.ts`. The post-FX **filter catalog** (`render/DreamFilter.ts`) still maps
-  only the original six axes; wiring the six new axes to dedicated post-FX filters remains later work.
+  embedding onto each axis (`dream/mood.ts` `projectMood`, with blend/query helpers `dominantAxes`,
+  `blendMoods`, and `moodAffinity`). Axis order is frozen and shared by `manifest/types.ts`, the
+  pipeline, and the seed generator. The full 12-axis blend drives **post-FX filter strengths**,
+  **transition choice**, **procedural-source variation**, **audio bed params** (`audio/params.ts`),
+  **CLAP audio-walk bias** (`dream/audioWalker.ts`), **text pick bias + tint**
+  (`dream/textDirector.ts`, `dream/dreamwalker.ts`, `ui/Captions.tsx`), and classic-mode film grade
+  (`conductor.applyMoodToFilm`). See `dream/filterDirector.ts` for the look brain.
 - **Single-verb UX.** The viewer can only summon a **new dream** (a fresh seed) — they can
   never tune or edit the one they're given. There are no dream-shaping sliders, toggles, or
   switches: surreality and tempo are derived deterministically from the seed, so each dream has
@@ -168,6 +169,10 @@ film grade rises and falls with the wake intensity signal, and warp/density vary
     `pickTransition` selects deterministically. Neutral mood → a gentle identity default; coherence
     troughs → the calmest dissolves; **reduced-motion → a gentle, no-flicker set** (never hard
     cuts/glitch/push).
+  - *Post-FX filters* (`render/DreamFilter.ts`): all **12 axes** map onto the six-filter catalog
+    (original six 1:1; new axes pair semantically — love→melt, loss→feedback, joy→liquid,
+    fear→kaleidoscope, absurdity→posterize, strange→solarize). Strength scales with intensity and
+    eases at coherence troughs.
   - *Procedural variants* (`render/procedural.ts`): the existing kinds read `proceduralParams`
     (speed/density/brightness/warmth/jitter) so fog thickens on ominous/fear, ripple quickens/brightens
     on joy + intensity, stars sparsen on loss, etc. A **neutral mood at zero intensity reproduces the

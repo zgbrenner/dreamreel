@@ -5,10 +5,8 @@
 // engages. Keeping it all here (no DOM, no three.js, no randomness of its own — callers pass a
 // seeded `roll`) keeps the look coherent and unit-testable.
 //
-// Two axis groupings live here:
-//  • FILTER_AXES — the original six CLIP axes the post-FX filter catalog reacts to (1:1 mapping).
-//  • The full 12-axis taxonomy now also drives transition CHOICE and procedural variation, so the
-//    new emotional axes (love/loss/joy/fear/absurdity/strange) are no longer inert in the renderer.
+// All twelve mood axes drive post-FX filter strengths (paired 2:1 onto the six filters), transition
+// choice, and procedural variation — filterDirector is the single look brain.
 
 import { MOOD_AXES, type MoodAxis } from '../manifest/types';
 import type { IntensityRegime } from './intensity';
@@ -22,24 +20,23 @@ export interface FilterStrengths {
   feedback: number;
 }
 
-// The mood axes the filter catalog currently reacts to (the original six). New axes are inert here.
-export const FILTER_AXES = [
-  'melancholy',
-  'uncanny',
-  'nostalgic',
-  'ominous',
-  'tender',
-  'mechanical',
-] as const satisfies readonly MoodAxis[];
+/** All twelve axes participate in filter strength (two axes may share one filter). */
+export const FILTER_AXES = MOOD_AXES;
 
-/** 1:1 mood-axis → filter mapping (confirmed in the spec) for the original six axes. */
-export const MOOD_FILTER: Record<(typeof FILTER_AXES)[number], keyof FilterStrengths> = {
+/** Mood-axis → post-FX filter mapping. New axes pair with semantically related originals. */
+export const MOOD_FILTER: Record<MoodAxis, keyof FilterStrengths> = {
   melancholy: 'feedback',
   uncanny: 'solarize',
   nostalgic: 'liquid',
   ominous: 'kaleidoscope',
   tender: 'melt',
   mechanical: 'posterize',
+  love: 'melt',
+  loss: 'feedback',
+  joy: 'liquid',
+  fear: 'kaleidoscope',
+  absurdity: 'posterize',
+  strange: 'solarize',
 };
 
 const SHARPEN = 4; // higher => the dominant axis's filter stands out more

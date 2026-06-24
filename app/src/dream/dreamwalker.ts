@@ -12,7 +12,7 @@
 
 import type { Asset, MoodAxis } from '../manifest/types';
 import { makeRng, type Rng } from './prng';
-import { cosine, l2norm, projectMood } from './mood';
+import { cosine, l2norm, projectMood, moodAffinity } from './mood';
 import type { SteeringState } from './steering';
 
 export interface DreamwalkerConfig {
@@ -60,6 +60,7 @@ export interface Dreamwalker {
 }
 
 const RECENT_WINDOW = 6;
+const TEXT_MOOD_COUPLING = 1.2;
 // Bias selection toward scarce moving-image so video reads as a real part of the reel, not a
 // rarity. Multiplicative on the pre-softmax weight (deterministic — no extra RNG draw).
 const TYPE_WEIGHTS: Record<string, number> = { video: 7.0 };
@@ -300,13 +301,13 @@ class DreamwalkerImpl implements Dreamwalker {
    * pick is what's actually returned. Sharing the draw means steering never changes the number of
    * RNG draws — the spine advances in lockstep regardless — so the walk can relax back exactly.
    */
-  private pick(layer: DreamLayer, st: LayerState, pool: Asset[]): Asset {
+  private pick(layer: DreamLayer, st: LayerState, pool: Asset[], moodBias?: Record<MoodAxis, number>): Asset {
     const recent = new Set(st.recent);
     let candidates = pool.filter((a) => !recent.has(a.id));
     if (candidates.length === 0) candidates = pool;
 
     const T = this.temperature();
-    const spine = this.weigh(candidates, st.e, T);
+    const spine = this.weigh(candidates, st.e, T, moodBias);
 
     if (this.hooks?.onSelect) {
       let h = 0;
@@ -324,7 +325,7 @@ class DreamwalkerImpl implements Dreamwalker {
     // so this is bit-identical to spineChosen (and we skip the work).
     let liveChosen = spineChosen;
     if (st.bendActive) {
-      const live = this.weigh(candidates, st.eLive, T);
+      const live = this.weigh(candidates, st.eLive, T, moodBias);
       liveChosen = candidates[selectIndex(live.weights, live.sum, u)];
     }
 
@@ -337,13 +338,19 @@ class DreamwalkerImpl implements Dreamwalker {
     return liveChosen;
   }
 
-  /** Softmax weights (with type weighting) of candidates at point `e` and temperature `T`. */
-  private weigh(candidates: Asset[], e: number[], T: number): { weights: number[]; sum: number } {
+  private weigh(
+    candidates: Asset[],
+    e: number[],
+    T: number,
+    moodBias?: Record<MoodAxis, number>,
+  ): { weights: number[]; sum: number } {
     const scores = candidates.map((a) => cosine(e, a.embedding) / T);
     const max = Math.max(...scores);
     let sum = 0;
     const weights = scores.map((s, i) => {
-      const w = Math.exp(s - max) * (TYPE_WEIGHTS[candidates[i].type] ?? 1);
+      const moodBoost =
+        moodBias !== undefined ? TEXT_MOOD_COUPLING * moodAffinity(candidates[i].mood, moodBias) : 0;
+      const w = Math.exp(s - max + moodBoost) * (TYPE_WEIGHTS[candidates[i].type] ?? 1);
       sum += w;
       return w;
     });
@@ -354,14 +361,21 @@ class DreamwalkerImpl implements Dreamwalker {
     this.lastLeaped = this.advancePoint(this.image, this.visual);
     this.advanceBend(this.image);
 
-    // Title-card interjection: surreality- and leap-dependent.
-    const pCard = 0.02 + (this.lastLeaped ? 0.05 : 0) + this.surreality * 0.03;
+    const liveMood = projectMood(this.image.eLive, this.moodAxes);
+
+    // Title-card interjection: surreality-, leap-, and absurdity-dependent.
+    const pCard =
+      0.02 +
+      (this.lastLeaped ? 0.05 : 0) +
+      this.surreality * 0.03 +
+      liveMood.absurdity * 0.02 +
+      liveMood.strange * 0.015;
     if (this.cards.length > 0 && this.image.rng.next() < pCard) {
       const recent = new Set(this.image.recent);
       const pool = this.cards.filter((c) => !recent.has(c.id));
       // Only interject a card if one is available outside the recent window — never repeat.
       if (pool.length > 0) {
-        const card = pool[this.image.rng.int(pool.length)];
+        const card = this.pickCardByMood(pool, liveMood);
         this.image.recent.push(card.id);
         if (this.image.recent.length > RECENT_WINDOW) this.image.recent.shift();
         return {
@@ -373,12 +387,12 @@ class DreamwalkerImpl implements Dreamwalker {
     }
 
     const asset = this.pick('image', this.image, this.visual);
-    const mood = projectMood(this.image.eLive, this.moodAxes);
+    const mood = liveMood;
     const dwellMs = this.dwellFor(asset, mood, tempoMul);
 
-    // Ghost proposal only when the dream feels uncanny/ominous.
+    // Ghost proposal when the dream feels uncanny, ominous, fearful, or strange.
     let ghost: Asset | undefined;
-    if (Math.max(mood.uncanny, mood.ominous) > 0.62) {
+    if (Math.max(mood.uncanny, mood.ominous, mood.fear, mood.strange) > 0.62) {
       ghost = this.proposeGhost();
     }
 
@@ -398,7 +412,8 @@ class DreamwalkerImpl implements Dreamwalker {
     const pool = this.drift.length > 0 ? this.drift : this.texts;
     this.advancePoint(this.text, pool);
     this.advanceBend(this.text);
-    const asset = this.pick('text', this.text, pool);
+    const liveMood = projectMood(this.text.eLive, this.moodAxes);
+    const asset = this.pick('text', this.text, pool, liveMood);
     // text drifts faster than imagery
     const dwellMs = (this.idleDwellMul() * asset.dwellBase * 1000 * 0.6) / tempoMul;
     return { asset, dwellMs, titleCard: false };
@@ -435,10 +450,22 @@ class DreamwalkerImpl implements Dreamwalker {
   }
 
   private dwellFor(asset: Asset, mood: Record<MoodAxis, number>, tempoMul: number): number {
-    const linger = (mood.tender + mood.nostalgic) / 2;
-    const hurry = (mood.uncanny + mood.mechanical) / 2;
+    const linger = (mood.tender + mood.nostalgic + mood.love + mood.joy * 0.5) / 3.5;
+    const hurry = (mood.uncanny + mood.mechanical + mood.fear + mood.absurdity) / 4;
     const factor = clamp(1 + 0.5 * linger - 0.5 * hurry, 0.4, 1.8);
     return (this.idleDwellMul() * asset.dwellBase * 1000 * factor) / tempoMul;
+  }
+
+  /** Mood-weighted card pick among intertitle candidates (deterministic via image rng). */
+  private pickCardByMood(pool: Asset[], mood: Record<MoodAxis, number>): Asset {
+    const scores = pool.map((c) => Math.exp(TEXT_MOOD_COUPLING * moodAffinity(c.mood, mood)));
+    const sum = scores.reduce((s, x) => s + x, 0);
+    let roll = this.image.rng.next() * sum;
+    for (let i = 0; i < pool.length; i++) {
+      roll -= scores[i];
+      if (roll <= 0) return pool[i];
+    }
+    return pool[pool.length - 1];
   }
 }
 

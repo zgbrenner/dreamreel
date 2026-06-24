@@ -9,14 +9,15 @@
 // Pure module: no DOM, no Tone. Seeded `seed + ':audio'` so the audio sequence is a distinct but
 // deterministic function of the shared dream seed.
 
-import type { AudioAsset, AudioKind } from '../manifest/types';
+import type { AudioAsset, AudioKind, MoodAxis } from '../manifest/types';
 import { makeRng, type Rng } from './prng';
-import { cosine, l2norm } from './mood';
+import { cosine, l2norm, moodAffinity } from './mood';
 
 export interface AudioWalkerConfig {
   seed: string;
   surreality: number; // 0..1
   coupling?: number; // text-bridge strength; default COUPLING
+  moodCoupling?: number; // mood-vector bias strength; default MOOD_COUPLING
 }
 
 export interface AudioPick {
@@ -30,7 +31,7 @@ export interface AudioWalkerPools {
 }
 
 export interface AudioWalker {
-  next(claptext: number[] | undefined, tempoMul: number): AudioPick | null;
+  next(claptext: number[] | undefined, tempoMul: number, mood?: Record<MoodAxis, number>): AudioPick | null;
   setSurreality(v: number): void;
   reseed(seed: string): void;
 }
@@ -39,6 +40,7 @@ const RECENT_WINDOW = 4;
 // Surface rates per kind (multiplicative on the pre-softmax weight; deterministic).
 const TYPE_WEIGHTS: Record<AudioKind, number> = { music: 1.0, voice: 0.5, foley: 0.8 };
 const COUPLING = 0.6;
+const MOOD_COUPLING = 0.8;
 
 export function createAudioWalker(
   pools: AudioWalkerPools,
@@ -51,6 +53,7 @@ class AudioWalkerImpl implements AudioWalker {
   private readonly audio: AudioAsset[];
   private readonly dim: number;
   private readonly coupling: number;
+  private readonly moodCoupling: number;
   private surreality: number;
   private seed: string;
   private rng!: Rng;
@@ -61,15 +64,16 @@ class AudioWalkerImpl implements AudioWalker {
     this.audio = pools.audio;
     this.dim = pools.audioEmbeddingDim;
     this.coupling = config.coupling ?? COUPLING;
+    this.moodCoupling = config.moodCoupling ?? MOOD_COUPLING;
     this.surreality = clamp01(config.surreality);
     this.seed = config.seed;
     this.resetState();
   }
 
-  next(claptext: number[] | undefined, tempoMul: number): AudioPick | null {
+  next(claptext: number[] | undefined, tempoMul: number, mood?: Record<MoodAxis, number>): AudioPick | null {
     if (this.audio.length === 0) return null;
     this.advancePoint();
-    const asset = this.pick(claptext);
+    const asset = this.pick(claptext, mood);
     const dwellMs = (asset.dwellBase * 1000) / Math.max(0.1, tempoMul);
     return { asset, dwellMs };
   }
@@ -112,18 +116,20 @@ class AudioWalkerImpl implements AudioWalker {
     }
   }
 
-  private pick(claptext: number[] | undefined): AudioAsset {
+  private pick(claptext: number[] | undefined, mood?: Record<MoodAxis, number>): AudioAsset {
     const recent = new Set(this.recent);
     let candidates = this.audio.filter((a) => !recent.has(a.id));
     if (candidates.length === 0) candidates = this.audio;
 
     const T = this.temperature();
     const useBridge = !!claptext && claptext.length > 0 && this.coupling !== 0;
-    // Pre-softmax score: cosine-to-point/T plus the text-bridge term (coupling * cos(asset, concept)).
+    const useMood = !!mood && this.moodCoupling !== 0;
+    // Pre-softmax score: cosine-to-point/T plus text-bridge and mood-alignment terms.
     const scores = candidates.map((a) => {
       const base = cosine(this.e, a.embedding) / T;
       const bridge = useBridge ? this.coupling * cosine(a.embedding, claptext as number[]) : 0;
-      return base + bridge;
+      const moodTerm = useMood ? this.moodCoupling * moodAffinity(a.mood, mood as Record<MoodAxis, number>) : 0;
+      return base + bridge + moodTerm;
     });
     const max = Math.max(...scores);
     let sum = 0;

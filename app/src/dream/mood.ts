@@ -72,6 +72,16 @@ export function dominantAxes(mood: Record<MoodAxis, number>, k = 2): MoodWeight[
  * weight falls back to a blank (neutral) mood rather than dividing by zero. Result stays 0..1
  * when inputs are 0..1.
  */
+/**
+ * Signed alignment of two mood vectors (0 when both are neutral at 0.5). Roughly in [-0.25, 0.25]
+ * when inputs are 0..1 — used to bias text/audio picks toward emotionally matching assets.
+ */
+export function moodAffinity(a: Record<MoodAxis, number>, b: Record<MoodAxis, number>): number {
+  let acc = 0;
+  for (const axis of MOOD_AXES) acc += (a[axis] - 0.5) * (b[axis] - 0.5);
+  return acc / MOOD_AXES.length;
+}
+
 export function blendMoods(
   moods: Record<MoodAxis, number>[],
   weights?: number[],

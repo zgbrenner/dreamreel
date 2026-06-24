@@ -12,9 +12,7 @@ import { bedParamsFor, bellShotFor, type Mood } from './params';
 const PENTATONIC = ['C', 'D', 'E', 'G', 'A'];
 const RAMP = 1.5; // seconds for smooth parameter glides
 
-// Neutral mood used to drive the tick rate before any real mood has been set. The bed only
-// reads a few axes (see params.ts); the new emotional axes are present for type-completeness but
-// not yet wired to the synth — that lands in a later prompt.
+// Neutral mood used to drive the tick rate before any real mood has been set.
 const NEUTRAL_MOOD: Mood = {
   melancholy: 0.5,
   uncanny: 0.5,
@@ -141,7 +139,7 @@ export class AudioEngine {
 
     // Scheduled generative events.
     this.bellLoop = new Tone.Loop((time) => {
-      const { prob, octave } = bellShotFor(this.mood ? this.mood.tender : 0.5);
+      const { prob, octave } = bellShotFor(this.mood ?? NEUTRAL_MOOD);
       if (Math.random() < prob) {
         const note = PENTATONIC[Math.floor(Math.random() * PENTATONIC.length)];
         this.bell?.triggerAttackRelease(`${note}${octave}`, '2n', time, 0.4 + Math.random() * 0.3);

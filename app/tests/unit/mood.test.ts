@@ -7,6 +7,7 @@ import {
   blankMood,
   dominantAxes,
   blendMoods,
+  moodAffinity,
 } from '../../src/dream/mood';
 import { MOOD_AXES, type MoodAxis } from '../../src/manifest/types';
 
@@ -133,6 +134,28 @@ describe('dominantAxes', () => {
     const flat = blankMood(); // all equal
     const top = dominantAxes(flat, 3).map((t) => t.axis);
     expect(top).toEqual(MOOD_AXES.slice(0, 3));
+  });
+});
+
+describe('moodAffinity', () => {
+  it('is zero when both moods are neutral', () => {
+    expect(moodAffinity(blankMood(), blankMood())).toBeCloseTo(0, 10);
+  });
+
+  it('is positive when aligned axes rise together', () => {
+    const a = blankMood();
+    a.joy = 0.9;
+    const b = blankMood();
+    b.joy = 0.9;
+    expect(moodAffinity(a, b)).toBeGreaterThan(0);
+  });
+
+  it('is negative when one mood peaks where the other dips', () => {
+    const a = blankMood();
+    a.joy = 0.9;
+    const b = blankMood();
+    b.joy = 0.1;
+    expect(moodAffinity(a, b)).toBeLessThan(0);
   });
 });
 

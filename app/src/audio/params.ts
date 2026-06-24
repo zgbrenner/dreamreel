@@ -27,8 +27,8 @@ export interface BedParams {
 
 /**
  * Map a mood (and the current tempo multiplier) to bed targets.
- * ominous => lower/darker drone + more hiss; tender => brighter drone + louder bells;
- * mechanical => brighter static + faster, louder ticks; uncanny => more detune beating + wetter.
+ * All twelve axes reshape the bed: ominous/fear darken, tender/love/joy brighten, loss adds
+ * reverb and pulls pitch down, absurdity/strange widen detune, mechanical/absurdity speed ticks.
  */
 export function bedParamsFor(mood: Mood, tempoMul: number): BedParams {
   const ominous = clamp01(mood.ominous);
@@ -36,22 +36,31 @@ export function bedParamsFor(mood: Mood, tempoMul: number): BedParams {
   const mechanical = clamp01(mood.mechanical);
   const melancholy = clamp01(mood.melancholy);
   const uncanny = clamp01(mood.uncanny);
+  const love = clamp01(mood.love);
+  const loss = clamp01(mood.loss);
+  const joy = clamp01(mood.joy);
+  const fear = clamp01(mood.fear);
+  const absurdity = clamp01(mood.absurdity);
+  const strange = clamp01(mood.strange);
   const tempo = Math.max(0.25, tempoMul);
 
-  const droneRootHz = 46 + tender * 18 - ominous * 8 - melancholy * 4;
+  const droneRootHz =
+    46 + tender * 18 + love * 12 + joy * 8 - ominous * 8 - melancholy * 4 - loss * 6 - fear * 5;
 
   return {
     droneRootHz,
     droneFifthHz: droneRootHz * 1.5,
-    beatDetune: 6 + uncanny * 22,
-    droneCutoffHz: Math.max(200, 380 + tender * 1400 + mechanical * 600 - ominous * 150),
-    hissGain: 0.03 + ominous * 0.1 + mechanical * 0.06,
-    hissCutoffHz: 1400 + mechanical * 5000,
-    bellGain: 0.08 + tender * 0.22,
-    reverbWet: 0.4 + tender * 0.25 + uncanny * 0.15,
-    tickGain: mechanical * 0.12,
-    // base every quarter; mechanical + tempo shorten the interval, floored so it never machine-guns.
-    tickIntervalSec: Math.max(0.08, 0.6 / (tempo * (0.6 + mechanical * 1.4))),
+    beatDetune: 6 + uncanny * 22 + strange * 14 + absurdity * 10,
+    droneCutoffHz: Math.max(
+      200,
+      380 + tender * 1400 + love * 600 + joy * 500 + mechanical * 600 - ominous * 150 - fear * 120,
+    ),
+    hissGain: 0.03 + ominous * 0.1 + fear * 0.12 + mechanical * 0.06,
+    hissCutoffHz: 1400 + mechanical * 5000 + absurdity * 1200,
+    bellGain: 0.08 + tender * 0.22 + love * 0.14 + joy * 0.1,
+    reverbWet: 0.4 + tender * 0.25 + love * 0.12 + uncanny * 0.15 + loss * 0.2,
+    tickGain: mechanical * 0.12 + absurdity * 0.06,
+    tickIntervalSec: Math.max(0.08, 0.6 / (tempo * (0.6 + mechanical * 1.4 + absurdity * 0.5))),
   };
 }
 
@@ -61,10 +70,11 @@ export interface BellShot {
   octave: number;
 }
 
-export function bellShotFor(tender: number): BellShot {
-  const t = clamp01(tender);
+/** Bell shots lean on the luminous axes (tender, love, joy). */
+export function bellShotFor(mood: Mood): BellShot {
+  const glow = clamp01((mood.tender + mood.love + mood.joy) / 3);
   return {
-    prob: 0.18 + t * 0.4,
-    octave: 3 + Math.round(t * 2), // tender => higher register
+    prob: 0.18 + glow * 0.4,
+    octave: 3 + Math.round(glow * 2),
   };
 }

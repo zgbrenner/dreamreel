@@ -6,6 +6,8 @@
 
 import * as THREE from 'three';
 import type { Manifest, Asset, MoodAxis, ProceduralKind } from '../manifest/types';
+import { titleCardPalette } from './textDirector';
+import { blankMood } from './mood';
 import { createDreamwalker, type Dreamwalker } from './dreamwalker';
 import { makeRng, type Rng } from './prng';
 import { createIntensityEngine, type IntensityEngine, type IntensityRegime } from './intensity';
@@ -475,7 +477,7 @@ export class DreamConductor implements DreamRuntime {
     // Uses beat.asset.claptext directly so the pick reads the concept for THIS beat.
     if (this.audioWalker && this.mixer) {
       if (onVisualBeat(this.audioCadence, beat.dwellMs)) {
-        const pick = this.audioWalker.next(beat.asset.claptext, this.tempoMul);
+        const pick = this.audioWalker.next(beat.asset.claptext, this.tempoMul, mood);
         if (pick) {
           this.safeAudio(() => this.mixer!.show(pick));
           commitPick(this.audioCadence, pick.dwellMs);
@@ -493,7 +495,7 @@ export class DreamConductor implements DreamRuntime {
     const asset = beat.asset;
 
     if (beat.titleCard || asset.type === 'titlecard') {
-      const tex = this.makeTitleCard(asset.text ?? '');
+      const tex = this.makeTitleCard(asset.text ?? '', mood);
       stack.setLayerTexture(slot, tex);
       this.hooks.setCaption({
         reel: beat.titleCard ? 'INTERTITLE' : reelLabel(asset),
@@ -543,7 +545,7 @@ export class DreamConductor implements DreamRuntime {
       });
     } else {
       // image with no src, or any other shape -> a Bodoni card so the slot still shows something
-      const tex = this.makeTitleCard(asset.text ?? '');
+      const tex = this.makeTitleCard(asset.text ?? '', mood);
       stack.setLayerTexture(slot, tex);
     }
 
@@ -592,7 +594,7 @@ export class DreamConductor implements DreamRuntime {
     // not by wall-clock dt, so the audio sequence is a deterministic function of the seed.
     if (this.audioWalker && this.mixer) {
       if (onVisualBeat(this.audioCadence, beat.dwellMs)) {
-        const pick = this.audioWalker.next(beat.asset.claptext, this.tempoMul);
+        const pick = this.audioWalker.next(beat.asset.claptext, this.tempoMul, mood);
         if (pick) {
           this.safeAudio(() => this.mixer!.show(pick));
           commitPick(this.audioCadence, pick.dwellMs);
@@ -612,7 +614,7 @@ export class DreamConductor implements DreamRuntime {
 
     if (beat.titleCard) {
       // Cut to a black Bodoni intertitle instead of an image.
-      const tex = this.makeTitleCard(beat.asset.text ?? '');
+      const tex = this.makeTitleCard(beat.asset.text ?? '', mood);
       this.compositor.crossfadeTo(tex, 'fade', 280);
       this.postfx.triggerSplice(0.7);
       this.hooks.setCaption({
@@ -701,7 +703,7 @@ export class DreamConductor implements DreamRuntime {
       return;
     }
     // titlecard-type asset used as a visual, or anything else -> text card
-    const tex = this.makeTitleCard(asset.text ?? '');
+    const tex = this.makeTitleCard(asset.text ?? '', this.lastMood ?? blankMood());
     this.compositor.crossfadeTo(tex, transition, this.crossfadeMs());
     // Non-video: clear any active film-clip audio.
     this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
@@ -724,18 +726,18 @@ export class DreamConductor implements DreamRuntime {
     // colour drift, fringing) so a high-surreality reel reads as a proper dream, not a film.
     const s = this.surreality;
     this.postfx.setParams({
-      vignette: 0.42 + mood.ominous * 0.32,
-      grain: 0.16 + (1 - mood.tender) * 0.16 + mood.mechanical * 0.06,
-      sepia: 0.36 + mood.nostalgic * 0.22,
-      desat: 0.28 + mood.melancholy * 0.22,
-      halation: 0.25 + mood.tender * 0.32,
+      vignette: 0.42 + mood.ominous * 0.32 + mood.fear * 0.18,
+      grain: 0.16 + (1 - mood.tender) * 0.16 + mood.mechanical * 0.06 + mood.absurdity * 0.04,
+      sepia: 0.36 + mood.nostalgic * 0.22 + mood.loss * 0.1,
+      desat: 0.28 + mood.melancholy * 0.22 + mood.loss * 0.14,
+      halation: 0.25 + mood.tender * 0.32 + mood.love * 0.2 + mood.joy * 0.1,
       scanline: 0.08 + mood.mechanical * 0.16,
-      bloom: 0.3 + mood.tender * 0.5 + s * 0.4,
-      haze: 0.14 + mood.melancholy * 0.24 + mood.nostalgic * 0.16 + s * 0.18,
-      lightLeak: 0.18 + mood.nostalgic * 0.3 + s * 0.3,
-      tint: 0.18 + mood.uncanny * 0.3 + s * 0.2,
-      chroma: 0.15 + mood.uncanny * 0.5 + s * 0.35,
-      exposure: 1 + mood.tender * 0.06,
+      bloom: 0.3 + mood.tender * 0.5 + mood.joy * 0.2 + s * 0.4,
+      haze: 0.14 + mood.melancholy * 0.24 + mood.nostalgic * 0.16 + mood.loss * 0.12 + s * 0.18,
+      lightLeak: 0.18 + mood.nostalgic * 0.3 + mood.joy * 0.15 + s * 0.3,
+      tint: 0.18 + mood.uncanny * 0.3 + mood.strange * 0.22 + s * 0.2,
+      chroma: 0.15 + mood.uncanny * 0.5 + mood.fear * 0.25 + s * 0.35,
+      exposure: 1 + mood.tender * 0.06 + mood.joy * 0.04 - mood.fear * 0.03,
       breathe: 0.4 + s * 0.5,
     });
     this.postfx.setGradeSepia(parseGrade(asset.grade));
@@ -745,7 +747,7 @@ export class DreamConductor implements DreamRuntime {
     if (this.presRng.next() < 0.18 + s * 0.4) {
       const roll = this.presRng.next();
       const target =
-        roll < 0.25 + mood.uncanny * 0.3
+        roll < 0.25 + mood.uncanny * 0.3 + mood.strange * 0.15
           ? 'chroma'
           : roll < 0.5
             ? 'bleach'
@@ -791,14 +793,15 @@ export class DreamConductor implements DreamRuntime {
     }
   }
 
-  private makeTitleCard(text: string): THREE.CanvasTexture {
+  private makeTitleCard(text: string, mood: Record<MoodAxis, number>): THREE.CanvasTexture {
+    const palette = titleCardPalette(mood);
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 576;
     const ctx = canvas.getContext('2d')!;
-    ctx.fillStyle = '#0E0B08';
+    ctx.fillStyle = palette.ink;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#D8D2C4';
+    ctx.fillStyle = palette.text;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const words = text.toUpperCase().split(/\s+/);
@@ -811,7 +814,7 @@ export class DreamConductor implements DreamRuntime {
       ctx.fillText(spaced(line), canvas.width / 2, startY + i * lh);
     });
     // double-line frame
-    ctx.strokeStyle = '#6B5640';
+    ctx.strokeStyle = palette.frame;
     ctx.lineWidth = 2;
     ctx.strokeRect(60, 60, canvas.width - 120, canvas.height - 120);
 

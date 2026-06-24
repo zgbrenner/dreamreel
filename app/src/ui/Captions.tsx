@@ -1,14 +1,18 @@
 // app/src/ui/Captions.tsx
 import { useStore } from '../state/store';
 import { requiresAttribution } from '../manifest/attribution';
+import { whisperStyle } from '../dream/textDirector';
 
 /**
  * Archival caption strip: Courier Prime metadata (reel label, source, license) plus the
  * current drifting line as an EB Garamond italic whisper. When an asset's license starts
- * with CC-BY the attribution is rendered here — this is mandatory.
+ * with CC-BY the attribution is rendered here — this is mandatory. Whisper colour follows
+ * the live 12-axis mood blend.
  */
 export function Captions({ panelOpen = true }: { panelOpen?: boolean }) {
   const caption = useStore((s) => s.caption);
+  const mood = useStore((s) => s.mood);
+  const whisper = whisperStyle(mood);
   const isCcBy = requiresAttribution(caption.license);
 
   // Lift the caption strip clear of the control drawer when it's open; drop it down when hidden.
@@ -21,7 +25,8 @@ export function Captions({ panelOpen = true }: { panelOpen?: boolean }) {
       {caption.whisper && (
         <p
           key={caption.whisper}
-          className="dr-whisper max-w-3xl text-center font-drift text-xl italic text-bone/90 text-shadow-glow sm:text-2xl"
+          className="dr-whisper max-w-3xl text-center font-drift text-xl italic text-shadow-glow sm:text-2xl"
+          style={{ color: whisper.color, opacity: whisper.opacity }}
         >
           {caption.whisper}
         </p>

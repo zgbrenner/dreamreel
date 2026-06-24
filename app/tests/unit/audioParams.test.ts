@@ -52,6 +52,35 @@ describe('bedParamsFor — mood reshapes the bed', () => {
     expect(fast.tickIntervalSec).toBeLessThan(slow.tickIntervalSec);
   });
 
+  it('fear lowers pitch and raises hiss like ominous', () => {
+    const calm = bedParamsFor(zero(), 1);
+    const scared = bedParamsFor(only('fear', 1), 1);
+    expect(scared.droneRootHz).toBeLessThan(calm.droneRootHz);
+    expect(scared.hissGain).toBeGreaterThan(calm.hissGain);
+  });
+
+  it('loss adds reverb wetness', () => {
+    const calm = bedParamsFor(zero(), 1);
+    const grieving = bedParamsFor(only('loss', 1), 1);
+    expect(grieving.reverbWet).toBeGreaterThan(calm.reverbWet);
+    expect(grieving.droneRootHz).toBeLessThan(calm.droneRootHz);
+  });
+
+  it('joy brightens the drone like tender', () => {
+    const calm = bedParamsFor(zero(), 1);
+    const joyful = bedParamsFor(only('joy', 1), 1);
+    expect(joyful.droneRootHz).toBeGreaterThan(calm.droneRootHz);
+    expect(joyful.bellGain).toBeGreaterThan(calm.bellGain);
+  });
+
+  it('strange and absurdity widen detune beating', () => {
+    const calm = bedParamsFor(zero(), 1);
+    const weird = bedParamsFor(only('strange', 1), 1);
+    const absurd = bedParamsFor(only('absurdity', 1), 1);
+    expect(weird.beatDetune).toBeGreaterThan(calm.beatDetune);
+    expect(absurd.beatDetune).toBeGreaterThan(calm.beatDetune);
+  });
+
   it('the fifth tracks the root', () => {
     const p = bedParamsFor(only('tender', 0.7), 1);
     expect(p.droneFifthHz).toBeCloseTo(p.droneRootHz * 1.5, 6);
@@ -91,16 +120,23 @@ describe('bedParamsFor — stays in safe ranges', () => {
 });
 
 describe('bellShotFor', () => {
-  it('tender raises both the trigger probability and the register', () => {
-    const low = bellShotFor(0);
-    const high = bellShotFor(1);
+  it('tender/love/joy raise both the trigger probability and the register', () => {
+    const low = bellShotFor(zero());
+    const high = bellShotFor({ ...zero(), tender: 1, love: 1, joy: 1 });
     expect(high.prob).toBeGreaterThan(low.prob);
     expect(high.octave).toBeGreaterThan(low.octave);
   });
 
   it('stays within musical bounds and clamps wild input', () => {
-    for (const t of [-2, 0, 0.5, 1, 4]) {
-      const s = bellShotFor(t);
+    const wild = { ...NEUTRAL, tender: 5, love: -2, joy: 9 };
+    const clamped = { ...NEUTRAL, tender: 1, love: 1, joy: 1 };
+    const w = bellShotFor(wild);
+    const c = bellShotFor(clamped);
+    expect(w.prob).toBeCloseTo(c.prob, 6);
+    expect(w.octave).toBe(c.octave);
+    for (const t of [-2, 0, 0.5, 1, 4] as const) {
+      const m = { ...zero(), tender: t, love: t, joy: t };
+      const s = bellShotFor(m);
       expect(s.prob).toBeGreaterThanOrEqual(0.18);
       expect(s.prob).toBeLessThanOrEqual(0.58 + 1e-9);
       expect(s.octave).toBeGreaterThanOrEqual(3);

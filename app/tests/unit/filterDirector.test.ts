@@ -30,16 +30,10 @@ describe('FilterDirector mapping', () => {
     expect(reached.size).toBe(6);
   });
 
-  it('the new emotional axes are NOT wired to the filter catalog yet (inert)', () => {
-    // A dream peaking on a new axis (with the wired axes flat) produces no filter strength —
-    // the new emotions are carried in the data but not yet mapped to a visual treatment.
+  it('the six new emotional axes drive their mapped filters when dominant', () => {
     for (const axis of ['love', 'loss', 'joy', 'fear', 'absurdity', 'strange'] as const) {
-      const m = {} as Record<MoodAxis, number>;
-      for (const a of MOOD_AXES) m[a] = 0;
-      m[axis] = 0.9;
-      const s = filterStrengths(m, 1, false);
-      const total = FILTERS.reduce((sum, f) => sum + s[f], 0);
-      expect(total).toBe(0);
+      const s = filterStrengths(moodPeaking(axis), 1, false);
+      expect(argmaxFilter(s)).toBe(MOOD_FILTER[axis]);
     }
   });
 });

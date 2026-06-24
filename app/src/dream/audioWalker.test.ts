@@ -66,8 +66,22 @@ describe('AudioWalker', () => {
     expect(unbiasedA).toEqual(unbiasedB);
   });
 
+  it('moodCoupling=0 ignores the mood argument', () => {
+    const query = blankMood();
+    query.joy = 1;
+
+    const withMood = createAudioWalker(pool(), { seed: 'mood-z', surreality: 0.5, moodCoupling: 0 });
+    const without = createAudioWalker(pool(), { seed: 'mood-z', surreality: 0.5, moodCoupling: 0 });
+    const a: string[] = [];
+    const b: string[] = [];
+    for (let i = 0; i < 30; i++) {
+      a.push(withMood.next(undefined, 1, query)!.asset.id);
+      b.push(without.next(undefined, 1)!.asset.id);
+    }
+    expect(a).toEqual(b);
+  });
+
   it('per-kind weights lift music over equally-similar voice at the same point', () => {
-    // With weights music:1.0 > voice:0.5, a neutral walk should select music at least as often.
     const ids = sequence('weight-seed', 300);
     const music = ids.filter((id) => id.startsWith('song')).length;
     const voice = ids.filter((id) => id.startsWith('speech')).length;
