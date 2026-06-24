@@ -1,6 +1,7 @@
 // app/src/manifest/loader.ts
 import type { Manifest } from './types';
 import { manifestSchema } from './schema';
+import { migrateManifest } from './migrate';
 
 export class ManifestError extends Error {
   constructor(
@@ -33,7 +34,9 @@ export async function loadManifest(url: string): Promise<Manifest> {
 
 /** Validate an already-parsed value. Exposed so tests can exercise the validator directly. */
 export function parseManifest(raw: unknown, source = '<inline>'): Manifest {
-  const result = manifestSchema.safeParse(raw);
+  // Forward-migrate legacy manifests (e.g. pre-12-axis production corpora) so they validate
+  // instead of being silently rejected — a rejection drops the app back to the seed manifest.
+  const result = manifestSchema.safeParse(migrateManifest(raw));
   if (!result.success) {
     const issues = result.error.issues
       .map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`)
