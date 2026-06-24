@@ -9,6 +9,7 @@ import numpy as np
 from embed.mood_axes import project_mood
 
 from .clap_backend import l2_normalize
+from .tempo import analyze_audio
 
 _DWELL = {"music": 60.0, "voice": 7.0, "foley": 12.0}
 
@@ -50,6 +51,13 @@ def build_audio_assets(embedder, axes, candidates: list[dict]) -> list[dict]:
             "source": c["source"],
             "license": c["license"],
         }
+        # Optional librosa rhythmic analysis (no-op if the `audio` extra isn't installed).
+        rhythm = analyze_audio(c["_local"])
+        if rhythm:
+            if "bpm" in rhythm:
+                asset["bpm"] = rhythm["bpm"]
+            if "energy" in rhythm:
+                asset["energy"] = rhythm["energy"]
         if c.get("attribution"):
             asset["attribution"] = c["attribution"]
         if c.get("attribution_url"):

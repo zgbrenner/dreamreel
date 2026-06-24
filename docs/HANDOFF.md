@@ -73,6 +73,7 @@ advanced — all merged to `main`:
 | — | **Single-verb UX (new-dream-only; seed-derived surreality/tempo)** | ✅ merged (`main` `fc1af01`) |
 | — | **Emotion taxonomy: 12 blendable axes (data+types+docs)** | ✅ done |
 | — | **12-axis wiring through visuals/audio/text** | ✅ merged (`main` `2ff5ca9`); live R2 corpus remooded to 12 axes (`v2026.06.24-1859`) |
+| — | **Musical pacing (librosa tempo/energy → bar-quantized audio)** | ✅ code merged; ⬜ live R2 audio needs an `add_tempo` reship to carry bpm/energy |
 | — | **Photosensitivity hardening** | ⬜ deferred (clamp seam exists in `IntensityEngine`) |
 
 ## Wake-mode tuning surface (where to nudge the live feel)
@@ -170,6 +171,31 @@ native soundtrack (`publish/transcode.transcode_video_with_audio`, no `-an`), du
 the hero. **Determinism:** audio picks fire on **logical visual beats** via the pure
 `dream/audioCadence.ts` accumulator (NOT wall-clock dt) — so the audio asset *sequence* is a pure
 function of the seed (a unit test compares two dt chunkings). 141 vitest + e2e + 83 pytest green.
+
+### Musical pacing — librosa tempo + energy (✅ code done 2026-06-24)
+The decision after surveying a batch of candidate repos (PySceneDetect, TransNetV2, OpenTimelineIO,
+OpenMontage, ImageBind, ink, Harlowe, Hydra, gl-transitions, allmaps, MapLibre, librosa). **Rejected
+on the hard license rule:** ImageBind (CC-BY-**NC** weights) and Hydra (**AGPL** — CLAUDE.md already
+flags it "inspiration only"). Deferred the clean-but-lower-leverage ones (clip-quality detectors,
+narrative engines, live maps). **Chose librosa (ISC)** — pipeline-only, zero runtime bundle weight,
+and it closes the loop where the visuals drove the audio but the audio never shaped the dream's timing.
+- **Offline:** `pipeline/audio/tempo.py` `analyze_audio(path)` → `{bpm?, energy}` (tempo via
+  `librosa.beat.beat_track`, octave-folded into a 50–200 musical band; energy = normalized mean RMS
+  0..1). librosa is **lazy-imported** and lives behind the optional `audio` extra, so CI (core deps
+  only) and the license/manifest tests never need it. Wired into `audio/build_audio.build_audio_assets`
+  for fresh builds; standalone `audio/add_tempo.py` enriches an already-shipped manifest by downloading
+  each clip (no media re-transcode) and can upload **manifest-only** to R2 (mirrors `embed.remood_manifest`).
+- **Manifest:** `AudioAsset` gains optional `bpm?`/`energy?` (`types.ts` + zod `schema.ts`). Absent on
+  legacy manifests → graceful no-op.
+- **Runtime (all in `dream/audioWalker.ts`, pure + seed-deterministic):** `musicalDwellMs(baseMs, bpm)`
+  snaps each clip's dwell to a whole number of bars (4 beats), so clip swaps land on a musical boundary
+  (the dwell feeds `audioCadence.commitPick`, which sets WHEN the next clip swaps); an `energy×arousal`
+  pre-softmax term (`audioArousal(mood)` = high-arousal axes minus calm ones) leans selection toward
+  louder clips in excited moods, gentler ones when calm. Both vanish when the field/mood is absent, so
+  existing determinism tests are byte-identical. Tests: `audioWalker.test.ts` (+4), `tests/test_tempo.py`.
+- **⬜ Live reship needed:** the R2 audio (`v2026.06.24-1859`) has no bpm/energy yet, so the feature is
+  dormant in prod until an `add_tempo` reship (`python -m audio.add_tempo --out out_tempo`, then
+  `--upload` with R2 env). Needs the `audio` extra (`pip install librosa soundfile`) + ffmpeg on PATH.
 
 **CLAP embedding reality:** `laion_clap` won't build on Python 3.13, so the corpus pass uses
 HuggingFace **`transformers`** CLAP (`laion/clap-htsat-unfused`, 512-d) via the operational-only
