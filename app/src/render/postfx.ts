@@ -32,8 +32,10 @@ import { defaultFilmParams, type FilmParams } from './filmParams';
 import { makeRng, type Rng } from '../dream/prng';
 import { DreamFilter } from './DreamFilter';
 import type { FilterStrengths } from '../dream/filterDirector';
+import { SNOISE3D_GLSL } from './shaderNoise';
 
 const FILM_FRAG = /* glsl */ `
+${SNOISE3D_GLSL}
 uniform float uTime;
 uniform float uGrain;
 uniform float uSepia;
@@ -56,12 +58,6 @@ uniform float uFilmGrade;  // master scale for the old-cinema treatment (1 = ful
 
 const vec3 LUMA = vec3(0.299, 0.587, 0.114);
 const vec3 HAZE_COLOR = vec3(0.91, 0.78, 0.53); // lamp glow #E8C887
-
-float hash21(vec2 p) {
-  p = fract(p * vec2(123.34, 345.45));
-  p += dot(p, p + 34.345);
-  return fract(p.x * p.y);
-}
 
 // Warp the sampling UV for gate-weave (sub-pixel jitter) before the input is read.
 // On top of the weave, an intensity-driven flowing displacement gives the frame a liquid,
@@ -110,9 +106,13 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   float leak = smoothstep(0.75, 0.0, length(ld));
   col += uLeakColor * leak * uLeak;
 
-  // animated film grain
-  float g = hash21(uv * resolution.xy + uTime * 60.0);
-  col += (g - 0.5) * uGrain;
+  // organic film grain: two-octave simplex (Ashima webgl-noise) at a fine, time-animated scale,
+  // weighted toward the midtones the way real emulsion grain reads. Deterministic in uTime; the
+  // 0.5 factor matches the amplitude of the previous white-noise grain so existing uGrain tuning
+  // is preserved, and uGrain == 0 still leaves the frame untouched.
+  float grain = sn_fbm2(vec3(uv * resolution.xy * 0.5, uTime * 24.0));
+  float grainLum = mix(0.65, 1.0, 1.0 - abs(lum - 0.5) * 2.0);
+  col += grain * uGrain * grainLum * 0.5;
 
   // scanlines
   float sl = sin(uv.y * resolution.y * 3.14159);

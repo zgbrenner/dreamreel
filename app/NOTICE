@@ -10,6 +10,15 @@ gl-transitions specification.
   DREAMREEL's transition shaders (app/src/render/transitions.ts) are original
   implementations conforming to that specification; no shader source was copied verbatim.
 
+This product includes 3D simplex-noise GLSL used for the film-grain treatment.
+
+  webgl-noise (https://github.com/ashima/webgl-noise, https://github.com/stegu/webgl-noise)
+  License: MIT
+  Copyright (c) 2011 Ashima Arts; Copyright (c) 2011-2016 Stefan Gustavson.
+  The `sn_snoise(vec3)` implementation in app/src/render/shaderNoise.ts is Ashima Arts /
+  Stefan Gustavson's MIT-licensed 3D simplex noise (helpers prefixed `sn_`), used by the
+  post-FX film grain (app/src/render/postfx.ts). Ship-safe.
+
 Runtime dependencies and their licenses are enforced by the CI license check
 (see Phase 3 / .github/workflows). Ship-safe licenses only: MIT, BSD, Apache-2.0,
 Zlib, ISC, CC0, public domain, and CC-BY (with rendered attribution).
