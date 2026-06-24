@@ -49,15 +49,15 @@ advanced — all merged to `main`:
 - **Manifest remood tool** (2026-06-24, `main` `673b62b`): `pipeline/embed/remood_manifest.py` fetches
   the live R2 manifest, rebuilds the 12 CLIP/CLAP axis vectors, re-projects every baked mood from the
   **existing** embeddings (no re-download/re-transcode), bumps the version, and can upload
-  **manifest-only** to R2. This is what closes the "live corpus is still 6-axis" gap below.
+  **manifest-only** to R2. **Ran 2026-06-24** — the live corpus is now 12-axis (see below).
 
 - Live app: **https://dreamreel.pages.dev** (**wake by default**; add **`?wake=0`** for the classic
   three-clock reel). **Production deploys from `main`** via Cloudflare Pages Git integration.
 - Production manifest: `VITE_MANIFEST_URL` on Cloudflare Pages (prod **and** preview) →
   `https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json`. **Now serving
-  v`2026.06.23-1515`: 326 visual assets (277 PD images + 40 film clips + 9 procedural) + 42 texts +
+  v`2026.06.24-1859`: 326 visual assets (277 PD images + 40 film clips + 9 procedural) + 42 texts +
   `claptext` on every visual asset, plus a `44`-clip `audio[]` pool (16 music / 14 voice / 14 foley),
-  `audioEmbeddingDim 512`.**
+  `audioEmbeddingDim 512`. Moods re-projected onto all 12 axes via `embed.remood_manifest` (2026-06-24).**
 
 ## The 6-round roadmap
 
@@ -72,7 +72,7 @@ advanced — all merged to `main`:
 | 5 | **Sampled audio (music + voice + foley + film-clip native audio)** | ✅ shipped to R2 (CLAP walk, 44 audio clips, v2026.06.23-1515) |
 | — | **Single-verb UX (new-dream-only; seed-derived surreality/tempo)** | ✅ merged (`main` `fc1af01`) |
 | — | **Emotion taxonomy: 12 blendable axes (data+types+docs)** | ✅ done |
-| — | **12-axis wiring through visuals/audio/text** | ✅ merged (`main` `2ff5ca9`); ⬜ live R2 corpus still 6-axis until a remood reship |
+| — | **12-axis wiring through visuals/audio/text** | ✅ merged (`main` `2ff5ca9`); live R2 corpus remooded to 12 axes (`v2026.06.24-1859`) |
 | — | **Photosensitivity hardening** | ⬜ deferred (clamp seam exists in `IntensityEngine`) |
 
 ## Wake-mode tuning surface (where to nudge the live feel)
@@ -124,9 +124,10 @@ for the per-file map). `FILTER_AXES` is now `MOOD_AXES` (all twelve), `bedParams
 the CLAP walk + text/card picks bias on `moodAffinity`, and whispers/title-cards tint by the blend.
 Helpers in `dream/mood.ts`: `dominantAxes(mood, k)`, `blendMoods(moods, weights)`, `moodAffinity(a, b)`.
 
-**Remaining gap — the live R2 corpus is still 6-axis.** The runtime reacts to twelve axes, but the
-production assets on R2 (`v2026.06.23-1515`) only carry moods on the original six, so the six new axes
-sit near-neutral on real assets until a reship. Use the **remood tool** (no media re-download):
+**Live R2 corpus remooded to 12 axes (✅ 2026-06-24, `v2026.06.24-1859`).** Every visual/text/audio
+asset now carries moods on all twelve axes (re-projected from the existing CLIP/CLAP embeddings — no
+media re-download), so the six new axes drive the live runtime, not just the dev seed. To re-run the
+remood (e.g. after a corpus change) use the **remood tool** (no media re-download):
 ```bash
 cd pipeline   # needs CLIP + CLAP backends; ffmpeg on PATH for the transformers CLAP path
 python -m embed.remood_manifest --out out                 # fetch live manifest, re-project to 12 axes
@@ -135,6 +136,8 @@ cd ../pipeline && R2_ACCOUNT_ID=… R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=�
   R2_BUCKET=dreamreel-media R2_PUBLIC_BASE=https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev \
   python -m embed.remood_manifest --upload               # manifest-only upload; media URLs untouched
 ```
+Real CLIP/CLAP projections are subtle (per-axis spread ≈ ±0.05–0.08 around 0.5, same scale as the
+original six), which is what the `moodAffinity` / `d(axis)=mood-0.5` bias math expects.
 (The committed dev seed `app/public/manifest.seed.json` is already 12-axis.)
 
 ### Round 4 — Video (✅ SHIPPED, content-aware frames)
