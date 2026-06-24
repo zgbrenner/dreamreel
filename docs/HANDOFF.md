@@ -75,6 +75,8 @@ advanced — all merged to `main`:
 | — | **12-axis wiring through visuals/audio/text** | ✅ merged (`main` `2ff5ca9`); live R2 corpus remooded to 12 axes (`v2026.06.24-1859`) |
 | — | **Musical pacing (librosa tempo/energy → bar-quantized audio)** | ✅ code merged + live (`v2026.06.24-2058`, 44/44 clips carry bpm/energy) |
 | — | **Transition catalog expansion (21 → 29 shaders)** | ✅ 8 new original gl-transitions-spec shaders wired into mood families; all compile-checked in WebGL |
+| — | **Organic film grain (Ashima webgl-noise, MIT)** | ✅ merged — simplex grain replaces hash noise in post-FX (`render/shaderNoise.ts`) |
+| — | **SemDeDup visual corpus pruning** | ✅ tool merged (`embed/semdedup.py`, exact pairwise); ⬜ live reship pending owner OK — at 0.92 it prunes 36 near-dupes (326→290) |
 | — | **Photosensitivity hardening** | ✅ runtime flash-rate governor shipped (`render/flashGuard.ts`, WCAG ≤3/sec, ≤1/sec reduced-motion); ⬜ offline content-flash (hard-cut) analysis still open |
 
 ## Wake-mode tuning surface (where to nudge the live feel)
