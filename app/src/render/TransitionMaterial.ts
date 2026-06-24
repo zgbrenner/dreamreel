@@ -10,7 +10,7 @@ const VERT = /* glsl */ `
   }
 `;
 
-function buildFragment(def: TransitionDef): string {
+export function buildFragment(def: TransitionDef): string {
   return /* glsl */ `
     precision highp float;
     varying vec2 vUv;
