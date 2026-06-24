@@ -47,6 +47,11 @@ export class LayerStack {
   private fbB: THREE.WebGLRenderTarget;
   private readonly fbMat: THREE.MeshBasicMaterial;
   private readonly fbMesh: THREE.Mesh;
+  // Optional psychedelic (Butterchurn) overlay — sits above the whole fan, additively blended.
+  // Hidden by default; when no texture/opacity is set it renders nothing, so output is identical
+  // to the layer stack without it (the base reel is never touched by this path).
+  private readonly psychMat: THREE.MeshBasicMaterial;
+  private readonly psychMesh: THREE.Mesh;
   private readonly compositor: Compositor;
   private readonly unsubResize: () => void;
 
@@ -89,6 +94,43 @@ export class LayerStack {
     fbMesh.renderOrder = 9;
     this.fbMesh = fbMesh;
     compositor.addOverlay(fbMesh);
+
+    // Psychedelic overlay quad: above the entire layer fan (renderOrder 10..10+MAX_LAYERS-1).
+    this.psychMat = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const psychMesh = new THREE.Mesh(this.quad, this.psychMat);
+    psychMesh.frustumCulled = false;
+    psychMesh.renderOrder = 10 + MAX_LAYERS;
+    psychMesh.visible = false;
+    this.psychMesh = psychMesh;
+    compositor.addOverlay(psychMesh);
+  }
+
+  /**
+   * Bind (or clear) the optional psychedelic overlay texture and its blend opacity. Pass a null
+   * texture or opacity <= 0 to hide it entirely — when hidden it contributes nothing to the frame,
+   * so the base reel is byte-identical to the no-overlay path. Not compositor-owned; the caller
+   * (ButterchurnLayer) owns the texture's lifecycle.
+   */
+  setPsychedelic(tex: THREE.Texture | null, opacity: number): void {
+    const op = Math.max(0, Math.min(1, opacity));
+    if (!tex || op <= 0) {
+      this.psychMesh.visible = false;
+      this.psychMat.opacity = 0;
+      this.psychMat.map = null;
+      return;
+    }
+    if (this.psychMat.map !== tex) {
+      this.psychMat.map = tex;
+      this.psychMat.needsUpdate = true;
+    }
+    this.psychMat.opacity = op;
+    this.psychMesh.visible = true;
   }
 
   /** Echo-trail strength for the melancholy "feedback" filter (0 = off). */
@@ -205,12 +247,15 @@ export class LayerStack {
     // dead meshes rendering via the compositor's removeOverlay.
     for (const mesh of this.layers) this.compositor.removeOverlay(mesh);
     this.compositor.removeOverlay(this.fbMesh);
+    this.compositor.removeOverlay(this.psychMesh);
     for (const m of this.mats) {
       if (m.map && m.map.userData.ownedByCompositor) m.map.dispose();
       m.dispose();
     }
     if (this.fbMat.map && this.fbMat.map.userData.ownedByCompositor) this.fbMat.map.dispose();
     this.fbMat.dispose();
+    // The psych texture is owned by ButterchurnLayer (not compositor-owned), so only drop the material.
+    this.psychMat.dispose();
     this.fbA.dispose();
     this.fbB.dispose();
     this.quad.dispose();

@@ -32,9 +32,10 @@ spend is the one-time offline tagging pass.
   L2-normalized — see `pipeline/embed/mood_axes.py`); an asset's mood is the projection of its
   embedding onto each axis (`dream/mood.ts` `projectMood`, with blend/query helpers `dominantAxes`
   and `blendMoods`). Axis order is frozen and shared by `manifest/types.ts`, the pipeline, and the
-  seed generator. The new axes are present in the data but not yet wired to a specific
-  visual/audio/text treatment (the filter catalog still maps only the original six) — that wiring
-  lands in later work.
+  seed generator. The full 12-axis blend now drives **transition choice** (mood→transition family)
+  and **procedural-source variation** (mood/intensity→speed/density/brightness/warmth/jitter) — see
+  `dream/filterDirector.ts`. The post-FX **filter catalog** (`render/DreamFilter.ts`) still maps
+  only the original six axes; wiring the six new axes to dedicated post-FX filters remains later work.
 - **Single-verb UX.** The viewer can only summon a **new dream** (a fresh seed) — they can
   never tune or edit the one they're given. There are no dream-shaping sliders, toggles, or
   switches: surreality and tempo are derived deterministically from the seed, so each dream has
@@ -156,7 +157,31 @@ film grade rises and falls with the wake intensity signal, and warp/density vary
   lucid image reads. Deterministic per seed; identity (no filter) by default so the classic
   reel is unchanged. See `dream/filterDirector.ts`, `render/DreamFilter.ts`, and the LayerStack
   feedback RT.
-- Respect `prefers-reduced-motion`: dampen weave/flicker/dust, keep dissolves slow.
+- **`dream/filterDirector.ts` is the SINGLE source of truth** for emotion+intensity → look: post-FX
+  filter strengths, crossfade **transition** choice, **procedural-source** params, AND whether the
+  optional **Butterchurn** layer engages. Keep new look decisions here (pure, seed-deterministic via
+  a caller-supplied `roll`) so the look stays coherent and unit-testable.
+  - *Transitions* (`render/transitions.ts`, ~20 original gl-transitions-spec GLSL shaders, MIT — see
+    `app/NOTICE`): each of the 12 mood axes nominates a transition family (e.g. fear/ominous→hard
+    cuts, tender/love→luminous dissolves, absurdity/strange→warped/melting, nostalgic→liquid,
+    mechanical→glitch/posterize, joy→iris/radial); the live mood **blends** those families and
+    `pickTransition` selects deterministically. Neutral mood → a gentle identity default; coherence
+    troughs → the calmest dissolves; **reduced-motion → a gentle, no-flicker set** (never hard
+    cuts/glitch/push).
+  - *Procedural variants* (`render/procedural.ts`): the existing kinds read `proceduralParams`
+    (speed/density/brightness/warmth/jitter) so fog thickens on ominous/fear, ripple quickens/brightens
+    on joy + intensity, stars sparsen on loss, etc. A **neutral mood at zero intensity reproduces the
+    original look bit-for-bit** (`NEUTRAL_PROC_PARAMS`).
+  - *Butterchurn psychedelic layer* (`render/ButterchurnLayer.ts`, `render/LayerStack.setPsychedelic`):
+    a reactive Milkdrop wash engaged ONLY in high-intensity frenzy (`butterchurnEngaged`), off under
+    reduced-motion and eased at troughs. **Behind the `?butterchurn=1` engine flag, default OFF**, lazily
+    loaded, and degrades to a no-op (missing packages / no WebGL → base reel untouched). ⚠ **License
+    flag (commercial product):** the `butterchurn` engine is MIT, but community Milkdrop **preset packs**
+    are of uncertain provenance — they must be vetted (MIT/CC0 or hand-picked, with attribution) before
+    shipping. Until then the packages are intentionally NOT in `package.json` and nothing psychedelic
+    ships. See `app/NOTICE`.
+- Respect `prefers-reduced-motion`: dampen weave/flicker/dust, keep dissolves slow; transitions fall
+  back to the gentle set and the Butterchurn layer never engages.
 
 ## Coding conventions
 

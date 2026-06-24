@@ -7,6 +7,8 @@
 export interface ShareState {
   seed: string;
   wake: boolean;
+  /** Non-UI engine flag: opt IN to the optional psychedelic Butterchurn layer with ?butterchurn=1. */
+  butterchurn: boolean;
 }
 
 export function randomSeed(): string {
@@ -20,7 +22,11 @@ export function readShareState(): ShareState {
   // ?wake=0 (or ?wake=false). The classic three-clock reel remains reachable as an opt-out.
   const wakeParam = q.get('wake');
   const wake = wakeParam !== '0' && wakeParam !== 'false';
-  return { seed, wake };
+  // Butterchurn is OFF by default (optional packages + preset licensing must be vetted first);
+  // opt in explicitly with ?butterchurn=1 (or =true).
+  const bcParam = q.get('butterchurn');
+  const butterchurn = bcParam === '1' || bcParam === 'true';
+  return { seed, wake, butterchurn };
 }
 
 export function writeShareState(s: { seed: string }): void {

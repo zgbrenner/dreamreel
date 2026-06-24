@@ -8,10 +8,16 @@
 import * as THREE from 'three';
 import type { ProceduralKind } from '../manifest/types';
 import { makeRng, type Rng } from '../dream/prng';
+import { NEUTRAL_PROC_PARAMS, type ProceduralParams } from '../dream/filterDirector';
 
 export interface ProceduralSource {
   texture: THREE.Texture;
   update(elapsedSeconds: number): void;
+  /**
+   * Apply emotion/intensity-derived variation (from filterDirector.proceduralParams). Optional —
+   * sources default to NEUTRAL_PROC_PARAMS, which reproduces the original look bit-for-bit.
+   */
+  setParams(p: ProceduralParams): void;
   dispose(): void;
 }
 
@@ -76,7 +82,7 @@ function makeNoise(rng: Rng) {
 }
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-type Draw = (ctx: CanvasRenderingContext2D, t: number, rng: Rng) => void;
+type Draw = (ctx: CanvasRenderingContext2D, t: number, rng: Rng, p: ProceduralParams) => void;
 
 // ---- per-kind painters ------------------------------------------------------
 
@@ -125,30 +131,39 @@ const drawLeader: Draw = (ctx, t) => {
   ctx.fillText(String(n), cx, cy + 6);
 };
 
-const drawFog: Draw = (ctx, t, rng) => {
+const drawFog: Draw = (ctx, t, rng, p) => {
   const noise = getCached(rng, 'fog-noise', () => makeNoise(rng.fork('fog')));
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#15110c');
   g.addColorStop(1, INK);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
+  // density: ominous/fear thicken the fog (lower threshold + heavier fill); loss thins it.
+  // At neutral density 0.5 → thr 0.45, factor 0.7 (the original look).
+  const thr = 0.45 - (p.density - 0.5) * 0.3;
+  const af = 0.7 * (0.7 + p.density * 0.6);
   const step = 16;
   for (let y = 0; y < H; y += step) {
     for (let x = 0; x < W; x += step) {
-      const n = noise(x * 0.012 + t * 0.15, y * 0.02 - t * 0.05);
-      const a = Math.max(0, n - 0.45) * 0.7;
+      const n = noise(x * 0.012 + t * 0.15 * p.speed, y * 0.02 - t * 0.05 * p.speed);
+      const a = Math.max(0, n - thr) * af;
       ctx.fillStyle = `rgba(107,86,64,${a.toFixed(3)})`;
       ctx.fillRect(x, y, step, step);
     }
   }
 };
 
-const drawStars: Draw = (ctx, t, rng) => {
+const STAR_POOL = 220;
+const drawStars: Draw = (ctx, t, rng, p) => {
   ctx.fillStyle = INK;
   ctx.fillRect(0, 0, W, H);
+  // Generate a fixed pool ONCE; draw a mood-driven prefix of it. The first 160 entries are drawn
+  // exactly as before at neutral density (0.5 → 160), so the identity look is preserved; loss
+  // lowers density → a sparser field, ominous/fear raise it. (The pool's first 160 draws consume
+  // the same rng sequence as the original, so their positions are unchanged.)
   const stars = getCached(rng, 'stars', () => {
     const sr = rng.fork('stars');
-    return Array.from({ length: 160 }, () => ({
+    return Array.from({ length: STAR_POOL }, () => ({
       x: sr.next() * W,
       y: sr.next() * H,
       r: 0.4 + sr.next() * 1.4,
@@ -156,22 +171,25 @@ const drawStars: Draw = (ctx, t, rng) => {
       sp: 0.5 + sr.next() * 2,
     }));
   });
-  for (const s of stars) {
-    const tw = 0.5 + 0.5 * Math.sin(t * s.sp + s.ph);
-    ctx.fillStyle = `rgba(216,210,196,${(0.2 + tw * 0.7).toFixed(3)})`;
+  const visible = Math.max(1, Math.min(STAR_POOL, Math.round(STAR_POOL * (0.227 + p.density))));
+  const bright = 0.4 + p.brightness; // neutral 0.6 → 1.0 (original)
+  for (let i = 0; i < visible; i++) {
+    const s = stars[i];
+    const tw = 0.5 + 0.5 * Math.sin(t * s.sp * p.speed + s.ph);
+    ctx.fillStyle = `rgba(216,210,196,${((0.2 + tw * 0.7) * bright).toFixed(3)})`;
     ctx.beginPath();
     ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
     ctx.fill();
   }
 };
 
-const drawIris: Draw = (ctx, t) => {
+const drawIris: Draw = (ctx, t, _rng, p) => {
   ctx.fillStyle = INK;
   ctx.fillRect(0, 0, W, H);
   const cx = W / 2;
   const cy = H / 2;
   const base = Math.min(W, H) * 0.5;
-  const open = 0.5 + 0.5 * Math.sin(t * 0.6);
+  const open = 0.5 + 0.5 * Math.sin(t * 0.6 * p.speed);
   const r = base * (0.2 + open * 0.8);
   const grd = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
   grd.addColorStop(0, 'rgba(232,200,135,0.22)');
@@ -186,15 +204,17 @@ const drawIris: Draw = (ctx, t) => {
   ctx.stroke();
 };
 
-const drawRipple: Draw = (ctx, t) => {
+const drawRipple: Draw = (ctx, t, _rng, p) => {
   ctx.fillStyle = '#0c1413';
   ctx.fillRect(0, 0, W, H);
   const cx = W / 2;
   const cy = H * 0.55;
+  // joy / high intensity → faster + brighter rings (neutral speed 1, brightness 0.6 → original).
+  const bright = 0.4 + p.brightness;
   for (let i = 0; i < 7; i++) {
-    const phase = (t * 0.6 + i / 7) % 1;
+    const phase = (t * 0.6 * p.speed + i / 7) % 1;
     const r = phase * Math.max(W, H) * 0.7;
-    const a = (1 - phase) * 0.5;
+    const a = (1 - phase) * 0.5 * bright;
     ctx.strokeStyle = `rgba(74,107,102,${a.toFixed(3)})`;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -258,7 +278,7 @@ const drawHorizon: Draw = (ctx, t) => {
   ctx.stroke();
 };
 
-const drawOrbs: Draw = (ctx, t, rng) => {
+const drawOrbs: Draw = (ctx, t, rng, p) => {
   ctx.fillStyle = INK;
   ctx.fillRect(0, 0, W, H);
   const orbs = getCached(rng, 'orbs', () => {
@@ -272,11 +292,13 @@ const drawOrbs: Draw = (ctx, t, rng) => {
       col: or.next() > 0.5 ? LAMP : AMBER,
     }));
   });
+  // drift speed + glow brightness vary (neutral speed 1, brightness 0.6 → original alpha 0.35).
+  const glow = 0.35 * (0.4 + p.brightness) * 1.0;
   for (const o of orbs) {
-    const x = (o.x + Math.sin(t * o.sp + o.ph) * 0.06) * W;
-    const y = (o.y + Math.cos(t * o.sp * 0.8 + o.ph) * 0.06) * H;
+    const x = (o.x + Math.sin(t * o.sp * p.speed + o.ph) * 0.06) * W;
+    const y = (o.y + Math.cos(t * o.sp * 0.8 * p.speed + o.ph) * 0.06) * H;
     const grd = ctx.createRadialGradient(x, y, 0, x, y, o.r);
-    grd.addColorStop(0, hexA(o.col, 0.35));
+    grd.addColorStop(0, hexA(o.col, glow));
     grd.addColorStop(1, hexA(o.col, 0));
     ctx.fillStyle = grd;
     ctx.beginPath();
@@ -370,18 +392,27 @@ export function getProceduralTexture(kind: ProceduralKind, seed: string): Proced
   const { ctx, tex } = makeCanvasTexture();
   const rng = makeRng(`${kind}:${seed}`);
   const painter = PAINTERS[kind] ?? PAINTERS.fog;
+  // Default to the neutral params so a source created before any mood is applied (and any kind that
+  // ignores params) renders exactly as it did before this variation wiring existed.
+  let params: ProceduralParams = NEUTRAL_PROC_PARAMS;
   let last = -1;
+  let lastParams = params;
   const update = (elapsed: number) => {
-    // cap repaint cadence to ~30fps to stay cheap; texture stays put between repaints.
-    if (last >= 0 && elapsed - last < 1 / 30) return;
+    // cap repaint cadence to ~30fps to stay cheap; texture stays put between repaints — but always
+    // repaint promptly if the params changed so a mood shift reads without waiting for the cadence.
+    if (last >= 0 && elapsed - last < 1 / 30 && params === lastParams) return;
     last = elapsed;
-    painter(ctx, elapsed, rng);
+    lastParams = params;
+    painter(ctx, elapsed, rng, params);
     tex.needsUpdate = true;
   };
   update(0);
   return {
     texture: tex,
     update,
+    setParams: (p: ProceduralParams) => {
+      params = p;
+    },
     dispose: () => tex.dispose(),
   };
 }
