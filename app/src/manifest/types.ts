@@ -90,6 +90,11 @@ export interface Asset {
   // Optional offline LAION aesthetic score (~0..10) baked by pipeline/embed/aesthetic.py. Absent
   // on legacy manifests → the walk's aesthetic bias is a graceful no-op.
   aesthetic?: number;
+  // Optional usable interior SHOT windows (seconds, absolute in the source film) detected offline
+  // by pipeline/embed/shots.py (PySceneDetect). For type === 'video' only: the runtime plays a
+  // deterministically-chosen real shot (seek + loop within [start,end]) instead of the film's
+  // leader/title-card opening. Absent → the video plays from 0 as before.
+  shots?: { start: number; end: number }[];
 }
 
 export interface Manifest {

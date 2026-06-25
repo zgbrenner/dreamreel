@@ -12,10 +12,18 @@ export interface VideoPoolOptions {
   load?: (url: string, opts?: VideoLoadOptions) => Promise<TextureLoadResult>;
 }
 
+/** A usable interior shot window (seconds) to play instead of the film's opening. */
+export interface Shot {
+  start: number;
+  end: number;
+}
+
 interface Active {
   texture: THREE.Texture;
   video: HTMLVideoElement;
   seq: number;
+  /** timeupdate listener that loops playback within a shot window; removed on free. */
+  shotHandler?: () => void;
 }
 
 /**
@@ -30,21 +38,42 @@ export class VideoPool {
 
   constructor(private readonly opts: VideoPoolOptions) {}
 
-  async acquire(url: string): Promise<TextureLoadResult> {
+  async acquire(url: string, shot?: Shot): Promise<TextureLoadResult> {
     const paused = (this.opts.reducedMotion ?? defaultReducedMotion)();
     const load = this.opts.load ?? loadVideoTexture;
     const res = await load(url, { paused });
     if (!res.ok) return res;
 
     const video = res.texture.userData.video as HTMLVideoElement;
-    try {
-      video.currentTime = 0; // deterministic start-point on every show
-    } catch {
-      /* not seekable yet — harmless */
+    const entry: Active = { texture: res.texture, video, seq: this.seq++ };
+
+    const hasShot = !!shot && shot.end > shot.start;
+    const startAt = hasShot ? (shot as Shot).start : 0;
+    const seekStart = () => {
+      try {
+        video.currentTime = startAt;
+      } catch {
+        /* not seekable yet — the loadedmetadata listener below retries */
+      }
+    };
+    seekStart();
+    // If the element isn't seekable yet, seek once metadata is in.
+    if ((video.readyState ?? 0) < 1) video.addEventListener?.('loadedmetadata', seekStart, { once: true });
+
+    if (hasShot) {
+      // Loop WITHIN the shot window rather than the whole film: disable native loop and wrap back
+      // to the shot start whenever playback reaches the shot end.
+      video.loop = false;
+      const end = (shot as Shot).end;
+      const onTime = () => {
+        if (video.currentTime >= end || video.currentTime < startAt - 0.25) seekStart();
+      };
+      entry.shotHandler = onTime;
+      video.addEventListener?.('timeupdate', onTime);
     }
+
     if (!paused) void video.play?.()?.catch?.(() => {});
 
-    const entry: Active = { texture: res.texture, video, seq: this.seq++ };
     this.active.push(entry);
     res.texture.addEventListener('dispose', () => this.free(entry));
     this.enforceCap();
@@ -87,6 +116,10 @@ export class VideoPool {
   private free(entry: Active): void {
     const i = this.active.indexOf(entry);
     if (i !== -1) this.active.splice(i, 1);
+    if (entry.shotHandler) {
+      try { entry.video.removeEventListener?.('timeupdate', entry.shotHandler); } catch { /* ignore */ }
+      entry.shotHandler = undefined;
+    }
     try {
       entry.video.pause?.();
     } catch {

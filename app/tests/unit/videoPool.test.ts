@@ -6,20 +6,34 @@ import { VideoPool } from '../../src/render/VideoPool';
 interface FakeVideo {
   currentTime: number;
   paused: boolean;
+  loop: boolean;
+  readyState: number;
   play: ReturnType<typeof vi.fn>;
   pause: ReturnType<typeof vi.fn>;
   removeAttribute: ReturnType<typeof vi.fn>;
   load: ReturnType<typeof vi.fn>;
+  addEventListener: (type: string, fn: () => void) => void;
+  removeEventListener: (type: string, fn: () => void) => void;
+  fire: (type: string) => void; // test helper
 }
 
 function fakeVideo(): FakeVideo {
+  const listeners = new Map<string, Set<() => void>>();
   const v: FakeVideo = {
     currentTime: 1,
     paused: true,
+    loop: true,
+    readyState: 4, // HAVE_ENOUGH_DATA → seekable immediately
     play: vi.fn(() => { v.paused = false; return Promise.resolve(); }),
     pause: vi.fn(() => { v.paused = true; }),
     removeAttribute: vi.fn(),
     load: vi.fn(),
+    addEventListener: (type, fn) => {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(fn);
+    },
+    removeEventListener: (type, fn) => listeners.get(type)?.delete(fn),
+    fire: (type) => listeners.get(type)?.forEach((fn) => fn()),
   };
   return v;
 }
@@ -43,6 +57,45 @@ describe('VideoPool', () => {
     const v = res.texture.userData.video as FakeVideo;
     expect(v.currentTime).toBe(0);
     expect(v.play).toHaveBeenCalled();
+  });
+
+  it('acquire with a shot seeks to the shot start and loops within the window', async () => {
+    const pool = new VideoPool({ cap: 2, reducedMotion: () => false, load: okLoader() });
+    const res = await pool.acquire('u', { start: 12, end: 18 });
+    if (!res.ok) return;
+    const v = res.texture.userData.video as FakeVideo;
+    expect(v.currentTime).toBe(12); // seeked to shot start, not 0
+    expect(v.loop).toBe(false); // native full-loop disabled; we window-loop instead
+
+    // Reaching the shot end wraps back to the shot start.
+    v.currentTime = 18.1;
+    v.fire('timeupdate');
+    expect(v.currentTime).toBe(12);
+
+    // Mid-shot does NOT wrap.
+    v.currentTime = 15;
+    v.fire('timeupdate');
+    expect(v.currentTime).toBe(15);
+  });
+
+  it('an ignored/empty shot window falls back to playing from 0', async () => {
+    const pool = new VideoPool({ cap: 2, reducedMotion: () => false, load: okLoader() });
+    const res = await pool.acquire('u', { start: 5, end: 5 }); // zero-length → no shot
+    if (!res.ok) return;
+    const v = res.texture.userData.video as FakeVideo;
+    expect(v.currentTime).toBe(0);
+    expect(v.loop).toBe(true); // unchanged
+  });
+
+  it('removes the shot timeupdate handler on free', async () => {
+    const pool = new VideoPool({ cap: 2, reducedMotion: () => false, load: okLoader() });
+    const res = await pool.acquire('u', { start: 2, end: 6 });
+    if (!res.ok) return;
+    const v = res.texture.userData.video as FakeVideo;
+    res.texture.dispose();
+    v.currentTime = 99; // after free, the (removed) handler must not wrap
+    v.fire('timeupdate');
+    expect(v.currentTime).toBe(99);
   });
 
   it('pauses the oldest playing video beyond cap', async () => {

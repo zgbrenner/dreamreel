@@ -33,6 +33,7 @@ import { ButterchurnLayer } from '../render/ButterchurnLayer';
 import type { Compositor } from '../render/Compositor';
 import type { PostFX } from '../render/postfx';
 import { getProceduralTexture, type ProceduralSource } from '../render/procedural';
+import type { Shot } from '../render/VideoPool';
 import { visualPool } from './visualPool';
 import { parseGrade, type FilmParams } from '../render/filmParams';
 import { attributionFor } from '../manifest/attribution';
@@ -59,6 +60,10 @@ export class DreamConductor implements DreamRuntime {
 
   private walker: Dreamwalker;
   private presRng: Rng;
+  // Dedicated deterministic stream for picking which baked shot a video plays — isolated from
+  // presRng so it never perturbs other presentation draws. Drawn only on video shows (a beat in
+  // the deterministic sequence), so the shot sequence is reproducible per seed.
+  private shotRng: Rng;
   private seed: string;
   private surreality: number;
   private tempoMul: number;
@@ -135,6 +140,7 @@ export class DreamConductor implements DreamRuntime {
     this.tempoMul = init.tempoMul;
     this.archiveOn = init.archiveOn;
     this.presRng = makeRng(`${this.seed}:pres`);
+    this.shotRng = makeRng(`${this.seed}:shots`);
     this.walker = this.buildWalker();
     this.wake = init.wake ?? false;
     this.intensity = createIntensityEngine(this.seed);
@@ -236,6 +242,7 @@ export class DreamConductor implements DreamRuntime {
     this.surreality = surreality;
     this.tempoMul = tempoMul;
     this.presRng = makeRng(`${seed}:pres`);
+    this.shotRng = makeRng(`${seed}:shots`);
     this.walker = this.buildWalker();
     this.intensity.reseed(seed);
     this.activeTrough = -1;
@@ -528,7 +535,7 @@ export class DreamConductor implements DreamRuntime {
         }
       });
     } else if (asset.type === 'video' && asset.src) {
-      void this.compositor.showVideo(asset.src, asset.grade).then((res) => {
+      void this.compositor.showVideo(asset.src, asset.grade, this.pickShot(asset)).then((res) => {
         if (res.ok) {
           stack.setLayerTexture(slot, res.texture);
           this.slotHeldUntil[slot] = this.clock + (sample.inTrough ? 13.0 : 9.0);
@@ -685,7 +692,7 @@ export class DreamConductor implements DreamRuntime {
       return;
     }
     if (asset.type === 'video' && asset.src) {
-      void this.compositor.showVideo(asset.src, asset.grade).then((res) => {
+      void this.compositor.showVideo(asset.src, asset.grade, this.pickShot(asset)).then((res) => {
         if (res.ok) {
           this.compositor.crossfadeTo(res.texture, transition, this.crossfadeMs());
           // Route film-clip native audio through the mixer (best-effort).
@@ -772,6 +779,14 @@ export class DreamConductor implements DreamRuntime {
       this.procCache.set(key, src);
     }
     return this.styled(src);
+  }
+
+  /** Deterministically choose one baked interior shot for a video (so it plays a real shot, not the
+   *  film's leader). Undefined when the asset carries no shots → the video plays from 0 as before. */
+  private pickShot(asset: Asset): Shot | undefined {
+    const shots = asset.shots;
+    if (!shots || shots.length === 0) return undefined;
+    return shots[this.shotRng.int(shots.length)];
   }
 
   /**
