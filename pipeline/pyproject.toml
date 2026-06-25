@@ -19,8 +19,14 @@ audio = ["librosa>=0.10", "soundfile>=0.12"]
 # Offline shot detection for video assets (montage grammar). PySceneDetect is BSD-3; opencv Apache-2.0.
 video = ["scenedetect[opencv]>=0.6"]
 # Offline entity recognition (the dream memory index). RAM++ (recognize-anything) is Apache-2.0,
-# code + weights; pulls torch + timm + the checkpoint via huggingface_hub.
-entities = ["recognize-anything>=0.0.6", "timm>=0.9", "huggingface_hub>=0.20"]
+# code + weights; not on PyPI, so install from git. Pulls torch + timm + the checkpoint via hf_hub.
+# (A compat shim in entities._make_ram lets it run against transformers 5.x — see that function.)
+entities = [
+  "recognize-anything @ git+https://github.com/xinyu1205/recognize-anything.git",
+  "timm>=0.9",
+  "huggingface_hub>=0.20",
+  "fairscale>=0.4",
+]
 dev = ["pytest>=8.0", "mypy>=1.9"]
 
 [build-system]
