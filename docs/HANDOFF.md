@@ -84,6 +84,7 @@ advanced — all merged to `main`:
 | — | **Generative text engine** | ✅ merged + **live** (`embed/textgen.py`, deterministic DREAMREEL-voice grammar); +200 lines. PD-poetry ingest = clean extension once rights-cleared |
 | — | **SigLIP 2 embedder upgrade** | ✅ merged + **live** (`embed/siglip_backend.py` + `reembed_siglip.py`); corpus re-embedded to **768-d** SigLIP 2 base, mood axes refit. so400m stalls on slow HF — base via default; smoke-tested live. 6 videos fell back to tag-embeddings |
 | — | **Photosensitivity hardening** | ✅ runtime flash-rate governor shipped (`render/flashGuard.ts`, WCAG ≤3/sec, ≤1/sec reduced-motion); ⬜ offline content-flash (hard-cut) analysis still open |
+| — | **Shot detection / montage grammar (PySceneDetect)** | ✅ merged (`embed/shots.py` + `render/VideoPool` shot-loop + `conductor.pickShot`); ⬜ shot-detect run + reship pending. **Finding:** video `src` is the FULL archive.org film and the runtime played from t=0 (leaders/title cards) — `shots[]` makes it play a real interior shot. NeMo Curator rejected (Ray/GPU overkill; no NeMo dep — SemDeDup was pure numpy) |
 
 ## Wake-mode tuning surface (where to nudge the live feel)
 

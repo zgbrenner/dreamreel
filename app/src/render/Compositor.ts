@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { TransitionMaterial } from './TransitionMaterial';
 import { TRANSITION_NAMES } from './transitions';
 import { loadImageTexture, type TextureLoadResult } from './textureLoader';
-import { VideoPool } from './VideoPool';
+import { VideoPool, type Shot } from './VideoPool';
 
 export type RenderFrame = (renderer: THREE.WebGLRenderer) => void;
 export type FrameHook = (dtSec: number, elapsedSec: number) => void;
@@ -187,8 +187,8 @@ export class Compositor {
   }
 
   /** Resolve a video URL to a looping muted VideoTexture via the bounded pool. */
-  async showVideo(url: string, grade?: string): Promise<TextureLoadResult> {
-    const res = await this.videoPool.acquire(url);
+  async showVideo(url: string, grade?: string, shot?: Shot): Promise<TextureLoadResult> {
+    const res = await this.videoPool.acquire(url, shot);
     if (res.ok && grade) res.texture.userData.grade = grade;
     return res;
   }
