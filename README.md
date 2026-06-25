@@ -8,9 +8,17 @@ stream-of-consciousness text and a generative ambient audio bed, all under an ol
 treatment (grain, gate-weave, flicker, dust, vignette).
 
 The variation does not come from pre-baked reels. It comes from a **seeded walk over a tagged
-asset pool** in CLIP embedding space (the *Dreamwalker*). There are **zero LLM / network
-inference calls at runtime** — the only AI spend is the one-time offline tagging pass. A given
-`?seed=…&s=…&t=…` URL reproduces the exact dream script.
+asset pool** in image-text embedding space (the *Dreamwalker*; corpus embedded with **SigLIP 2**).
+There are **zero LLM / network inference calls at runtime** — the only AI spend is the one-time
+offline tagging pass. A given **`?seed=…`** URL reproduces the exact dream script (surreality and
+tempo derive from the seed; the only controls are **New dream**, play/pause, and sound on/off).
+
+The default experience is **wake mode** — a seeded intensity heartbeat driving sporadic layer-swaps,
+breathing density, and rare lucid "coherence troughs" (the classic three-clock reel is opt-out via
+`?wake=0`). The dream also has a **memory**: it tags the entities in each asset (RAM++) and, across a
+dream, recurring motifs return — both as a pull in the walk and as the literal segmented fragment
+(Grounding DINO + SAM 2 cutouts) drifting back, sometimes animated. Mood is a continuous 12-axis
+blend that drives the look, the audio bed, and the text.
 
 ```
             OFFLINE (Python)                         RUNTIME (browser, no inference)

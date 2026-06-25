@@ -78,6 +78,15 @@ spend is the one-time offline tagging pass.
     (timing may vary). **Now the default** experience; the classic reel is opt-out via `?wake=0`.
 - **Live WebGL compositing** is the primary renderer. Offline pre-render (editly) is an
   optional secondary path, behind a flag, not the default.
+- **Dream memory — recurrence, not just selection.** Every visual asset carries open-set ENTITY tags
+  (RAM++, `entities[]`). The runtime keeps a **decaying weighted memory** of the entities it has
+  surfaced (`dream/memory.ts` `DreamMemory`, updated each logical beat). This drives recurrence at
+  three depths, all **bounded + relaxing + deterministic per seed** (the same seeded-spine-that-bends
+  model as steering): (1) the Dreamwalker leans toward candidates whose entities **echo** memory, so
+  motifs return; (2) the conductor occasionally summons a **segmented cutout** of a strongly-remembered
+  entity (Grounding DINO + SAM 2 → `entitySprites[]`) as a drifting ghost (`render/SpriteField.ts`);
+  (3) SAM 2 *video* tracking makes some cutouts **animated** sprite sheets, so the recurring figure
+  moves. All extraction is offline (zero runtime inference); cutouts are pre-made PNGs on R2.
 
 ## Stack (committed)
 
