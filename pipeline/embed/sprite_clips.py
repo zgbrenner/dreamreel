@@ -126,19 +126,25 @@ def _make_models():
 
 
 def track_masks(frames: list, box, sp, sm, torch) -> list[np.ndarray]:
-    """SAM 2 video-track the box from frame 0 across all frames → per-frame bool masks (best effort)."""
+    """SAM 2 video-track the box from frame 0 across all frames → per-frame bool masks."""
     session = sp.init_video_session(video=frames, inference_device="cpu")
     sp.add_inputs_to_inference_session(
         inference_session=session, frame_idx=0, obj_ids=1, input_boxes=[[list(box)]]
     )
+    h, w = frames[0].height, frames[0].width
     out: dict[int, np.ndarray] = {}
+
+    def store(res) -> None:
+        masks = sp.post_process_masks([res.pred_masks], original_sizes=[(h, w)])[0]
+        arr = masks.cpu().numpy() if hasattr(masks, "cpu") else np.asarray(masks)
+        while arr.ndim > 2:
+            arr = arr[0]
+        out[int(res.frame_idx)] = arr > 0.0
+
     with torch.no_grad():
-        for res in sm.propagate_in_video_iterator(session):
-            masks = sp.post_process_masks([res.pred_masks], [session.video_height, session.video_width])[0]
-            arr = masks.cpu().numpy() if hasattr(masks, "cpu") else np.asarray(masks)
-            while arr.ndim > 2:
-                arr = arr[0]
-            out[int(res.frame_idx)] = arr > 0.0
+        store(sm(inference_session=session, frame_idx=0))  # condition on the frame-0 box first
+        for res in sm.propagate_in_video_iterator(session, start_frame_idx=0):
+            store(res)
     return [out[i] for i in sorted(out)]
 
 
