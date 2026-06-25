@@ -51,6 +51,8 @@ def upload_media(derivatives: dict[str, Path]) -> dict[str, str]:
         key = f"media/{path.name}"
         if path.suffix == ".webp":
             content_type = "image/webp"
+        elif path.suffix == ".png":
+            content_type = "image/png"  # entity-sprite cutouts (RGBA)
         elif path.suffix == ".m4a":
             content_type = "audio/mp4"
         else:
