@@ -101,6 +101,21 @@ export interface Asset {
   entities?: string[];
 }
 
+// A segmented entity cutout (RGBA PNG on R2) — the literal pixels of a recurring motif, extracted
+// offline (Grounding DINO box → SAM 2 mask, pipeline/embed/sprites.py). The runtime summons one
+// when the dream strongly remembers its entity, so the actual fragment drifts back into a later
+// scene (dream/memory.ts + render/SpriteField.ts). License carries from the source asset.
+export interface EntitySprite {
+  id: string;
+  entity: string; // the RAM++ entity this cutout depicts (matches Asset.entities)
+  src: string; // R2 URL of the RGBA PNG cutout
+  aspect: number; // width / height, so the runtime quad keeps proportions
+  source: string;
+  license: string;
+  attribution?: string;
+  attributionUrl?: string;
+}
+
 export interface Manifest {
   version: string;
   createdAt: string;
@@ -110,4 +125,6 @@ export interface Manifest {
   texts: Asset[]; // text pool (titlecard + drifting lines), each with an embedding
   audioEmbeddingDim: number; // e.g. 512 (CLAP dimension)
   audio: AudioAsset[]; // audio pool
+  // Optional pool of segmented entity cutouts for literal motif recurrence (memory Phase 2).
+  entitySprites?: EntitySprite[];
 }

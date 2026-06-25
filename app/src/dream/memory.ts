@@ -61,6 +61,11 @@ export class DreamMemory {
     }
   }
 
+  /** Current memory weight of a single entity (0 if not remembered). */
+  weightOf(entity: string): number {
+    return this.weights.get(entity) ?? 0;
+  }
+
   /** Recurrence score for a candidate: how strongly its entities echo current memory (>= 0). */
   echo(entities: string[] | undefined): number {
     if (!entities || this.weights.size === 0) return 0;

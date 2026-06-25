@@ -35,6 +35,9 @@ import type { Compositor } from '../render/Compositor';
 import type { PostFX } from '../render/postfx';
 import { getProceduralTexture, type ProceduralSource } from '../render/procedural';
 import type { Shot } from '../render/VideoPool';
+import { SpriteField, makeSpritePlacement } from '../render/SpriteField';
+import { loadImageTexture } from '../render/textureLoader';
+import type { EntitySprite } from '../manifest/types';
 import { visualPool } from './visualPool';
 import { parseGrade, type FilmParams } from '../render/filmParams';
 import { attributionFor } from '../manifest/attribution';
@@ -52,6 +55,12 @@ export interface ConductorHooks {
 
 const IMAGE_FALLBACK_KINDS: ProceduralKind[] = ['fog', 'static', 'horizon', 'orbs'];
 
+// Literal entity-recurrence (sprite) summoning. A cutout is summoned only when its entity is
+// strongly remembered, at a bounded rate, so the effect is a rare, dreamlike return — not a parade.
+const SPRITE_SUMMON_PROB = 0.1; // per primary beat, once an eligible motif exists
+const SPRITE_MIN_WEIGHT = 1.3; // memory weight an entity must reach to be "strongly remembered"
+const SPRITE_COOLDOWN_S = 7; // minimum seconds between summons
+
 export class DreamConductor implements DreamRuntime {
   private readonly manifest: Manifest;
   private readonly compositor: Compositor;
@@ -65,6 +74,15 @@ export class DreamConductor implements DreamRuntime {
   // presRng so it never perturbs other presentation draws. Drawn only on video shows (a beat in
   // the deterministic sequence), so the shot sequence is reproducible per seed.
   private shotRng: Rng;
+
+  // Literal entity recurrence: when the dream strongly remembers an entity, summon its segmented
+  // cutout as a drifting ghost (render/SpriteField). Deterministic via a dedicated seeded stream.
+  private spriteRng!: Rng;
+  private readonly spriteField = new SpriteField();
+  private readonly spritePool = new Map<string, EntitySprite[]>();
+  private readonly spriteTex = new Map<string, import('three').Texture>();
+  private readonly spriteLoading = new Set<string>();
+  private spriteCooldownUntil = 0;
   private seed: string;
   private surreality: number;
   private tempoMul: number;
@@ -142,6 +160,14 @@ export class DreamConductor implements DreamRuntime {
     this.archiveOn = init.archiveOn;
     this.presRng = makeRng(`${this.seed}:pres`);
     this.shotRng = makeRng(`${this.seed}:shots`);
+    this.spriteRng = makeRng(`${this.seed}:sprites`);
+    // Index the entity cutout pool by entity for memory-triggered summoning, and overlay the field.
+    for (const sp of manifest.entitySprites ?? []) {
+      const list = this.spritePool.get(sp.entity);
+      if (list) list.push(sp);
+      else this.spritePool.set(sp.entity, [sp]);
+    }
+    this.compositor.addOverlay(this.spriteField.group);
     this.walker = this.buildWalker();
     this.wake = init.wake ?? false;
     this.intensity = createIntensityEngine(this.seed);
@@ -244,6 +270,9 @@ export class DreamConductor implements DreamRuntime {
     this.tempoMul = tempoMul;
     this.presRng = makeRng(`${seed}:pres`);
     this.shotRng = makeRng(`${seed}:shots`);
+    this.spriteRng = makeRng(`${seed}:sprites`);
+    this.spriteField.dispose();
+    this.spriteCooldownUntil = 0;
     this.walker = this.buildWalker();
     this.intensity.reseed(seed);
     this.activeTrough = -1;
@@ -269,6 +298,9 @@ export class DreamConductor implements DreamRuntime {
     this.steering.dispose();
     this.butterchurn?.dispose();
     this.layerStack?.dispose();
+    this.spriteField.dispose();
+    for (const t of this.spriteTex.values()) t.dispose();
+    this.spriteTex.clear();
     for (const p of this.procCache.values()) p.dispose();
     this.procCache.clear();
     this.textCardTex?.dispose();
@@ -300,6 +332,47 @@ export class DreamConductor implements DreamRuntime {
     this.memory.observe(asset.entities);
   }
 
+  /** When the dream strongly remembers an entity that has a cutout, occasionally summon it as a
+   *  drifting ghost — the literal fragment returns. Deterministic (seeded), bounded, reduced-motion
+   *  off. Drawn on primary beats, so the summon sequence is reproducible per seed. */
+  private maybeSummonSprite(): void {
+    if (this.spritePool.size === 0 || this.postfx.params.reduceMotion) return;
+    if (this.clock < this.spriteCooldownUntil) return;
+    if (this.spriteRng.next() > SPRITE_SUMMON_PROB) return;
+
+    // Pick the most strongly-remembered entity that has a cutout (deterministic; name tie-break).
+    let bestEntity: string | undefined;
+    let bestWeight = SPRITE_MIN_WEIGHT;
+    for (const entity of this.spritePool.keys()) {
+      const w = this.memory.weightOf(entity);
+      if (w > bestWeight || (w === bestWeight && bestEntity !== undefined && entity < bestEntity)) {
+        bestWeight = w;
+        bestEntity = entity;
+      }
+    }
+    if (bestEntity === undefined) return;
+
+    const candidates = this.spritePool.get(bestEntity)!;
+    const sprite = candidates[this.spriteRng.int(candidates.length)];
+    const placement = makeSpritePlacement(this.spriteRng);
+    this.spriteCooldownUntil = this.clock + SPRITE_COOLDOWN_S;
+
+    const cached = this.spriteTex.get(sprite.id);
+    if (cached) {
+      this.spriteField.summon(cached, sprite.aspect, placement, this.clock);
+      return;
+    }
+    if (this.spriteLoading.has(sprite.id)) return;
+    this.spriteLoading.add(sprite.id);
+    void loadImageTexture(sprite.src).then((res) => {
+      this.spriteLoading.delete(sprite.id);
+      if (res.ok) {
+        this.spriteTex.set(sprite.id, res.texture);
+        this.spriteField.summon(res.texture, sprite.aspect, placement, this.clock);
+      }
+    });
+  }
+
   /** Reschedule all clocks to fire promptly — a hard cut into a new seed/pool. */
   private hardCut(): void {
     this.nextImageAt = this.clock;
@@ -325,6 +398,8 @@ export class DreamConductor implements DreamRuntime {
     this.clock += dt;
     // keep any live procedural sources animating on the internal clock
     for (const p of this.liveProcs) p.update(this.clock);
+    // drift + fade any summoned entity cutouts
+    this.spriteField.update(dt, this.clock);
 
     if (this.wake) {
       this.wakeTick(dt);
@@ -496,6 +571,7 @@ export class DreamConductor implements DreamRuntime {
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
     this.observeMemory(beat.asset);
+    this.maybeSummonSprite();
 
     // Advance the audio walk on this logical visual beat — deterministic cadence.
     // Uses beat.asset.claptext directly so the pick reads the concept for THIS beat.
@@ -612,6 +688,7 @@ export class DreamConductor implements DreamRuntime {
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
     this.observeMemory(beat.asset);
+    this.maybeSummonSprite();
     this.applyMoodToFilm(mood, beat.asset);
 
     // Advance the audio walk on this logical visual beat — deterministic cadence.

@@ -81,6 +81,20 @@ export const manifestSchema = z
     texts: z.array(assetSchema),
     audioEmbeddingDim: z.number().int().positive(),
     audio: z.array(audioAssetSchema),
+    entitySprites: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          entity: z.string().min(1),
+          src: z.string().url(),
+          aspect: z.number().positive(),
+          source: z.string().min(1),
+          license: z.string().min(1),
+          attribution: z.string().optional(),
+          attributionUrl: z.string().optional(),
+        }),
+      )
+      .optional(),
   })
   .superRefine((m, ctx) => {
     // Dimensional consistency: every embedding and axis must match embeddingDim.

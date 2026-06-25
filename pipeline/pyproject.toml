@@ -18,6 +18,9 @@ publish = ["boto3>=1.34", "imagehash>=4.3"]
 audio = ["librosa>=0.10", "soundfile>=0.12"]
 # Offline shot detection for video assets (montage grammar). PySceneDetect is BSD-3; opencv Apache-2.0.
 video = ["scenedetect[opencv]>=0.6"]
+# Offline entity-cutout extraction (literal motif recurrence). Grounding DINO + SAM 2 via
+# transformers — both Apache-2.0 (code + weights).
+sprites = ["transformers>=4.49", "torch>=2.2", "Pillow>=10.2"]
 # Offline entity recognition (the dream memory index). RAM++ (recognize-anything) is Apache-2.0,
 # code + weights; not on PyPI, so install from git. Pulls torch + timm + the checkpoint via hf_hub.
 # (A compat shim in entities._make_ram lets it run against transformers 5.x — see that function.)
