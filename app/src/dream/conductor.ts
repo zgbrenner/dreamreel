@@ -9,6 +9,7 @@ import type { Manifest, Asset, MoodAxis, ProceduralKind } from '../manifest/type
 import { titleCardPalette } from './textDirector';
 import { blankMood } from './mood';
 import { createDreamwalker, type Dreamwalker } from './dreamwalker';
+import { DreamMemory } from './memory';
 import { makeRng, type Rng } from './prng';
 import { createIntensityEngine, type IntensityEngine, type IntensityRegime } from './intensity';
 import {
@@ -276,12 +277,27 @@ export class DreamConductor implements DreamRuntime {
 
   // --- internals ---
 
+  // The dream's recurrence memory: a fresh dream starts with no memory; each logical visual beat
+  // folds the shown asset's entities in (and decays the rest), so motifs recur deterministically.
+  private readonly memory = new DreamMemory();
+
   private buildWalker(): Dreamwalker {
     const pool = visualPool(this.manifest.assets, this.archiveOn);
-    return createDreamwalker(
+    const walker = createDreamwalker(
       { visual: pool, texts: this.manifest.texts, moodAxes: this.manifest.moodAxes, embeddingDim: this.manifest.embeddingDim },
       { seed: this.seed, surreality: this.surreality },
     );
+    // A new walk = a fresh memory; the walk leans toward candidates echoing what it remembers.
+    this.memory.reset();
+    walker.setRecurrence((e) => this.memory.echo(e));
+    return walker;
+  }
+
+  /** Fold the just-shown primary asset into the dream's memory (decay first, then observe) so the
+   *  NEXT pick is biased toward recurring motifs. Deterministic — driven by the seeded beat sequence. */
+  private observeMemory(asset: Asset): void {
+    this.memory.decayStep();
+    this.memory.observe(asset.entities);
   }
 
   /** Reschedule all clocks to fire promptly — a hard cut into a new seed/pool. */
@@ -479,6 +495,7 @@ export class DreamConductor implements DreamRuntime {
     this.lastIntensity = intensity;
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
+    this.observeMemory(beat.asset);
 
     // Advance the audio walk on this logical visual beat — deterministic cadence.
     // Uses beat.asset.claptext directly so the pick reads the concept for THIS beat.
@@ -594,6 +611,7 @@ export class DreamConductor implements DreamRuntime {
     this.lastIntensity = this.surreality;
     this.hooks.setMood(mood);
     this.safeAudio(() => this.audio.setMood(mood));
+    this.observeMemory(beat.asset);
     this.applyMoodToFilm(mood, beat.asset);
 
     // Advance the audio walk on this logical visual beat — deterministic cadence.

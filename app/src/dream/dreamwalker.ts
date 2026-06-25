@@ -53,6 +53,12 @@ export interface Dreamwalker {
    * presentation-only fields (tilt, pointer speed, time-of-day, focus) are ignored here.
    */
   setSteering(s: SteeringState | null): void;
+  /**
+   * Supply the dream's recurrence echo: a function returning how strongly a candidate's entities
+   * echo current memory (>= 0). The walk then leans toward echoing candidates so motifs recur.
+   * `null` clears it (no recurrence bias). Deterministic — driven by the seeded observed sequence.
+   */
+  setRecurrence(echo: ((entities: string[] | undefined) => number) | null): void;
   /** ‖bend‖ for a layer — 0 means the walk is exactly on its seeded spine. Queryable for tests/UI. */
   bendMagnitude(layer: DreamLayer): number;
   /** The pure seeded spine embedding for a layer (a copy) — the baseline the bend deviates from. */
@@ -70,6 +76,11 @@ const TYPE_WEIGHTS: Record<string, number> = { video: 7.0 };
 // score contributes nothing, so legacy manifests are unaffected.
 const AESTHETIC_COUPLING = 0.12;
 const AESTHETIC_NEUTRAL = 5.5; // LAION scores cluster around here; the pivot for above/below
+// Recurrence: lean the walk toward candidates that echo the dream's current entity memory, so
+// motifs return. Bounded (the echo is clamped) so recurrence colours the dream without collapsing
+// its variety. Added to the pre-softmax exponent; 0 when no memory/entities are present.
+const RECUR_COUPLING = 0.5;
+const RECUR_ECHO_CAP = 3.0; // clamp the echo so a heavily-remembered candidate can't dominate
 
 /** Signed pre-softmax aesthetic boost for an asset (0 when it carries no score). Exported for tests. */
 export function aestheticBoost(aesthetic: number | undefined): number {
@@ -135,6 +146,7 @@ class DreamwalkerImpl implements Dreamwalker {
   // Ambient steering + the seeded basis the pointer-attention bend pushes along. The basis is
   // derived from the seed so a given dream always bends in its own characteristic directions.
   private steering: SteeringState | null = null;
+  private recurrenceEcho: ((entities: string[] | undefined) => number) | null = null;
   private basisX!: number[];
   private basisY!: number[];
 
@@ -169,6 +181,10 @@ class DreamwalkerImpl implements Dreamwalker {
 
   setSurreality(v: number): void {
     this.surreality = clamp01(v);
+  }
+
+  setRecurrence(echo: ((entities: string[] | undefined) => number) | null): void {
+    this.recurrenceEcho = echo;
   }
 
   // Convergence is walker-wide: while on, all three layers (image/ghost/text) tighten together,
@@ -363,7 +379,11 @@ class DreamwalkerImpl implements Dreamwalker {
       const moodBoost =
         moodBias !== undefined ? TEXT_MOOD_COUPLING * moodAffinity(candidates[i].mood, moodBias) : 0;
       const aesBoost = aestheticBoost(candidates[i].aesthetic);
-      const w = Math.exp(s - max + moodBoost + aesBoost) * (TYPE_WEIGHTS[candidates[i].type] ?? 1);
+      const recurBoost = this.recurrenceEcho
+        ? RECUR_COUPLING * Math.min(this.recurrenceEcho(candidates[i].entities), RECUR_ECHO_CAP)
+        : 0;
+      const w =
+        Math.exp(s - max + moodBoost + aesBoost + recurBoost) * (TYPE_WEIGHTS[candidates[i].type] ?? 1);
       sum += w;
       return w;
     });
