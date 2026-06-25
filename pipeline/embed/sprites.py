@@ -126,14 +126,22 @@ def detect_box(img, entity: str, gp, gm, torch):
 
 
 def segment(img, box, sp, sm, torch) -> np.ndarray | None:
-    """SAM 2 binary mask for the `box` region of `img` (PIL RGB), or None."""
+    """SAM 2 binary mask for the `box` region of `img` (PIL RGB), or None.
+
+    SAM 2 emits 3 candidate masks per box (multimask output); we keep the largest-area one.
+    """
     inputs = sp(images=img, input_boxes=[[box]], return_tensors="pt")
     with torch.no_grad():
         outputs = sm(**inputs)
     masks = sp.post_process_masks(outputs.pred_masks, inputs["original_sizes"])[0]
-    arr = masks[0].cpu().numpy() if hasattr(masks[0], "cpu") else np.asarray(masks[0])
-    arr = arr.reshape(arr.shape[-2], arr.shape[-1]) if arr.ndim > 2 else arr
-    return arr > 0.0
+    arr = masks.cpu().numpy() if hasattr(masks, "cpu") else np.asarray(masks)
+    while arr.ndim > 3:  # drop leading box dims → (candidates, H, W)
+        arr = arr[0]
+    if arr.ndim == 2:
+        return arr > 0.0
+    binmask = arr > 0.0
+    areas = binmask.reshape(binmask.shape[0], -1).sum(axis=1)
+    return binmask[int(areas.argmax())]
 
 
 def _ensure_image(src: str, dest_dir: Path, asset_id: str) -> Path | None:
