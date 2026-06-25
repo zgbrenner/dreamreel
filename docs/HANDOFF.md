@@ -1,6 +1,31 @@
 # DREAMREEL — Handoff / Pick-Up Doc
 
-_Last updated: 2026-06-24 (12-axis wiring landed + media-first fix). Read this first when resuming._
+_Last updated: 2026-06-25 (improvement batch + the three-layer memory system, all live). Read this first when resuming._
+
+## Latest session (2026-06-25) — the headline
+
+Two big arcs landed on top of the wake-mode redesign, all merged to `main` and live in production:
+
+1. **An open-source improvement batch** (each its own offline tool + reship): **organic film grain**
+   (Ashima webgl-noise), a **photosensitivity flash governor** (WCAG ≤3/sec), **SemDeDup** corpus
+   pruning, a **LAION aesthetic** quality bias, a **generative text engine** (+200 grammar lines), a
+   **SigLIP 2 (768-d)** embedder upgrade, **29 transitions**, and **shot-detection montage**
+   (PySceneDetect) — video assets now play a real interior shot instead of the film's leader.
+2. **The memory system — dream RECURRENCE** (`dream/memory.ts` `DreamMemory`), three layers deep:
+   - **Recurrence bias** — RAM++ open-set `entities[]` per asset feed a decaying memory; the walk
+     leans toward candidates that echo remembered motifs (bounded + relaxing + deterministic).
+   - **Literal reuse** — Grounding DINO + SAM 2 segment recurring entities into RGBA cutouts
+     (`entitySprites[]`); the conductor summons one as a drifting ghost when its entity is strongly
+     remembered (`render/SpriteField.ts`).
+   - **Animated reuse** — SAM 2 *video* tracking turns a tracked entity into a sprite-sheet that the
+     SpriteField cycles, so the recurring figure MOVES.
+
+   **⚠ Operational reality for re-runs (this matters at pickup):** RAM++ needs transformers **4.x**
+   (we're on 5.x for SigLIP 2) → run `embed.entities` in a `--system-site-packages` venv with
+   `transformers==4.48.3` reusing global torch. Large HF checkpoints (so400m, RAM++) **stall on this
+   connection** → use the resilient resumable downloader (`scratchpad/dl_ram.py` pattern: HTTP Range +
+   read-timeout + resume) and pass the local file via `--checkpoint`. Grounding DINO + SAM 2 download
+   fine. See the roadmap rows for the exact per-tool notes.
 
 ## TL;DR — where we are
 
@@ -55,12 +80,19 @@ advanced — all merged to `main`:
   three-clock reel). **Production deploys from `main`** via Cloudflare Pages Git integration.
 - Production manifest: `VITE_MANIFEST_URL` on Cloudflare Pages (prod **and** preview) →
   `https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json`. **Now serving
-  v`2026.06.25-0047`: 290 visual assets (SemDeDup-pruned from 326) + 242 texts (42 curated + 200
+  v`2026.06.25-0434`: 290 visual assets (SemDeDup-pruned from 326) + 242 texts (42 curated + 200
   generated) + `claptext` on every visual asset, plus a `44`-clip `audio[]` pool, `audioEmbeddingDim
-  512`. Visual + text embeddings are now **SigLIP 2 base, `embeddingDim 768`** with 12-axis moods
-  refit in that space; 244 images carry a LAION `aesthetic` score; audio carries `bpm`/`energy`.
-  Built by the 2026-06-24/25 improvement batch (grain, photosensitivity, SemDeDup, aesthetic,
-  text engine, SigLIP 2 — see roadmap).**
+  512`. Visual + text embeddings are **SigLIP 2 base, `embeddingDim 768`** with 12-axis moods refit
+  in that space; 244 images carry a LAION `aesthetic` score; audio carries `bpm`/`energy`; 22/37
+  videos carry interior `shots[]`; 270/281 visuals carry RAM++ `entities[]`; and the manifest has a
+  **44-entry `entitySprites[]` pool (35 static cutouts + 9 SAM 2 video-tracked animated)** for memory
+  recurrence. Built by the 2026-06-24/25 improvement batch + memory system (see roadmap).**
+
+  **Reship lineage (each a manifest-only R2 reship from the live manifest):** `…-1859` remood (12-axis)
+  → `…-2058` add_tempo (bpm/energy) → `…-2338` SemDeDup (290) → `…-2358` aesthetic → `…-0000` textgen
+  (+200) → SigLIP 2 re-embed (768-d) → `…-0136` shots → `…-0246` entities → `…-0331` sprites →
+  `…-0434` animated sprites. Each tool fetches `latest.json`, edits, and re-uploads manifest-only
+  (media untouched) — so they compose. New media (sprite PNGs) is uploaded via `upload_media`.
 
 ## The 6-round roadmap
 
@@ -119,6 +151,24 @@ values after the 2026-06-23 polish:
   (`pipeline/embed/curate.py`).
 
 ## What's left to do
+
+### Open at end of the 2026-06-25 session (start here)
+- **Photosensitivity — content flashes** (the one safety gate still open): the runtime flash governor
+  caps brightness/exposure strobing, but rapid hard CUTS between high-contrast *media* aren't caught.
+  Fix: an offline FFmpeg `vf_photosensitivity` per-clip score baked into the manifest, and/or a runtime
+  swap-rate cap at high intensity (determinism-safe). Details below under "Immediate".
+- **Verify the memory system feels right in the live app** — recurrence (`dream/memory.ts` constants:
+  `decay`/`cap`/`RECUR_COUPLING`) and sprite summoning (`conductor.ts` `SPRITE_SUMMON_PROB`/
+  `SPRITE_MIN_WEIGHT`/`SPRITE_COOLDOWN_S`, `SpriteField` opacity/scale) are tuned blind; watch a few
+  live dreams and adjust. All are pure constants — no reship needed.
+- **Coverage backfill (optional, all manifest-only reships):** 15/37 videos lack `shots[]` and ~6 lack
+  RAM++/SigLIP coverage (segment-extract or box-detect misses on short/dead archive.org URLs); 11
+  visuals lack `entities[]`. Re-running the relevant tool with tuned params (smaller lead/window, more
+  frame samples) would recover some. More `entitySprites` (raise `--max`) deepens recurrence.
+- **PD-poetry ingest** for the text engine — a clean extension once a per-line PD-clearable source is
+  wired (the grammar is the license-safe default today).
+- **so400m SigLIP 2** (1152-d, stronger than the shipped base) — only if a faster connection / `HF_TOKEN`
+  makes the 3.5 GB download viable; `reembed_siglip --model` already supports it.
 
 ### Immediate / decisions for the owner
 - ✅ **Wake mode flipped default-ON** (2026-06-23). `app/src/state/url.ts` `readShareState` now
