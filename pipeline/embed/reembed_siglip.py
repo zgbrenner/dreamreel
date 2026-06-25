@@ -147,12 +147,13 @@ def main() -> None:
     ap.add_argument("--url", type=str, default=None)
     ap.add_argument("--out", type=Path, default=Path("out"))
     ap.add_argument("--limit", type=int, default=None, help="re-embed only the first N assets (smoke)")
+    ap.add_argument("--model", type=str, default=None, help="SigLIP2 model id (default: base; so400m for max quality)")
     ap.add_argument("--upload", action="store_true", help="upload manifest-only to R2 (needs R2_* env)")
     args = ap.parse_args()
 
-    from embed.siglip_backend import get_siglip_embedder
+    from embed.siglip_backend import MODEL_ID, get_siglip_embedder
 
-    embedder = get_siglip_embedder()
+    embedder = get_siglip_embedder(args.model or MODEL_ID)
     if embedder is None:
         raise SystemExit("[siglip] needs the `embed` extra (torch + transformers>=4.49) + the model")
     print(f"[siglip] backend ready, dim={embedder.dim}")

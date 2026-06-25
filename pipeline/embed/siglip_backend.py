@@ -18,7 +18,11 @@ import numpy as np
 
 from .clip_backend import l2_normalize
 
-MODEL_ID = "google/siglip2-so400m-patch14-384"
+# Default to the base checkpoint (768-d, ~375 MB) — it downloads reliably and already beats the
+# production OpenCLIP ViT-B/32 substantially. The so400m-patch14-384 (1152-d) is stronger still but
+# ~3.5 GB; pass it via reembed_siglip --model when bandwidth allows.
+MODEL_ID = "google/siglip2-base-patch16-224"
+MODEL_ID_SO400M = "google/siglip2-so400m-patch14-384"
 
 
 class SiglipEmbedder:
@@ -35,6 +39,15 @@ class SiglipEmbedder:
         # Probe the joint-space dimension once (so400m → 1152).
         self.dim = int(self.embed_texts(["a calibration probe"]).shape[1])
 
+    def _pool(self, out):
+        # transformers 5.x returns a BaseModelOutputWithPooling for SigLIP2's get_*_features;
+        # the joint-space embedding is pooler_output. Older versions return the tensor directly.
+        if self._torch.is_tensor(out):
+            return out
+        if getattr(out, "pooler_output", None) is not None:
+            return out.pooler_output
+        return out.last_hidden_state[:, 0]
+
     def embed_texts(self, texts: Sequence[str]) -> np.ndarray:
         if not texts:
             return np.zeros((0, self.dim), np.float32)
@@ -44,7 +57,7 @@ class SiglipEmbedder:
             text=list(texts), padding="max_length", truncation=True, return_tensors="pt"
         )
         with torch.no_grad():
-            feats = self.model.get_text_features(**inputs).cpu().numpy()
+            feats = self._pool(self.model.get_text_features(**inputs)).cpu().numpy()
         return l2_normalize(feats.astype(np.float32))
 
     def embed_images(self, paths: Sequence[str]) -> list[np.ndarray | None]:
@@ -58,7 +71,7 @@ class SiglipEmbedder:
                 img = Image.open(p).convert("RGB")
                 inputs = self.processor(images=img, return_tensors="pt")
                 with torch.no_grad():
-                    f = self.model.get_image_features(**inputs).cpu().numpy()
+                    f = self._pool(self.model.get_image_features(**inputs)).cpu().numpy()
                 out.append(l2_normalize(f.astype(np.float32))[0])
             except Exception:
                 out.append(None)
