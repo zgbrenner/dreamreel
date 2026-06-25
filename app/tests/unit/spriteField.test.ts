@@ -55,6 +55,33 @@ describe('SpriteField', () => {
     expect(f.activeCount()).toBeLessThanOrEqual(3);
   });
 
+  it('animated sprite sheets clone the texture, window the UVs, and cycle frames', () => {
+    const f = new SpriteField();
+    const base = tex();
+    // 4 frames in a 2-col grid → 2 rows → each cell is half the sheet.
+    f.summon(base, 1, place(10, 0.5, 0), 0, { frames: 4, cols: 2, fps: 10 });
+    const mesh = f.group.children[0] as THREE.Mesh;
+    const map = (mesh.material as THREE.MeshBasicMaterial).map!;
+    expect(map).not.toBe(base); // cloned, so its UV window is independent
+    expect(map.repeat.x).toBeCloseTo(0.5, 5);
+    expect(map.repeat.y).toBeCloseTo(0.5, 5);
+
+    // frame 0 (col 0, row 0) → bottom row in UV space (offset.y = 0.5)
+    f.update(0.0, 0.0);
+    expect(map.offset.x).toBeCloseTo(0, 5);
+    expect(map.offset.y).toBeCloseTo(0.5, 5);
+
+    // at 0.1 s, fps 10 → frame 1 (col 1, row 0)
+    f.update(0.1, 0.1);
+    expect(map.offset.x).toBeCloseTo(0.5, 5);
+    expect(map.offset.y).toBeCloseTo(0.5, 5);
+
+    // at 0.25 s → frame 2 (col 0, row 1) → top row in UV space (offset.y = 0)
+    f.update(0.15, 0.25);
+    expect(map.offset.x).toBeCloseTo(0, 5);
+    expect(map.offset.y).toBeCloseTo(0, 5);
+  });
+
   it('dispose clears everything', () => {
     const f = new SpriteField();
     f.summon(tex(), 1, place(), 0);

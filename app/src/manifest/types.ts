@@ -108,8 +108,14 @@ export interface Asset {
 export interface EntitySprite {
   id: string;
   entity: string; // the RAM++ entity this cutout depicts (matches Asset.entities)
-  src: string; // R2 URL of the RGBA PNG cutout
-  aspect: number; // width / height, so the runtime quad keeps proportions
+  src: string; // R2 URL of the RGBA PNG cutout (a sprite SHEET when frames > 1)
+  aspect: number; // width / height of a single frame, so the runtime quad keeps proportions
+  // Optional animation (SAM 2 video tracking): a frames>1 sprite is a grid sprite sheet that the
+  // runtime cycles, so the segmented figure MOVES as it recurs. `cols` is the grid width; rows are
+  // ceil(frames / cols). Absent / frames<=1 → a static cutout.
+  frames?: number;
+  cols?: number;
+  fps?: number; // cycle rate (default ~10)
   source: string;
   license: string;
   attribution?: string;

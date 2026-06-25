@@ -11,6 +11,13 @@
 import * as THREE from 'three';
 import type { Rng } from '../dream/prng';
 
+/** Sprite-sheet animation (SAM 2 video tracking): cycle a grid of frames so the cutout MOVES. */
+export interface SpriteAnim {
+  frames: number;
+  cols: number;
+  fps: number;
+}
+
 /** A deterministic placement for a summoned cutout, drawn from a seeded RNG by the conductor. */
 export interface SpritePlacement {
   x: number; // centre, NDC [-1, 1]
@@ -47,6 +54,9 @@ interface ActiveSprite {
   vy: number;
   x: number;
   y: number;
+  // Set for animated (sprite-sheet) cutouts: the cloned, UV-windowed texture + grid info.
+  animMap?: THREE.Texture;
+  anim?: { frames: number; cols: number; rows: number; fps: number };
 }
 
 export class SpriteField {
@@ -57,12 +67,31 @@ export class SpriteField {
     this.group.renderOrder = 3; // above the layer stack + ghost, below post-FX (it's in-scene)
   }
 
-  /** Summon a cutout texture as a fading, drifting quad. `aspect` = width / height. */
-  summon(texture: THREE.Texture, aspect: number, p: SpritePlacement, elapsed: number): void {
+  /** Summon a cutout as a fading, drifting quad. `aspect` = width / height of one frame. When
+   *  `anim` (a sprite sheet, frames > 1) is given, the quad's UVs cycle so the figure moves. */
+  summon(texture: THREE.Texture, aspect: number, p: SpritePlacement, elapsed: number, anim?: SpriteAnim): void {
     const h = p.scale;
     const w = h * Math.max(0.05, aspect);
+
+    const animated = !!anim && anim.frames > 1;
+    let map = texture;
+    let animState: ActiveSprite['anim'];
+    let animMap: THREE.Texture | undefined;
+    if (animated) {
+      const a = anim as SpriteAnim;
+      const rows = Math.ceil(a.frames / a.cols);
+      // Clone so this summon owns its UV window (independent of other active copies of the sheet).
+      map = texture.clone();
+      map.needsUpdate = true;
+      map.wrapS = THREE.RepeatWrapping;
+      map.wrapT = THREE.RepeatWrapping;
+      map.repeat.set(1 / a.cols, 1 / rows);
+      animMap = map;
+      animState = { frames: a.frames, cols: a.cols, rows, fps: a.fps > 0 ? a.fps : 10 };
+    }
+
     const mat = new THREE.MeshBasicMaterial({
-      map: texture,
+      map,
       transparent: true,
       opacity: 0,
       depthTest: false,
@@ -73,7 +102,10 @@ export class SpriteField {
     mesh.frustumCulled = false;
     mesh.renderOrder = 3;
     this.group.add(mesh);
-    this.active.push({ mesh, mat, born: elapsed, life: p.life, peak: p.opacity, vx: p.vx, vy: p.vy, x: p.x, y: p.y });
+    this.active.push({
+      mesh, mat, born: elapsed, life: p.life, peak: p.opacity, vx: p.vx, vy: p.vy, x: p.x, y: p.y,
+      animMap, anim: animState,
+    });
     while (this.active.length > MAX_ACTIVE) this.expire(this.active[0]);
   }
 
@@ -90,6 +122,14 @@ export class SpriteField {
       s.x += s.vx * dt;
       s.y += s.vy * dt;
       s.mesh.position.set(s.x, s.y, 0);
+      // Animated sheet: advance the UV window to the current frame (looping). Image rows are
+      // top-down but UV origin is bottom-left, so the row offset is flipped.
+      if (s.anim && s.animMap) {
+        const f = Math.floor((elapsed - s.born) * s.anim.fps) % s.anim.frames;
+        const col = f % s.anim.cols;
+        const row = Math.floor(f / s.anim.cols);
+        s.animMap.offset.set(col / s.anim.cols, (s.anim.rows - 1 - row) / s.anim.rows);
+      }
     }
   }
 
@@ -104,7 +144,9 @@ export class SpriteField {
     this.group.remove(s.mesh);
     s.mesh.geometry.dispose();
     s.mat.dispose();
-    // The texture is owned by the conductor's sprite cache (shared across summons) — not disposed here.
+    // A static cutout's texture is owned by the conductor's cache (shared) — not disposed here.
+    // An animated cutout's UV-windowed clone IS owned by this sprite, so dispose it.
+    s.animMap?.dispose();
   }
 
   dispose(): void {
