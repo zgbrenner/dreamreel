@@ -356,10 +356,15 @@ export class DreamConductor implements DreamRuntime {
     const sprite = candidates[this.spriteRng.int(candidates.length)];
     const placement = makeSpritePlacement(this.spriteRng);
     this.spriteCooldownUntil = this.clock + SPRITE_COOLDOWN_S;
+    // Animated (SAM 2 video-tracked) cutouts carry a sprite sheet; static ones don't.
+    const anim =
+      sprite.frames && sprite.frames > 1
+        ? { frames: sprite.frames, cols: sprite.cols ?? 1, fps: sprite.fps ?? 10 }
+        : undefined;
 
     const cached = this.spriteTex.get(sprite.id);
     if (cached) {
-      this.spriteField.summon(cached, sprite.aspect, placement, this.clock);
+      this.spriteField.summon(cached, sprite.aspect, placement, this.clock, anim);
       return;
     }
     if (this.spriteLoading.has(sprite.id)) return;
@@ -368,7 +373,7 @@ export class DreamConductor implements DreamRuntime {
       this.spriteLoading.delete(sprite.id);
       if (res.ok) {
         this.spriteTex.set(sprite.id, res.texture);
-        this.spriteField.summon(res.texture, sprite.aspect, placement, this.clock);
+        this.spriteField.summon(res.texture, sprite.aspect, placement, this.clock, anim);
       }
     });
   }
