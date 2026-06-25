@@ -55,9 +55,12 @@ advanced — all merged to `main`:
   three-clock reel). **Production deploys from `main`** via Cloudflare Pages Git integration.
 - Production manifest: `VITE_MANIFEST_URL` on Cloudflare Pages (prod **and** preview) →
   `https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json`. **Now serving
-  v`2026.06.24-1859`: 326 visual assets (277 PD images + 40 film clips + 9 procedural) + 42 texts +
-  `claptext` on every visual asset, plus a `44`-clip `audio[]` pool (16 music / 14 voice / 14 foley),
-  `audioEmbeddingDim 512`. Moods re-projected onto all 12 axes via `embed.remood_manifest` (2026-06-24).**
+  v`2026.06.25-0047`: 290 visual assets (SemDeDup-pruned from 326) + 242 texts (42 curated + 200
+  generated) + `claptext` on every visual asset, plus a `44`-clip `audio[]` pool, `audioEmbeddingDim
+  512`. Visual + text embeddings are now **SigLIP 2 base, `embeddingDim 768`** with 12-axis moods
+  refit in that space; 244 images carry a LAION `aesthetic` score; audio carries `bpm`/`energy`.
+  Built by the 2026-06-24/25 improvement batch (grain, photosensitivity, SemDeDup, aesthetic,
+  text engine, SigLIP 2 — see roadmap).**
 
 ## The 6-round roadmap
 
@@ -77,8 +80,9 @@ advanced — all merged to `main`:
 | — | **Transition catalog expansion (21 → 29 shaders)** | ✅ 8 new original gl-transitions-spec shaders wired into mood families; all compile-checked in WebGL |
 | — | **Organic film grain (Ashima webgl-noise, MIT)** | ✅ merged — simplex grain replaces hash noise in post-FX (`render/shaderNoise.ts`) |
 | — | **SemDeDup visual corpus pruning** | ✅ tool merged + **live** (`embed/semdedup.py`, exact pairwise); pruned 36 near-dupes → `v2026.06.24-2338` (290 assets) |
-| — | **Aesthetic-predictor quality bias** | ✅ code merged (`embed/aesthetic.py` LAION head over OpenAI-CLIP; `dreamwalker.aestheticBoost`); ⬜ scoring run + reship in progress |
-| — | **Generative text engine** | ✅ tool merged (`embed/textgen.py`, deterministic DREAMREEL-voice grammar); ⬜ embed run + reship pending. PD-poetry ingest = clean extension once rights-cleared |
+| — | **Aesthetic-predictor quality bias** | ✅ merged + **live** (`embed/aesthetic.py` LAION head over OpenAI-CLIP; `dreamwalker.aestheticBoost`); 244 images scored |
+| — | **Generative text engine** | ✅ merged + **live** (`embed/textgen.py`, deterministic DREAMREEL-voice grammar); +200 lines. PD-poetry ingest = clean extension once rights-cleared |
+| — | **SigLIP 2 embedder upgrade** | ✅ merged + **live** (`embed/siglip_backend.py` + `reembed_siglip.py`); corpus re-embedded to **768-d** SigLIP 2 base, mood axes refit. so400m stalls on slow HF — base via default; smoke-tested live. 6 videos fell back to tag-embeddings |
 | — | **Photosensitivity hardening** | ✅ runtime flash-rate governor shipped (`render/flashGuard.ts`, WCAG ≤3/sec, ≤1/sec reduced-motion); ⬜ offline content-flash (hard-cut) analysis still open |
 
 ## Wake-mode tuning surface (where to nudge the live feel)
