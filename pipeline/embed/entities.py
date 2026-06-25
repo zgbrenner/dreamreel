@@ -66,6 +66,7 @@ def _encode_url(u: str) -> str:
 
 
 def _ensure_image(src: str, dest_dir: Path, asset_id: str) -> Path | None:
+    dest_dir.mkdir(parents=True, exist_ok=True)
     ext = os.path.splitext(src.split("?")[0])[1] or ".webp"
     dest = dest_dir / f"{asset_id}{ext}"
     if dest.exists() and dest.stat().st_size > 0:
@@ -81,6 +82,7 @@ def _ensure_image(src: str, dest_dir: Path, asset_id: str) -> Path | None:
 
 
 def _video_frame(asset: dict, dest_dir: Path) -> Path | None:
+    dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / f"{asset['id']}.png"
     if dest.exists() and dest.stat().st_size > 0:
         return dest
@@ -133,6 +135,11 @@ def _make_ram(cache_dir: Path, checkpoint: str | None = None):
 
             _mu.find_pruneable_heads_and_indices = _find_pruneable
 
+        # NOTE: these shims get RAM's import + weights to load on transformers 5.x, but its BERT
+        # tokenizer still relies on 4.x-only behaviour at inference (additional_special_tokens_ids).
+        # RAM is built for transformers 4.x; the supported path is a transformers-4.x environment
+        # (a `--system-site-packages` venv with `transformers<4.49` reusing the global torch + the
+        # --checkpoint weights). The shims remain because they are harmless no-ops there.
         from ram import get_transform, inference_ram
         from ram.models import ram_plus
     except ImportError:
