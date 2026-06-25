@@ -21,9 +21,11 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import quote, urlsplit, urlunsplit
 
 import numpy as np
 import requests
@@ -103,17 +105,24 @@ def _ensure_image(src: str, dest_dir: Path, asset_id: str) -> str | None:
         return None
 
 
+def _encode_url(u: str) -> str:
+    """Percent-encode the path so URLs with spaces/parens (common on archive.org) work in ffmpeg."""
+    p = urlsplit(u)
+    return urlunsplit((p.scheme, p.netloc, quote(p.path), p.query, p.fragment))
+
+
 def _video_poster(src: str, dest_dir: Path, asset_id: str) -> str | None:
     dest = dest_dir / f"{asset_id}.png"
     if dest.exists() and dest.stat().st_size > 0:
         return str(dest)
-    # Pull a single frame ~1 s in, straight from the R2 URL (ffmpeg streams; no full download).
-    cmd = ["ffmpeg", "-y", "-ss", "1", "-i", src, "-frames:v", "1", "-q:v", "3", str(dest)]
+    # Pull a single frame ~1 s in, streaming from the URL (no full download). `-ss` AFTER `-i`
+    # (output seeking) is reliable over HTTP where input seeking needs byte-range support.
+    cmd = ["ffmpeg", "-y", "-i", _encode_url(src), "-ss", "1", "-frames:v", "1", "-q:v", "3", str(dest)]
     try:
-        subprocess.run(cmd, check=True, capture_output=True)
+        subprocess.run(cmd, check=True, capture_output=True, timeout=60)
         return str(dest) if dest.exists() and dest.stat().st_size > 0 else None
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
-        print(f"[siglip] WARN poster extract {asset_id}: {e}")
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError, subprocess.TimeoutExpired) as e:
+        print(f"[siglip] WARN poster extract {asset_id}: {type(e).__name__}")
         return None
 
 
@@ -142,6 +151,11 @@ def load_manifest(path: Path | None, url: str | None) -> dict[str, Any]:
 
 
 def main() -> None:
+    # Windows consoles default to cp1252; force UTF-8 so any non-ASCII output never crashes the run.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
     ap = argparse.ArgumentParser(description="DREAMREEL SigLIP 2 re-embed (semantic-core upgrade)")
     ap.add_argument("--manifest", type=Path, default=None)
     ap.add_argument("--url", type=str, default=None)
@@ -165,7 +179,7 @@ def main() -> None:
     print(
         f"[siglip] re-embedded {n} items "
         f"({len(reembedded.get('assets', []))} visual + {len(reembedded.get('texts', []))} texts) "
-        f"→ dim {reembedded['embeddingDim']}"
+        f"-> dim {reembedded['embeddingDim']}"
     )
 
     args.out.mkdir(parents=True, exist_ok=True)
