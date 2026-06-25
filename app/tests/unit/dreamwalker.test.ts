@@ -217,6 +217,69 @@ describe('Dreamwalker aesthetic bias', () => {
   });
 });
 
+describe('Dreamwalker recurrence bias', () => {
+  // Same embedding for every asset, so selection differences come ONLY from the recurrence echo.
+  function entityPools(nEcho: number, nPlain: number): DreamwalkerPools {
+    const moodAxes = Object.fromEntries(MOOD_AXES.map((a) => [a, [0, 0, 0, 0]])) as Record<
+      MoodAxis,
+      number[]
+    >;
+    const neutralMood = Object.fromEntries(MOOD_AXES.map((a) => [a, 0.5])) as Record<MoodAxis, number>;
+    const mk = (id: string, entities: string[]): Asset => ({
+      id,
+      type: 'image',
+      embedding: [1, 0, 0, 0],
+      mood: neutralMood,
+      tags: [],
+      dwellBase: 5,
+      source: 'x',
+      license: 'PD',
+      entities,
+    });
+    const assets: Asset[] = [];
+    for (let i = 0; i < nEcho; i++) assets.push(mk(`echo-${i}`, ['clock']));
+    for (let i = 0; i < nPlain; i++) assets.push(mk(`plain-${i}`, ['void']));
+    return { visual: assets, texts: assets, moodAxes, embeddingDim: 4 };
+  }
+
+  // A standing memory of the "clock" motif.
+  const clockEcho = (e: string[] | undefined) => (e && e.includes('clock') ? 1.0 : 0);
+
+  it('leans selection toward candidates that echo memory; no echo set → unbiased', () => {
+    const biased = createDreamwalker(entityPools(5, 5), { seed: 'rec', surreality: 0.5 });
+    biased.setRecurrence(clockEcho);
+    const plain = createDreamwalker(entityPools(5, 5), { seed: 'rec', surreality: 0.5 });
+    const count = (w: ReturnType<typeof createDreamwalker>) => {
+      let n = 0;
+      for (let i = 0; i < 600; i++) if (w.next('image', 1).asset.id.startsWith('echo')) n++;
+      return n;
+    };
+    const withMemory = count(biased);
+    const without = count(plain);
+    expect(withMemory).toBeGreaterThan(without); // the remembered motif recurs
+    expect(without).toBeGreaterThan(0); // ...without collapsing variety
+  });
+
+  it('clearing the echo removes the bias', () => {
+    const a = createDreamwalker(entityPools(5, 5), { seed: 'rec2', surreality: 0.5 });
+    a.setRecurrence(clockEcho);
+    a.setRecurrence(null);
+    const b = createDreamwalker(entityPools(5, 5), { seed: 'rec2', surreality: 0.5 });
+    const seqA = Array.from({ length: 40 }, () => a.next('image', 1).asset.id);
+    const seqB = Array.from({ length: 40 }, () => b.next('image', 1).asset.id);
+    expect(seqA).toEqual(seqB);
+  });
+
+  it('recurrence-biased selection is deterministic per seed', () => {
+    const seq = () => {
+      const w = createDreamwalker(entityPools(5, 5), { seed: 'rec-det', surreality: 0.5 });
+      w.setRecurrence(clockEcho);
+      return Array.from({ length: 40 }, () => w.next('image', 1).asset.id);
+    };
+    expect(seq()).toEqual(seq());
+  });
+});
+
 describe('Dreamwalker convergence', () => {
   function meanAdjacentSimilarity(convergence: boolean, n: number): number {
     const w = createDreamwalker(pools, { seed: 'converge', surreality: 0.8 });

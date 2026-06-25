@@ -63,6 +63,7 @@ export const assetSchema = z.object({
   claptext: z.array(z.number()).optional(),
   aesthetic: z.number().optional(),
   shots: z.array(z.object({ start: z.number(), end: z.number() })).optional(),
+  entities: z.array(z.string()).optional(),
 });
 
 export const manifestSchema = z

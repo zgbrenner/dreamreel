@@ -95,6 +95,10 @@ export interface Asset {
   // deterministically-chosen real shot (seek + loop within [start,end]) instead of the film's
   // leader/title-card opening. Absent → the video plays from 0 as before.
   shots?: { start: number; end: number }[];
+  // Optional open-set ENTITY tags (RAM++, pipeline/embed/entities.py) — the concrete things in the
+  // asset (clock, staircase, bird, hands, moon…). These feed the runtime's DreamMemory so motifs
+  // RECUR across a dream (dream/memory.ts). Absent → no recurrence contribution (graceful).
+  entities?: string[];
 }
 
 export interface Manifest {
