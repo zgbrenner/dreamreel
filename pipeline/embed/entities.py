@@ -100,6 +100,35 @@ def _make_ram(cache_dir: Path):
     try:
         import torch  # noqa: F401
         from huggingface_hub import hf_hub_download
+
+        # RAM targets transformers 4.x; on 5.x (which we use for SigLIP 2) the BERT/pruning utils it
+        # imports (apply_chunking_to_forward, find_pruneable_heads_and_indices, prune_linear_layer, …)
+        # relocated from transformers.modeling_utils to transformers.pytorch_utils. Re-expose every
+        # pytorch_utils symbol on modeling_utils so RAM's text head imports cleanly — without pinning
+        # transformers down (which SigLIP 2 needs at 5.x).
+        import transformers.modeling_utils as _mu
+        import transformers.pytorch_utils as _pu
+
+        for _name in dir(_pu):
+            if not _name.startswith("_") and not hasattr(_mu, _name):
+                setattr(_mu, _name, getattr(_pu, _name))
+
+        # find_pruneable_heads_and_indices was dropped entirely in transformers 5.12; RAM's BERT
+        # head still imports it. Provide the canonical implementation.
+        if not hasattr(_mu, "find_pruneable_heads_and_indices"):
+
+            def _find_pruneable(heads, n_heads, head_size, already_pruned_heads):
+                mask = torch.ones(n_heads, head_size)
+                heads = set(heads) - already_pruned_heads
+                for head in heads:
+                    head = head - sum(1 if h < head else 0 for h in already_pruned_heads)
+                    mask[head] = 0
+                mask = mask.view(-1).contiguous().eq(1)
+                index = torch.arange(len(mask))[mask].long()
+                return heads, index
+
+            _mu.find_pruneable_heads_and_indices = _find_pruneable
+
         from ram import get_transform, inference_ram
         from ram.models import ram_plus
     except ImportError:
