@@ -95,8 +95,12 @@ def _video_frame(asset: dict, dest_dir: Path) -> Path | None:
         return None
 
 
-def _make_ram(cache_dir: Path):
-    """Load RAM++ (model, transform, inference_fn) or None if the `entities` extra is unavailable."""
+def _make_ram(cache_dir: Path, checkpoint: str | None = None):
+    """Load RAM++ (model, transform, inference_fn) or None if the `entities` extra is unavailable.
+
+    `checkpoint` overrides the HF download with a local .pth (useful when the ~3 GB checkpoint must
+    be fetched out-of-band via the resilient downloader, e.g. on a throttled connection).
+    """
     try:
         import torch  # noqa: F401
         from huggingface_hub import hf_hub_download
@@ -134,7 +138,10 @@ def _make_ram(cache_dir: Path):
     except ImportError:
         return None
     try:
-        ckpt = hf_hub_download(RAM_REPO, RAM_CKPT, cache_dir=str(cache_dir))
+        if checkpoint and Path(checkpoint).exists():
+            ckpt = checkpoint
+        else:
+            ckpt = hf_hub_download(RAM_REPO, RAM_CKPT, cache_dir=str(cache_dir))
         model = ram_plus(pretrained=ckpt, image_size=IMAGE_SIZE, vit="swin_l").eval()
         transform = get_transform(image_size=IMAGE_SIZE)
         return model, transform, inference_ram
@@ -143,10 +150,12 @@ def _make_ram(cache_dir: Path):
         return None
 
 
-def annotate(manifest: dict[str, Any], work_dir: Path, limit: int | None = None) -> tuple[dict, int]:
+def annotate(
+    manifest: dict[str, Any], work_dir: Path, limit: int | None = None, checkpoint: str | None = None
+) -> tuple[dict, int]:
     out = json.loads(json.dumps(manifest))
     work_dir.mkdir(parents=True, exist_ok=True)
-    ram = _make_ram(work_dir / "ram_cache")
+    ram = _make_ram(work_dir / "ram_cache", checkpoint)
     if ram is None:
         print("[entities] needs the `entities` extra (ram + torch) + the checkpoint — nothing tagged")
         return out, 0
@@ -203,11 +212,12 @@ def main() -> None:
     ap.add_argument("--url", type=str, default=None)
     ap.add_argument("--out", type=Path, default=Path("out"))
     ap.add_argument("--limit", type=int, default=None, help="tag only the first N visual assets")
+    ap.add_argument("--checkpoint", type=str, default=None, help="local RAM++ .pth (skip HF download)")
     ap.add_argument("--upload", action="store_true", help="upload manifest-only to R2 (needs R2_* env)")
     args = ap.parse_args()
 
     manifest = load_manifest(args.manifest, args.url)
-    annotated, n = annotate(manifest, args.out / "entities_work", args.limit)
+    annotated, n = annotate(manifest, args.out / "entities_work", args.limit, args.checkpoint)
     total = sum(1 for a in annotated.get("assets", []) if a.get("type") in ("image", "video"))
     print(f"[entities] tagged {n}/{total} visual assets")
 
