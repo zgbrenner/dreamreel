@@ -58,3 +58,30 @@ def test_corpus_blocks_are_wellformed():
         assert block["work"]
         assert block["lines"]
         assert all(isinstance(ln, str) and ln.strip() for ln in block["lines"])
+
+
+_AXES_12 = (
+    "melancholy", "uncanny", "nostalgic", "ominous", "tender", "mechanical",
+    "love", "loss", "joy", "fear", "absurdity", "strange",
+)
+
+
+def test_build_poetry_assets_tolerates_dim_mismatch():
+    # CLIP-512 embedder against a SigLIP 768-d corpus must NOT crash (the augment-then-reembed case):
+    # write provisional embeddings + neutral moods so a later SigLIP re-embed can set real values.
+    import numpy as np
+    from embed.poetry import build_poetry_assets
+
+    axes = {a: np.zeros(768, dtype=np.float32) for a in _AXES_12}
+
+    class FakeEmb:
+        def embed_texts(self, texts):
+            return np.ones((len(texts), 512), dtype=np.float32)
+
+    items = [{"text": "a clock has forgotten the hour", "poet": "Emily Dickinson", "work": "Test"}]
+    assets = build_poetry_assets(FakeEmb(), axes, items)
+    assert len(assets) == 1
+    assert len(assets[0]["embedding"]) == 512        # provisional embedding kept (reembed overwrites)
+    assert assets[0]["mood"].keys() == axes.keys()   # all 12 axes present
+    assert set(assets[0]["mood"].values()) == {0.5}  # neutral placeholder
+    assert assets[0]["license"] == "PD"

@@ -367,12 +367,33 @@ def _emb_list(v: np.ndarray) -> list[float]:
     return [round(float(x), 6) for x in v.tolist()]
 
 
-def build_poetry_assets(embedder, axes: dict[str, np.ndarray], items: list[dict[str, str]]) -> list[dict]:
-    """Embed + mood-project each PD line into a manifest text asset. Needs the `embed` extra."""
-    from embed.clip_backend import l2_normalize
+def _mood_or_neutral(v: np.ndarray, axes: dict[str, np.ndarray], dim_ok: bool) -> dict[str, float]:
+    """Project mood onto the axes, or a neutral 0.5-per-axis placeholder when the embedder dim
+    doesn't match the corpus axes dim. Under the augment-then-reembed workflow a SigLIP/so400m
+    re-embed sets the real embeddings + moods, so the placeholder is correct and avoids a crash."""
     from embed.mood_axes import project_mood
 
+    return project_mood(v, axes) if dim_ok else {a: 0.5 for a in axes}
+
+
+def build_poetry_assets(embedder, axes: dict[str, np.ndarray], items: list[dict[str, str]]) -> list[dict]:
+    """Embed + mood-project each PD line into a manifest text asset. Needs the `embed` extra.
+
+    If the embedder's dim doesn't match the corpus mood-axis dim (e.g. CLIP-512 against a SigLIP
+    768/1152-d manifest), the embeddings + moods are PROVISIONAL: a SigLIP/so400m re-embed must
+    follow to set the real values (the standard augment-then-reembed lineage). We warn and write
+    placeholders rather than crash, so the pure pipeline still produces correctly-tagged text.
+    """
+    from embed.clip_backend import l2_normalize
+
     vecs = embedder.embed_texts([it["text"] for it in items])
+    axis_dim = len(next(iter(axes.values()))) if axes else 0
+    dim_ok = int(vecs.shape[1]) == axis_dim
+    if not dim_ok:
+        print(
+            f"[poetry] WARN embedder dim {vecs.shape[1]} != corpus mood-axis dim {axis_dim}: writing "
+            f"provisional embeddings + neutral moods — a SigLIP re-embed must follow before shipping"
+        )
     assets: list[dict] = []
     for i, (it, v) in enumerate(zip(items, vecs)):
         v = l2_normalize(v.reshape(1, -1))[0]
@@ -381,7 +402,7 @@ def build_poetry_assets(embedder, axes: dict[str, np.ndarray], items: list[dict[
             "type": "titlecard",  # text-pool entries carry `text`; the walker keys on tags, not type
             "text": it["text"],
             "embedding": _emb_list(v),
-            "mood": project_mood(v, axes),
+            "mood": _mood_or_neutral(v, axes, dim_ok),
             "tags": ["drift", "whisper", "poetry"],
             "dwellBase": 4,
             "source": f"Project Gutenberg / {it['poet']} — {it['work']}",
