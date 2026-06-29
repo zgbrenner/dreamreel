@@ -1,6 +1,31 @@
 # DREAMREEL — Handoff / Pick-Up Doc
 
-_Last updated: 2026-06-25 (improvement batch + the three-layer memory system, all live). Read this first when resuming._
+_Last updated: 2026-06-29 (coverage backfill + PD-poetry + so400m re-embed, all live). Read this first when resuming._
+
+## Latest session (2026-06-29) — the headline
+
+Four roadmap items shipped, all live in production as one final consolidated corpus
+(**`v2026.06.29-2332`**, see "Now serving" below). Five validated manifest reships, each preserving
+prior data:
+
+1. **Coverage backfill** (new `--only-missing` flags on `embed.shots` / `embed.entities`, merged
+   PR #53): `shots[]` **22 → 31/37** videos (tuned `--lead 8 --window 120 --max-shots 10`), RAM++
+   `entities[]` **270 → 280/281** visuals. Remaining gaps are dead / cut-less archive.org URLs.
+2. **Sprite-pool deepen** (orchestration over `embed.sprites` + `embed.sprite_clips` building blocks,
+   append-only): `entitySprites[]` **44 → 62** (50 static + 12 animated). Only 3 new animated landed —
+   most videos' first entity is abstract (`dark`/`cloud`) and Grounding DINO can't localize it.
+3. **PD-poetry ingest** (`embed.poetry`, merged PR #52): **+100** public-domain poetry lines
+   (Dickinson/Blake/Poe/Whitman/Rossetti), tagged `license: "PD"`, texts **242 → 342**.
+4. **so400m SigLIP 2 re-embed** (`reembed_siglip --model …-so400m`): the whole visual+text pool
+   re-embedded **768-d → 1152-d**, 12 mood axes refit in the new space. Audio/CLAP/`claptext`/
+   `aesthetic`/`bpm`/`entities`/`shots`/`sprites` all preserved.
+
+**⚠ Operational notes for re-runs:** (a) the so400m 4.5 GB checkpoint is cached but Windows blocked
+HF's cache symlinks (`WinError 1314`, Dev Mode off) — finalize via **copy-mode** (monkeypatch
+`huggingface_hub.file_download.are_symlinks_supported → False` before download); (b) `embed.poetry` /
+`embed.textgen` embed with CLIP-512 and CRASH projecting onto 768/1152-d mood axes — fixed to write
+provisional placeholders + warn (PR #54); the augment-then-reembed lineage sets the real embeddings.
+Manifest is now **~9.9 MB** (1152-d), up from 6.5 MB.
 
 ## Latest session (2026-06-25) — the headline
 
@@ -80,19 +105,23 @@ advanced — all merged to `main`:
   three-clock reel). **Production deploys from `main`** via Cloudflare Pages Git integration.
 - Production manifest: `VITE_MANIFEST_URL` on Cloudflare Pages (prod **and** preview) →
   `https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json`. **Now serving
-  v`2026.06.25-0434`: 290 visual assets (SemDeDup-pruned from 326) + 242 texts (42 curated + 200
-  generated) + `claptext` on every visual asset, plus a `44`-clip `audio[]` pool, `audioEmbeddingDim
-  512`. Visual + text embeddings are **SigLIP 2 base, `embeddingDim 768`** with 12-axis moods refit
-  in that space; 244 images carry a LAION `aesthetic` score; audio carries `bpm`/`energy`; 22/37
-  videos carry interior `shots[]`; 270/281 visuals carry RAM++ `entities[]`; and the manifest has a
-  **44-entry `entitySprites[]` pool (35 static cutouts + 9 SAM 2 video-tracked animated)** for memory
-  recurrence. Built by the 2026-06-24/25 improvement batch + memory system (see roadmap).**
+  v`2026.06.29-2332`: 290 visual assets (SemDeDup-pruned from 326) + 342 texts (42 curated + 200
+  generated + **100 public-domain poetry**) + `claptext` on every visual asset, plus a `44`-clip
+  `audio[]` pool, `audioEmbeddingDim 512`. Visual + text embeddings are now **SigLIP 2 so400m,
+  `embeddingDim 1152`** with 12-axis moods refit in that space (upgraded from the 768-d base);
+  244 images carry a LAION `aesthetic` score; audio carries `bpm`/`energy`; **31/37** videos carry
+  interior `shots[]`; **280/281** visuals carry RAM++ `entities[]`; and the manifest has a
+  **62-entry `entitySprites[]` pool (50 static cutouts + 12 SAM 2 video-tracked animated)** for memory
+  recurrence. Built by the 2026-06-24/25 improvement batch + memory system + the 2026-06-29 backfill /
+  poetry / so400m session (see roadmap). Manifest ≈ 9.9 MB at 1152-d.**
 
-  **Reship lineage (each a manifest-only R2 reship from the live manifest):** `…-1859` remood (12-axis)
-  → `…-2058` add_tempo (bpm/energy) → `…-2338` SemDeDup (290) → `…-2358` aesthetic → `…-0000` textgen
+  **Reship lineage (each a manifest-only R2 reship from the live manifest):** `…06.25-1859` remood
+  (12-axis) → `…-2058` add_tempo → `…-2338` SemDeDup (290) → `…-2358` aesthetic → `…-0000` textgen
   (+200) → SigLIP 2 re-embed (768-d) → `…-0136` shots → `…-0246` entities → `…-0331` sprites →
-  `…-0434` animated sprites. Each tool fetches `latest.json`, edits, and re-uploads manifest-only
-  (media untouched) — so they compose. New media (sprite PNGs) is uploaded via `upload_media`.
+  `…-0434` animated sprites → **`…06.29-2214` shots backfill (31/37) → `…-2221` entities backfill
+  (280/281) → `…-2301` sprite deepen (62) → `…-2332` poetry (+100) + so400m re-embed (1152-d)**.
+  Each tool fetches `latest.json`, edits, and re-uploads manifest-only (media untouched) — so they
+  compose. New media (sprite PNGs) is uploaded via `upload_media`.
 
 ## The 6-round roadmap
 
@@ -113,8 +142,9 @@ advanced — all merged to `main`:
 | — | **Organic film grain (Ashima webgl-noise, MIT)** | ✅ merged — simplex grain replaces hash noise in post-FX (`render/shaderNoise.ts`) |
 | — | **SemDeDup visual corpus pruning** | ✅ tool merged + **live** (`embed/semdedup.py`, exact pairwise); pruned 36 near-dupes → `v2026.06.24-2338` (290 assets) |
 | — | **Aesthetic-predictor quality bias** | ✅ merged + **live** (`embed/aesthetic.py` LAION head over OpenAI-CLIP; `dreamwalker.aestheticBoost`); 244 images scored |
-| — | **Generative text engine** | ✅ merged + **live** (`embed/textgen.py`, deterministic DREAMREEL-voice grammar); +200 lines. PD-poetry ingest = clean extension once rights-cleared |
-| — | **SigLIP 2 embedder upgrade** | ✅ merged + **live** (`embed/siglip_backend.py` + `reembed_siglip.py`); corpus re-embedded to **768-d** SigLIP 2 base, mood axes refit. so400m stalls on slow HF — base via default; smoke-tested live. 6 videos fell back to tag-embeddings |
+| — | **Generative text engine** | ✅ merged + **live** (`embed/textgen.py`, deterministic DREAMREEL-voice grammar); +200 lines |
+| — | **PD-poetry ingest** | ✅ merged (PR #52) + **live** (`embed/poetry.py`, +100 public-domain lines, Dickinson/Blake/Poe/Whitman/Rossetti, `license: "PD"`). Augment-then-reembed; the so400m pass set the real 1152-d embeddings. Augment tools' CLIP-512-vs-axes-dim crash fixed in PR #54 |
+| — | **SigLIP 2 embedder upgrade** | ✅ merged + **live**: corpus first re-embedded to **768-d** SigLIP 2 base, then **upgraded to so400m `1152-d`** (`reembed_siglip --model google/siglip2-so400m-patch14-384`) on 2026-06-29, mood axes refit. so400m 4.5 GB checkpoint needed copy-mode download on Windows (`WinError 1314` symlink block, Dev Mode off). 0 media fell back to tag-embeddings on the so400m run |
 | — | **Photosensitivity hardening** | ✅ runtime flash-rate governor shipped (`render/flashGuard.ts`, WCAG ≤3/sec, ≤1/sec reduced-motion); ⬜ offline content-flash (hard-cut) analysis still open |
 | — | **Shot detection / montage grammar (PySceneDetect)** | ✅ merged + **live** (`embed/shots.py` + `render/VideoPool` shot-loop + `conductor.pickShot`); 22/37 films carry `shots[]` (`v2026.06.25-0136`). **Finding:** video `src` is the FULL archive.org film and the runtime played from t=0 (leaders/title cards) — `shots[]` makes it play a real interior shot. NeMo Curator rejected (Ray/GPU overkill; no NeMo dep) |
 | — | **Memory system — dream recurrence (RAM++)** | ✅ Phase 1 **merged + LIVE** (`v2026.06.25-0246`, 270/281 visual assets carry `entities[]`, 501-entity vocab). `dream/memory.ts` DreamMemory (decaying weights) + `dreamwalker` recurrence bias + `conductor` per-beat observe — motifs recur, bounded + relaxing + deterministic; smoke-tested live. **Ops note:** RAM++ needs transformers **4.x** (we're on 5.x for SigLIP 2) — run in a `--system-site-packages` venv with `transformers==4.48.3` reusing global torch; the ~3 GB checkpoint must be pulled with a resumable downloader (`scratchpad/dl_ram.py` pattern) + passed via `embed.entities --checkpoint` (HF's fetch hangs on this throttled link). ✅ **Phase 2 code merged** — literal segmented-entity reuse: `embed/sprites.py` (Grounding DINO box → SAM 2 mask → RGBA cutout → R2; both Apache-2.0 via transformers 5.x), manifest `entitySprites[]`, `render/SpriteField.ts` + `conductor.maybeSummonSprite` (memory-triggered, seeded, bounded, reduced-motion-off, graceful no-op). ✅ **LIVE** (`v2026.06.25-0331`, 35 static cutouts — person/skeleton/face/woman/sculpture/muscle…). SAM 2 returns 3 candidate masks/box → keep largest-area. **Phase 3 LIVE** (`v2026.06.25-0434`, 44 entitySprites = 35 static + 9 ANIMATED: bagpipe/baseball-player/barge/car/bed/sign/letter… tracked across 11–12 frames). `embed/sprite_clips.py` (SAM 2 VIDEO: condition frame-0 box → `propagate_in_video_iterator` → union-box crop → grid sprite-SHEET PNG); `EntitySprite.frames/cols/fps`; `SpriteField` cycles sheet UVs so the figure MOVES as it recurs. Smoke-tested live. |
@@ -161,14 +191,17 @@ values after the 2026-06-23 polish:
   `decay`/`cap`/`RECUR_COUPLING`) and sprite summoning (`conductor.ts` `SPRITE_SUMMON_PROB`/
   `SPRITE_MIN_WEIGHT`/`SPRITE_COOLDOWN_S`, `SpriteField` opacity/scale) are tuned blind; watch a few
   live dreams and adjust. All are pure constants — no reship needed.
-- **Coverage backfill (optional, all manifest-only reships):** 15/37 videos lack `shots[]` and ~6 lack
-  RAM++/SigLIP coverage (segment-extract or box-detect misses on short/dead archive.org URLs); 11
-  visuals lack `entities[]`. Re-running the relevant tool with tuned params (smaller lead/window, more
-  frame samples) would recover some. More `entitySprites` (raise `--max`) deepens recurrence.
-- **PD-poetry ingest** for the text engine — a clean extension once a per-line PD-clearable source is
-  wired (the grammar is the license-safe default today).
-- **so400m SigLIP 2** (1152-d, stronger than the shipped base) — only if a faster connection / `HF_TOKEN`
-  makes the 3.5 GB download viable; `reembed_siglip --model` already supports it.
+- ✅ **Coverage backfill** (2026-06-29) — `embed.shots --only-missing` and `embed.entities --only-missing`
+  recovered shots **22 → 31/37** and entities **270 → 280/281**; sprite deepen took the pool **44 → 62**.
+  **Still unrecoverable** (dead / cut-less archive.org URLs): 6 videos lack `shots[]` (vid-0022/0026/
+  0030/0031/0033/0036), 1 lacks `entities[]` (vid-0028). Re-source those media to close them.
+- ✅ **PD-poetry ingest** (2026-06-29, `embed.poetry`) — +100 lines shipped. Extending it (more poets,
+  more lines via `--count`) is a clean follow-up; the augment tools now tolerate any corpus dim (PR #54).
+- ✅ **so400m SigLIP 2** (2026-06-29) — corpus is now 1152-d. Re-running needs the copy-mode download
+  workaround on this Windows box (see the session headline's operational notes).
+- **More animated sprites** — the deepen only added 3 (most videos' first entity is abstract and
+  Grounding DINO can't box it). A smarter `_pick_video_targets` (try several entities per video, prefer
+  concrete nouns) would raise the animated count.
 
 ### Immediate / decisions for the owner
 - ✅ **Wake mode flipped default-ON** (2026-06-23). `app/src/state/url.ts` `readShareState` now
