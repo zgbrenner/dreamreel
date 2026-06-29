@@ -99,11 +99,26 @@ def detect_shots(path: str) -> list[tuple[float, float]]:
     return [(s.get_seconds(), e.get_seconds()) for s, e in scenes]
 
 
-def annotate(manifest: dict[str, Any], work_dir: Path, limit: int | None = None) -> tuple[dict, int]:
-    """Bake `shots` onto video assets. Returns (manifest, n_annotated)."""
+def annotate(
+    manifest: dict[str, Any],
+    work_dir: Path,
+    limit: int | None = None,
+    lead: float = LEAD_SKIP,
+    window: float = WINDOW,
+    max_shots: int = MAX_SHOTS,
+    only_missing: bool = False,
+) -> tuple[dict, int]:
+    """Bake `shots` onto video assets. Returns (manifest, n_annotated).
+
+    `only_missing` restricts work to videos that don't already carry `shots[]` — so a tuned
+    coverage backfill (smaller `lead`/`window`, more `max_shots`) recovers the gaps WITHOUT
+    re-detecting (and thereby changing) the shots already shipped for other films.
+    """
     out = json.loads(json.dumps(manifest))
     work_dir.mkdir(parents=True, exist_ok=True)
     videos = [a for a in out.get("assets", []) if a.get("type") == "video" and a.get("src")]
+    if only_missing:
+        videos = [a for a in videos if not a.get("shots")]
     if limit is not None:
         videos = videos[:limit]
 
@@ -111,11 +126,11 @@ def annotate(manifest: dict[str, Any], work_dir: Path, limit: int | None = None)
     for a in videos:
         seg = work_dir / f"{a['id']}.mp4"
         if not (seg.exists() and seg.stat().st_size > 0):
-            if not _extract_segment(a["src"], seg, LEAD_SKIP, WINDOW):
+            if not _extract_segment(a["src"], seg, lead, window):
                 print(f"[shots] WARN segment extract failed: {a['id']}")
                 continue
         scenes = detect_shots(str(seg))
-        shots = usable_shots(scenes, offset=LEAD_SKIP)
+        shots = usable_shots(scenes, offset=lead, max_n=max_shots)
         if not shots:
             print(f"[shots] no usable shots: {a['id']}")
             continue
@@ -148,11 +163,18 @@ def main() -> None:
     ap.add_argument("--url", type=str, default=None)
     ap.add_argument("--out", type=Path, default=Path("out"))
     ap.add_argument("--limit", type=int, default=None, help="annotate only the first N video assets")
+    ap.add_argument("--lead", type=float, default=LEAD_SKIP, help=f"seconds skipped at film head (default {LEAD_SKIP})")
+    ap.add_argument("--window", type=float, default=WINDOW, help=f"seconds of interior film scanned (default {WINDOW})")
+    ap.add_argument("--max-shots", type=int, default=MAX_SHOTS, help=f"max shots per film (default {MAX_SHOTS})")
+    ap.add_argument("--only-missing", action="store_true", help="only annotate videos lacking shots[] (coverage backfill; leaves existing shots untouched)")
     ap.add_argument("--upload", action="store_true", help="upload manifest-only to R2 (needs R2_* env)")
     args = ap.parse_args()
 
     manifest = load_manifest(args.manifest, args.url)
-    annotated, n = annotate(manifest, args.out / "shots_work", args.limit)
+    annotated, n = annotate(
+        manifest, args.out / "shots_work", args.limit,
+        lead=args.lead, window=args.window, max_shots=args.max_shots, only_missing=args.only_missing,
+    )
     total = sum(1 for a in annotated.get("assets", []) if a.get("type") == "video")
     print(f"[shots] annotated {n}/{total} video assets")
 

@@ -25,3 +25,35 @@ def test_caps_tag_count():
 def test_empty():
     assert clean_tags("") == []
     assert clean_tags(" |  | ") == []
+
+
+def test_only_missing_leaves_existing_entities_untouched(monkeypatch, tmp_path):
+    # Stub RAM++ + frame/image fetch so we exercise just annotate()'s selection (annotate does a
+    # local `from PIL import Image`, so feed it a real openable PNG rather than mocking PIL).
+    from embed import entities
+    from PIL import Image as PILImage
+
+    frame = tmp_path / "f.png"
+    PILImage.new("RGB", (8, 8)).save(frame)
+
+    class _Tensor:
+        def unsqueeze(self, _n):
+            return self
+
+    monkeypatch.setattr(entities, "_make_ram", lambda *a, **k: ("model", lambda _im: _Tensor(), lambda _t, _m: ["dog | tree"]))
+    monkeypatch.setattr(entities, "_video_frame", lambda _a, _d: frame)
+    monkeypatch.setattr(entities, "_ensure_image", lambda _s, _d, _i: frame)
+
+    manifest = {
+        "assets": [
+            {"id": "img-has", "type": "image", "src": "u", "entities": ["clock", "moon"]},
+            {"id": "vid-gap", "type": "video", "src": "v"},
+            {"id": "proc-fog", "type": "procedural"},  # never eligible (not image|video / no src)
+        ]
+    }
+    out, n = entities.annotate(manifest, tmp_path, only_missing=True)
+    assert n == 1
+    by_id = {a["id"]: a for a in out["assets"]}
+    assert by_id["img-has"]["entities"] == ["clock", "moon"]  # untouched
+    assert by_id["vid-gap"]["entities"] == ["dog", "tree"]     # newly tagged
+    assert "entities" not in by_id["proc-fog"]                 # procedural skipped
