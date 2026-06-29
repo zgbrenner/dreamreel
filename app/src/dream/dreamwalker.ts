@@ -79,8 +79,8 @@ const AESTHETIC_NEUTRAL = 5.5; // LAION scores cluster around here; the pivot fo
 // Recurrence: lean the walk toward candidates that echo the dream's current entity memory, so
 // motifs return. Bounded (the echo is clamped) so recurrence colours the dream without collapsing
 // its variety. Added to the pre-softmax exponent; 0 when no memory/entities are present.
-const RECUR_COUPLING = 0.5;
-const RECUR_ECHO_CAP = 3.0; // clamp the echo so a heavily-remembered candidate can't dominate
+export const RECUR_COUPLING = 0.5;
+export const RECUR_ECHO_CAP = 3.0; // clamp the echo so a heavily-remembered candidate can't dominate
 
 /** Signed pre-softmax aesthetic boost for an asset (0 when it carries no score). Exported for tests. */
 export function aestheticBoost(aesthetic: number | undefined): number {
