@@ -158,8 +158,17 @@ def _make_ram(cache_dir: Path, checkpoint: str | None = None):
 
 
 def annotate(
-    manifest: dict[str, Any], work_dir: Path, limit: int | None = None, checkpoint: str | None = None
+    manifest: dict[str, Any],
+    work_dir: Path,
+    limit: int | None = None,
+    checkpoint: str | None = None,
+    only_missing: bool = False,
 ) -> tuple[dict, int]:
+    """Bake `entities[]` onto visual assets. Returns (manifest, n_tagged).
+
+    `only_missing` restricts work to assets that don't already carry `entities[]` — a coverage
+    backfill that recovers the gaps without re-tagging (and changing) the assets already indexed.
+    """
     out = json.loads(json.dumps(manifest))
     work_dir.mkdir(parents=True, exist_ok=True)
     ram = _make_ram(work_dir / "ram_cache", checkpoint)
@@ -170,6 +179,8 @@ def annotate(
     from PIL import Image
 
     visuals = [a for a in out.get("assets", []) if a.get("type") in ("image", "video") and a.get("src")]
+    if only_missing:
+        visuals = [a for a in visuals if not a.get("entities")]
     if limit is not None:
         visuals = visuals[:limit]
 
@@ -220,11 +231,14 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=Path("out"))
     ap.add_argument("--limit", type=int, default=None, help="tag only the first N visual assets")
     ap.add_argument("--checkpoint", type=str, default=None, help="local RAM++ .pth (skip HF download)")
+    ap.add_argument("--only-missing", action="store_true", help="only tag assets lacking entities[] (coverage backfill; leaves existing entities untouched)")
     ap.add_argument("--upload", action="store_true", help="upload manifest-only to R2 (needs R2_* env)")
     args = ap.parse_args()
 
     manifest = load_manifest(args.manifest, args.url)
-    annotated, n = annotate(manifest, args.out / "entities_work", args.limit, args.checkpoint)
+    annotated, n = annotate(
+        manifest, args.out / "entities_work", args.limit, args.checkpoint, only_missing=args.only_missing,
+    )
     total = sum(1 for a in annotated.get("assets", []) if a.get("type") in ("image", "video"))
     print(f"[entities] tagged {n}/{total} visual assets")
 

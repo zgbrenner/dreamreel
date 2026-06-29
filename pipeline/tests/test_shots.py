@@ -27,3 +27,22 @@ def test_caps_and_spreads_to_max_n():
 
 def test_empty_when_nothing_usable():
     assert usable_shots([(0.0, 0.5), (1.0, 1.2)], min_dur=1.5) == []
+
+
+def test_only_missing_leaves_existing_shots_untouched(monkeypatch, tmp_path):
+    # Stub out ffmpeg + PySceneDetect so we exercise just the annotate() selection + threading.
+    from embed import shots
+
+    monkeypatch.setattr(shots, "_extract_segment", lambda *a, **k: True)
+    monkeypatch.setattr(shots, "detect_shots", lambda _p: [(0.0, 5.0)])
+    manifest = {
+        "assets": [
+            {"id": "vid-has", "type": "video", "src": "u", "shots": [{"start": 1.0, "end": 2.0}]},
+            {"id": "vid-gap", "type": "video", "src": "v"},
+        ]
+    }
+    out, n = shots.annotate(manifest, tmp_path, lead=12.0, max_shots=10, only_missing=True)
+    assert n == 1  # only the gap was annotated
+    by_id = {a["id"]: a for a in out["assets"]}
+    assert by_id["vid-has"]["shots"] == [{"start": 1.0, "end": 2.0}]  # existing shots untouched
+    assert by_id["vid-gap"]["shots"] == [{"start": 12.0, "end": 17.0}]  # detected, offset by lead=12
