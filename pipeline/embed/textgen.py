@@ -160,12 +160,31 @@ def _emb_list(v: np.ndarray) -> list[float]:
     return [round(float(x), 6) for x in v.tolist()]
 
 
-def build_text_assets(embedder, axes: dict[str, np.ndarray], lines: list[str]) -> list[dict]:
-    """Embed + mood-project each line into a manifest text asset."""
-    from embed.clip_backend import l2_normalize
+def _mood_or_neutral(v: np.ndarray, axes: dict[str, np.ndarray], dim_ok: bool) -> dict[str, float]:
+    """Project mood onto the axes, or a neutral 0.5-per-axis placeholder when the embedder dim
+    doesn't match the corpus axes dim — see build_text_assets."""
     from embed.mood_axes import project_mood
 
+    return project_mood(v, axes) if dim_ok else {a: 0.5 for a in axes}
+
+
+def build_text_assets(embedder, axes: dict[str, np.ndarray], lines: list[str]) -> list[dict]:
+    """Embed + mood-project each line into a manifest text asset.
+
+    If the embedder's dim doesn't match the corpus mood-axis dim (e.g. CLIP-512 against a SigLIP
+    768/1152-d manifest), embeddings + moods are PROVISIONAL — a SigLIP/so400m re-embed must follow
+    to set the real values. We warn and write placeholders rather than crash.
+    """
+    from embed.clip_backend import l2_normalize
+
     vecs = embedder.embed_texts(lines)
+    axis_dim = len(next(iter(axes.values()))) if axes else 0
+    dim_ok = int(vecs.shape[1]) == axis_dim
+    if not dim_ok:
+        print(
+            f"[textgen] WARN embedder dim {vecs.shape[1]} != corpus mood-axis dim {axis_dim}: writing "
+            f"provisional embeddings + neutral moods — a SigLIP re-embed must follow before shipping"
+        )
     assets: list[dict] = []
     for i, (line, v) in enumerate(zip(lines, vecs)):
         v = l2_normalize(v.reshape(1, -1))[0]
@@ -174,7 +193,7 @@ def build_text_assets(embedder, axes: dict[str, np.ndarray], lines: list[str]) -
             "type": "titlecard",  # text-pool entries carry `text`; the walker treats tags, not type
             "text": line,
             "embedding": _emb_list(v),
-            "mood": project_mood(v, axes),
+            "mood": _mood_or_neutral(v, axes, dim_ok),
             "tags": ["drift", "whisper", "generated"],
             "dwellBase": 4,
             "source": "DREAMREEL / generative grammar",
