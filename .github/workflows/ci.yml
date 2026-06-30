@@ -56,6 +56,28 @@ jobs:
           . .venv/bin/activate
           python scripts/check_licenses.py
 
+  trackfx:
+    name: trackfx — pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: trackfx
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Create isolated venv with only trackfx deps (CPU-only torch)
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt pytest --extra-index-url https://download.pytorch.org/whl/cpu
+      - name: Unit + stub-detector pipeline tests
+        run: |
+          . .venv/bin/activate
+          python -m pytest -q
+
   manifest-contract:
     name: pipeline output validates against app loader
     runs-on: ubuntu-latest

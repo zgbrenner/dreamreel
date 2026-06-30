@@ -1,0 +1,27 @@
+[project]
+name = "trackfx"
+version = "0.1.0"
+description = "DreamReel: tracking-driven surreal video effects (detect -> segment -> track -> effect -> encode)."
+requires-python = ">=3.10"
+dependencies = [
+  "supervision>=0.27.0",
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+trackfx = "trackfx.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["trackfx", "trackfx.effects"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
