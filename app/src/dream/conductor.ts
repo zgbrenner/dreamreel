@@ -39,6 +39,7 @@ import { SpriteField, makeSpritePlacement } from '../render/SpriteField';
 import { loadImageTexture } from '../render/textureLoader';
 import type { EntitySprite } from '../manifest/types';
 import { visualPool, flashFramePool } from './visualPool';
+import { deriveMoodIdentity } from './moodBias';
 import { parseGrade, type FilmParams } from '../render/filmParams';
 import { attributionFor } from '../manifest/attribution';
 import type { AudioEngine } from '../audio/engine';
@@ -339,7 +340,9 @@ export class DreamConductor implements DreamRuntime {
     this.flashPool = flashFramePool(this.manifest.assets, this.archiveOn);
     const walker = createDreamwalker(
       { visual: pool, texts: this.manifest.texts, moodAxes: this.manifest.moodAxes, embeddingDim: this.manifest.embeddingDim },
-      { seed: this.seed, surreality: this.surreality },
+      // The seed's emotional identity (gentle-leaning, fear a minority) biases the walk's start +
+      // picks so each dream has a coherent mood instead of wandering uniformly. Deterministic per seed.
+      { seed: this.seed, surreality: this.surreality, moodIdentity: deriveMoodIdentity(this.seed) },
     );
     // A new walk = a fresh memory; the walk leans toward candidates echoing what it remembers.
     this.memory.reset();

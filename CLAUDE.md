@@ -40,7 +40,10 @@ Three concrete consequences (target-state where noted; sequence the code to reac
   toward public-domain film (Archive.org), demoting Openverse stills — the bigger lift, and mind
   video's R2 storage/bandwidth/decode cost; and the **runtime** (`dream/visualPool.ts`) must weight
   `video` up and route `image` to the flash-frame/ghost path rather than the held primary slot.
-  *(Target-state; today `image` and `video` are treated equally as primary media.)*
+  *(Runtime DONE: `visualPool` is video-first — when archive is on and the corpus has video, the
+  held-primary pool is `video` + title cards and `image` is demoted to the rare flash-frame /
+  ghost-layer path via `flashFramePool` + `conductor.maybeFlashFrame`; a video-less corpus keeps
+  images primary as a graceful fallback. The CORPUS shift toward film is the remaining lift.)*
 
 - **Gentle by default, nightmares as an arc.** Like real dreams, the *distribution* of dream
   emotional identities should lean toward the warm/strange end — **tender, nostalgic, love, joy,
@@ -50,8 +53,10 @@ Three concrete consequences (target-state where noted; sequence the code to reac
   `surreality`+`tempo`, and mood emerges roughly uniformly from wherever the walk wanders. The fix is
   a **seed-level emotional-identity / mood-bias distribution** layered onto the seed (most seeds drawn
   toward the gentle region, a minority toward fear; an optional intra-dream drift toward an axis),
-  expressed through the existing 12-axis taxonomy and the seeded-spine model. *(Target-state — a new
-  concept alongside `seedParams`.)* Scary still happens, deliberately; it is just no longer the
+  expressed through the existing 12-axis taxonomy and the seeded-spine model. *(DONE — `dream/moodBias.ts`
+  `deriveMoodIdentity` draws a per-seed identity from a ≈68% gentle / 20% neutral / 12% nightmare
+  distribution, each with an optional mid-dream arc; the Dreamwalker leans its START point and image/ghost
+  picks toward it, deterministic per seed.)* Scary still happens, deliberately; it is just no longer the
   ambient default.
 
 - **Artful, not generic.** The "unique and artistic" quality comes from the **corpus** (favor
