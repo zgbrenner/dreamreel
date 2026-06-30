@@ -38,7 +38,7 @@ import type { Shot } from '../render/VideoPool';
 import { SpriteField, makeSpritePlacement } from '../render/SpriteField';
 import { loadImageTexture } from '../render/textureLoader';
 import type { EntitySprite } from '../manifest/types';
-import { visualPool } from './visualPool';
+import { visualPool, flashFramePool } from './visualPool';
 import { parseGrade, type FilmParams } from '../render/filmParams';
 import { attributionFor } from '../manifest/attribution';
 import type { AudioEngine } from '../audio/engine';
@@ -60,6 +60,12 @@ const IMAGE_FALLBACK_KINDS: ProceduralKind[] = ['fog', 'static', 'horizon', 'orb
 const SPRITE_SUMMON_PROB = 0.1; // per primary beat, once an eligible motif exists
 const SPRITE_MIN_WEIGHT = 1.3; // memory weight an entity must reach to be "strongly remembered"
 const SPRITE_COOLDOWN_S = 7; // minimum seconds between summons
+
+// Rare flash-frame / ghost-layer texture for DEMOTED stills (video-first direction): an `image`
+// asset never holds a primary beat — it surfaces only here, as a quick subliminal double-exposure.
+// Bounded by probability + cooldown so it stays a dreamlike echo, not a slideshow.
+const FLASH_FRAME_PROB = 0.12; // per ghost beat, once demoted stills exist
+const FLASH_FRAME_COOLDOWN_S = 6; // minimum seconds between flash-frames
 
 export class DreamConductor implements DreamRuntime {
   private readonly manifest: Manifest;
@@ -83,6 +89,15 @@ export class DreamConductor implements DreamRuntime {
   private readonly spriteTex = new Map<string, import('three').Texture>();
   private readonly spriteLoading = new Set<string>();
   private spriteCooldownUntil = 0;
+
+  // Demoted stills routed to the rare flash-frame / ghost-layer path (video-first). The pool is the
+  // `image` assets visualPool excluded from primary; a dedicated seeded stream + cooldown keep the
+  // flashes reproducible per seed and rare. Loaded image textures are cached and disposed on dispose.
+  private flashRng!: Rng;
+  private flashPool: Asset[] = [];
+  private readonly flashTex = new Map<string, THREE.Texture>();
+  private readonly flashLoading = new Set<string>();
+  private flashCooldownUntil = 0;
   private seed: string;
   private surreality: number;
   private tempoMul: number;
@@ -161,6 +176,7 @@ export class DreamConductor implements DreamRuntime {
     this.presRng = makeRng(`${this.seed}:pres`);
     this.shotRng = makeRng(`${this.seed}:shots`);
     this.spriteRng = makeRng(`${this.seed}:sprites`);
+    this.flashRng = makeRng(`${this.seed}:flash`);
     // Index the entity cutout pool by entity for memory-triggered summoning, and overlay the field.
     for (const sp of manifest.entitySprites ?? []) {
       const list = this.spritePool.get(sp.entity);
@@ -271,6 +287,8 @@ export class DreamConductor implements DreamRuntime {
     this.presRng = makeRng(`${seed}:pres`);
     this.shotRng = makeRng(`${seed}:shots`);
     this.spriteRng = makeRng(`${seed}:sprites`);
+    this.flashRng = makeRng(`${seed}:flash`);
+    this.flashCooldownUntil = 0;
     this.spriteField.dispose();
     this.spriteCooldownUntil = 0;
     this.walker = this.buildWalker();
@@ -301,6 +319,8 @@ export class DreamConductor implements DreamRuntime {
     this.spriteField.dispose();
     for (const t of this.spriteTex.values()) t.dispose();
     this.spriteTex.clear();
+    for (const t of this.flashTex.values()) t.dispose();
+    this.flashTex.clear();
     for (const p of this.procCache.values()) p.dispose();
     this.procCache.clear();
     this.textCardTex?.dispose();
@@ -315,6 +335,8 @@ export class DreamConductor implements DreamRuntime {
 
   private buildWalker(): Dreamwalker {
     const pool = visualPool(this.manifest.assets, this.archiveOn);
+    // Stills demoted out of the primary pool feed the rare flash-frame / ghost path instead.
+    this.flashPool = flashFramePool(this.manifest.assets, this.archiveOn);
     const walker = createDreamwalker(
       { visual: pool, texts: this.manifest.texts, moodAxes: this.manifest.moodAxes, embeddingDim: this.manifest.embeddingDim },
       { seed: this.seed, surreality: this.surreality },
@@ -750,13 +772,50 @@ export class DreamConductor implements DreamRuntime {
     const mood = this.walker.currentMood();
     const intensity = Math.max(mood.uncanny, mood.ominous);
     const beat = this.walker.next('ghost', this.tempoMul);
-    if (intensity > 0.58) {
-      const tex = this.textureForAsset(beat.asset);
-      if (tex) this.compositor.setGhost(tex, 0.18 + intensity * 0.32);
-    } else {
-      this.compositor.setGhost(null, 0);
+    // A demoted still may claim the ghost slot this beat as a rare flash-frame; otherwise the slot
+    // keeps its intensity-gated procedural echo (or clears).
+    if (!this.maybeFlashFrame(intensity)) {
+      if (intensity > 0.58) {
+        const tex = this.textureForAsset(beat.asset);
+        if (tex) this.compositor.setGhost(tex, 0.18 + intensity * 0.32);
+      } else {
+        this.compositor.setGhost(null, 0);
+      }
     }
     this.nextGhostAt = this.clock + beat.dwellMs / 1000;
+  }
+
+  /** Try to surface a DEMOTED still as a brief ghost-layer flash-frame (the only place `image`
+   *  assets appear under the video-first policy). Returns true if it took the ghost slot this beat.
+   *  Deterministic (seeded `flashRng`), bounded by `FLASH_FRAME_COOLDOWN_S`, and off under reduced
+   *  motion. The seeded decision (roll + cooldown) is independent of async load timing, so the dream
+   *  script stays reproducible per seed even though a still may only become visible a beat later. */
+  private maybeFlashFrame(intensity: number): boolean {
+    if (this.flashPool.length === 0 || this.postfx.params.reduceMotion) return false;
+    if (this.clock < this.flashCooldownUntil) return false;
+    if (this.flashRng.next() > FLASH_FRAME_PROB) return false;
+
+    const asset = this.flashPool[this.flashRng.int(this.flashPool.length)];
+    if (!asset.src) return false;
+    this.flashCooldownUntil = this.clock + FLASH_FRAME_COOLDOWN_S;
+    const opacity = 0.14 + intensity * 0.22;
+
+    const cached = this.flashTex.get(asset.id);
+    if (cached) {
+      this.compositor.setGhost(cached, opacity);
+      this.postfx.triggerSplice(0.4); // subliminal flash read (photosensitivity-guarded in postfx)
+      return true;
+    }
+    // Not loaded yet: kick off the (cached) load so a later flash can show it. We still consumed the
+    // seeded roll + cooldown, so the cadence is reproducible; leave the ghost slot unchanged for now.
+    if (!this.flashLoading.has(asset.id)) {
+      this.flashLoading.add(asset.id);
+      void loadImageTexture(asset.src).then((res) => {
+        this.flashLoading.delete(asset.id);
+        if (res.ok) this.flashTex.set(asset.id, res.texture);
+      });
+    }
+    return true;
   }
 
   private textBeat(): void {
