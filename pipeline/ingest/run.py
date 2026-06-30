@@ -13,15 +13,21 @@ from . import archive_org, museums, openverse, wellcome
 from .normalize import Candidate, Rejection, write_candidates, write_rejections
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="DREAMREEL ingest")
     ap.add_argument("--out", type=Path, default=Path("out"))
     ap.add_argument("--no-openverse", action="store_true")
     ap.add_argument("--no-archive", action="store_true")
     ap.add_argument("--no-wellcome", action="store_true")
     ap.add_argument("--no-museums", action="store_true", help="skip Met/Smithsonian CC0")
-    ap.add_argument("--per-theme", type=int, default=60)
-    args = ap.parse_args()
+    # Video-first direction (CLAUDE.md): images are now flash-frame/ghost-only, never primary, so
+    # the default Openverse image volume is cut (was 60) in favour of archive_org's film volume.
+    ap.add_argument("--per-theme", type=int, default=20)
+    return ap
+
+
+def main() -> None:
+    args = build_parser().parse_args()
 
     kept: list[Candidate] = []
     rejected: list[Rejection] = []

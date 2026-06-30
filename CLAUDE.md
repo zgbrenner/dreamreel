@@ -43,7 +43,15 @@ Three concrete consequences (target-state where noted; sequence the code to reac
   *(Runtime DONE: `visualPool` is video-first — when archive is on and the corpus has video, the
   held-primary pool is `video` + title cards and `image` is demoted to the rare flash-frame /
   ghost-layer path via `flashFramePool` + `conductor.maybeFlashFrame`; a video-less corpus keeps
-  images primary as a graceful fallback. The CORPUS shift toward film is the remaining lift.)*
+  images primary as a graceful fallback. CORPUS DONE: `pipeline/ingest/archive_org.py`'s
+  `COLLECTIONS` grew from 3 generic-archival anchors to 8 — adding `manrayshortfilms` (avant-garde
+  shorts), `silentfilmhouse_videos` (1878-1922 silent/proto-experimental film), and three
+  public-domain animation collections — with `rows_per_collection` raised 25→60 and a size-aware
+  `_pick_video_file` guarding R2 cost (prefers the largest derivative under a ~500MB cap, never the
+  unbounded master); `pipeline/ingest/openverse.py`'s `per_theme` default cut 60→20 (images are
+  flash-frame-only now, so the corpus needs far fewer of them) with `ingest/run.py`'s `--per-theme`
+  CLI default matching. Wellcome/museum image volume intentionally left untouched — smaller
+  secondary sources, re-measure after a real ingest run before pulling that lever too.)*
 
 - **Gentle by default, nightmares as an arc.** Like real dreams, the *distribution* of dream
   emotional identities should lean toward the warm/strange end — **tender, nostalgic, love, joy,
