@@ -47,7 +47,11 @@ def _token() -> str | None:
 def ingest(
     themes: list[str] | None = None,
     media: str = "images",  # "images" or "audio"
-    per_theme: int = 60,
+    # Video-first direction (CLAUDE.md): a still photo is now routed to the rare flash-frame /
+    # ghost path, never a held primary beat — so the corpus needs FAR fewer distinct images than
+    # when images were equal-weight primary media. Lowered from 60 alongside archive_org's raised
+    # video volume (see ingest/archive_org.py COLLECTIONS/rows_per_collection).
+    per_theme: int = 20,
     page_size: int = 30,
 ) -> Iterator[tuple[Candidate | None, Rejection | None]]:
     themes = themes or THEMES

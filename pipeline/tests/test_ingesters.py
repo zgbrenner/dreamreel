@@ -13,7 +13,9 @@ fields. Live one-response-per-source shape verification still needs network acce
 
 from __future__ import annotations
 
-from ingest import archive_org, openverse
+import inspect
+
+from ingest import archive_org, openverse, run as ingest_run
 
 
 class FakeResp:
@@ -137,3 +139,67 @@ def test_archive_org_resolves_video_and_keeps_pd(monkeypatch):
     assert c.attribution_url is None
     assert c.foreign_landing_url == "https://archive.org/details/film1"
     assert "prelinger" in c.tags and "film" in c.tags
+
+
+# --- video-first corpus shift (CLAUDE.md "Content & aesthetic direction") ---
+
+
+def test_archive_org_collections_includes_art_and_animation_sources():
+    # "Artful, not generic": these were added to favour experimental/animated/art film over
+    # generic archival clips. A future refactor shouldn't silently drop them.
+    for ident in (
+        "manrayshortfilms",
+        "silentfilmhouse_videos",
+        "disneycartoons-publicdomain",
+        "wbmisc-publicdomain",
+        "pdcartooncollection",
+    ):
+        assert ident in archive_org.COLLECTIONS
+    assert "prelinger" in archive_org.COLLECTIONS  # original general-archival anchor kept
+
+
+def test_archive_org_default_rows_per_collection_raised():
+    sig = inspect.signature(archive_org.ingest)
+    assert sig.parameters["rows_per_collection"].default == 60
+
+
+def test_openverse_default_per_theme_lowered():
+    # Images are now flash-frame/ghost-only (never primary), so the corpus needs far fewer of
+    # them than when they were equal-weight primary media.
+    sig = inspect.signature(openverse.ingest)
+    assert sig.parameters["per_theme"].default == 20
+
+
+def test_run_cli_per_theme_default_lowered():
+    assert ingest_run.build_parser().get_default("per_theme") == 20
+
+
+# --- _pick_video_file: size-aware derivative selection ---
+
+
+def test_pick_video_file_prefers_largest_under_cap():
+    files = [
+        {"name": "film_512kb.mp4", "size": "50000000"},
+        {"name": "film.mp4", "size": "300000000"},  # largest under the cap
+        {"name": "film_master.mp4", "size": "900000000"},  # over the cap
+        {"name": "poster.jpg", "size": "20000"},  # not a video extension
+    ]
+    assert archive_org._pick_video_file(files) == "film.mp4"
+
+
+def test_pick_video_file_falls_back_to_smallest_when_all_over_cap():
+    files = [
+        {"name": "film_a.mp4", "size": "900000000"},
+        {"name": "film_b.mp4", "size": "1200000000"},
+    ]
+    assert archive_org._pick_video_file(files) == "film_a.mp4"
+
+
+def test_pick_video_file_falls_back_to_first_match_when_no_size():
+    # Matches the pre-change behaviour exactly when metadata carries no usable `size` field.
+    files = [{"name": "thumb.jpg"}, {"name": "film1.mp4"}, {"name": "film1_512kb.mp4"}]
+    assert archive_org._pick_video_file(files) == "film1.mp4"
+
+
+def test_pick_video_file_returns_none_when_no_video_files():
+    assert archive_org._pick_video_file([{"name": "poster.jpg"}]) is None
