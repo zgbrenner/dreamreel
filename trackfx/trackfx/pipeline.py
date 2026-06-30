@@ -42,6 +42,13 @@ def run(config: RunConfig) -> None:
         width=target_w, height=target_h, fps=video_info.fps, total_frames=video_info.total_frames
     )
 
+    # NOTE: `sv.ByteTrack` was soft-deprecated in supervision 0.28.0 in favor of
+    # `ByteTrackTracker` from the separate `trackers` package (renamed method:
+    # `update()` instead of `update_with_detections()`), with removal targeted for
+    # supervision 0.30.0. It's still fully functional today (just emits a
+    # FutureWarning), and pulling in a whole second tracking package wasn't
+    # justified for this initial build -- requirements.txt pins `supervision<0.30.0`
+    # accordingly. Migrate this call (and the pin) when adopting `trackers`.
     tracker = sv.ByteTrack(
         frame_rate=video_info.fps,
         track_activation_threshold=config.track_activation_threshold,

@@ -67,10 +67,10 @@ def test_ghost_trail_strengthens_with_track_age():
     frame = _frame()
     state = {}
     fresh = effects.get("ghost_trail")(
-        frame, _detections(), _ctx(track_age_frames={1: 1}, state=state)
+        frame, _detections(), _ctx(track_age_frames={1: 0}, state=state)
     )
-    # A brand new track (age ~0.1s) should leave ~no trail: output ~= input.
-    assert np.abs(fresh.astype(int) - frame.astype(int)).max() <= 2
+    # Age 0 -> strength 0 -> the effect skips compositing entirely: exact pass-through.
+    assert np.array_equal(fresh, frame)
 
     state2 = {}
     aged = effects.get("ghost_trail")(

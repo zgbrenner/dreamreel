@@ -82,6 +82,15 @@ detections, it logs a one-time warning and synthesizes rectangular masks from th
 boxes so mask-driven effects still produce a visible (if boxier) result instead of
 silently doing nothing. `--detector fasterrcnn` triggers this path for real.
 
+## A note on `ByteTrack`'s deprecation
+
+supervision 0.28.0 soft-deprecated `sv.ByteTrack` in favor of `ByteTrackTracker` from
+a new, separate `trackers` package (with `update_with_detections()` renamed to
+`update()`), targeting removal in 0.30.0. It's still fully functional as of 0.29.x --
+just emits a `FutureWarning` -- and adopting a whole second tracking package wasn't
+justified for this initial build, so `requirements.txt`/`pyproject.toml` pin
+`supervision<0.30.0`. See the note in `pipeline.py` when it's time to migrate.
+
 ## A note on `DetectionsSmoother`
 
 supervision's `DetectionsSmoother` docstring is explicit: *"This class is not
