@@ -34,7 +34,9 @@ USER_AGENT = "DREAMREEL-corpus/0.1 (+https://dreamreel.example; respectful crawl
 # `licenseurl` server-side, so re-confirm with `curl https://archive.org/metadata/<id>` before a
 # production ingest run. A wrong/empty identifier degrades gracefully: `_search_identifiers`
 # returns [] on a no-result query, and every item is independently re-validated by the license
-# gate regardless of collection, so this can never corrupt the corpus, only under-deliver volume.
+# gate regardless of collection (see _item_license: only Prelinger gets an implicit PD fallback;
+# everyone else with missing license metadata is rejected as unknown, not assumed PD) — so this
+# can never corrupt the corpus, only under-deliver volume.
 COLLECTIONS = [
     "prelinger",
     "feature_films",
@@ -73,39 +75,56 @@ def _pick_video_file(files: list[dict]) -> str | None:
     """Choose which video file to use for an Archive.org item. Items often carry several video
     derivatives (a master plus auto-generated web copies); prefer the largest one within
     `_MAX_FILE_BYTES` (good quality, bounded cost) using the `size` field Archive.org's metadata
-    API commonly reports per file (bytes, as a string). Falls back to the FIRST matching file —
-    the prior behaviour — when no candidate carries a usable `size`, so metadata without size info
-    is unaffected."""
+    API commonly reports per file (bytes, as a string).
+
+    Falls back to the FIRST matching file — the prior, size-unaware behaviour — whenever no
+    candidate yields a cap-respecting choice: either nothing carries a usable `size`, OR sizes are
+    only PARTIALLY known (an unsized candidate is never silently discarded in favour of a
+    sized-but-oversized one just because it happens to be the only one with a `size` field — an
+    unknown size is not evidence the file is large). Only when EVERY candidate carries a usable
+    size and all of them exceed the cap do we pick the smallest of the (all bad) options, since
+    that is still a fully size-informed, cost-minimizing choice."""
     candidates = [f for f in files if str(f.get("name", "")).lower().endswith(_VIDEO_EXT)]
     if not candidates:
         return None
+
     sized: list[tuple[int, str]] = []
+    all_sized = True
     for f in candidates:
         raw_size = f.get("size")
-        if raw_size is None:
-            continue
-        try:
-            size = int(raw_size)
-        except (TypeError, ValueError):
+        size: int | None = None
+        if raw_size is not None:
+            try:
+                size = int(raw_size)
+            except (TypeError, ValueError):
+                size = None
+        if size is None:
+            all_sized = False
             continue
         sized.append((size, f.get("name", "")))
-    if not sized:
-        return candidates[0].get("name", "")
+
     under_cap = [s for s in sized if s[0] <= _MAX_FILE_BYTES]
-    pool = under_cap if under_cap else sized
-    pool.sort(key=lambda s: s[0])
-    # Largest under the cap (best quality within budget); if every candidate exceeds the cap,
-    # take the smallest available rather than the biggest, or skipping the item outright.
-    return pool[-1][1] if under_cap else pool[0][1]
+    if under_cap:
+        under_cap.sort(key=lambda s: s[0])
+        return under_cap[-1][1]  # largest under the cap: best quality within budget
+    if sized and all_sized:
+        sized.sort(key=lambda s: s[0])
+        return sized[0][1]  # every candidate is oversized; take the smallest rather than the biggest
+    return candidates[0].get("name", "")  # no fully size-informed choice -> the old first-match pick
 
 
 def _item_license(meta: dict) -> str:
     md = meta.get("metadata", {})
-    # Archive.org carries license in 'licenseurl' or 'rights'; Prelinger items are public domain.
+    # Archive.org carries license in 'licenseurl' or 'rights'. Only PRELINGER's own collection
+    # terms are an independently-known PD guarantee, so a Prelinger item with neither field still
+    # counts as public domain. Every other collection (7 now, not just the 2 original
+    # general-archival anchors) gets NO such implicit guarantee: missing license metadata returns
+    # "" so the shared gate (ingest/licenses.py evaluate()) rejects it as unknown, exactly like any
+    # other source with no usable license info — never silently fabricated as PD.
     lic = md.get("licenseurl") or md.get("rights") or ""
     if not lic and "prelinger" in str(md.get("collection", "")).lower():
         return "publicdomain"
-    return lic or "publicdomain"
+    return lic
 
 
 def ingest(collections: list[str] | None = None, rows_per_collection: int = 60) -> Iterator[

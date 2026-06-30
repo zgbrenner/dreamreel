@@ -203,3 +203,113 @@ def test_pick_video_file_falls_back_to_first_match_when_no_size():
 
 def test_pick_video_file_returns_none_when_no_video_files():
     assert archive_org._pick_video_file([{"name": "poster.jpg"}]) is None
+
+
+def test_pick_video_file_never_discards_an_unsized_candidate_for_an_oversized_sized_one():
+    # Regression: a partially-sized file list must NOT silently drop the unsized candidate (which
+    # might be a perfectly good small derivative) just because some OTHER candidate happens to
+    # report a size, even a wildly oversized one. Falls back to first-match, exactly as when no
+    # candidate has a size at all.
+    files = [
+        {"name": "real_first_match.mp4"},  # no size field at all
+        {"name": "other.mp4", "size": "999999999999"},  # huge, over the cap, but sized
+    ]
+    assert archive_org._pick_video_file(files) == "real_first_match.mp4"
+
+
+def test_pick_video_file_ignores_malformed_size_strings():
+    files = [
+        {"name": "junk.mp4", "size": "unknown"},  # not a parseable size
+        {"name": "good.mp4", "size": "100000000"},
+    ]
+    assert archive_org._pick_video_file(files) == "good.mp4"
+
+
+def test_pick_video_file_never_size_compares_a_non_video_file():
+    # A huge `size` on a non-video file must never enter the size logic — the extension filter
+    # runs first. The video candidate here has no size, so this also proves filter-before-size
+    # ordering, not just extension exclusion.
+    files = [{"name": "poster.jpg", "size": "999999999999"}, {"name": "film1.mp4"}]
+    assert archive_org._pick_video_file(files) == "film1.mp4"
+
+
+# --- _item_license: only Prelinger gets an implicit PD fallback ---
+
+
+def test_item_license_prelinger_with_no_metadata_is_still_public_domain():
+    meta = {"metadata": {"collection": "prelinger"}}  # no licenseurl/rights
+    assert archive_org._item_license(meta) == "publicdomain"
+
+
+def test_item_license_non_prelinger_with_no_metadata_is_not_fabricated_as_public_domain():
+    # Regression: missing license metadata from any OTHER collection (now 7, not just the 2
+    # original general-archival anchors) must fall through to the shared license gate as unknown,
+    # never be silently assumed PD.
+    for collection in ("feature_films", "manrayshortfilms", "wbmisc-publicdomain"):
+        meta = {"metadata": {"collection": collection}}  # no licenseurl/rights
+        assert archive_org._item_license(meta) == ""
+
+
+def test_archive_org_rejects_non_prelinger_item_with_no_license_metadata(monkeypatch):
+    meta = {
+        "metadata": {
+            "identifier": "mystery1",
+            "title": "Untitled",
+            "collection": "wbmisc-publicdomain",
+            # no licenseurl, no rights
+        },
+        "files": [{"name": "mystery1.mp4", "format": "h.264"}],
+    }
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if url == archive_org.ADV_SEARCH:
+            return FakeResp({"response": {"docs": [{"identifier": "mystery1"}]}})
+        if url.startswith(archive_org.METADATA):
+            return FakeResp(meta)
+        return FakeResp({}, 404)
+
+    monkeypatch.setattr(archive_org.requests, "get", fake_get)
+    monkeypatch.setattr(archive_org.time, "sleep", lambda *_a, **_k: None)
+
+    kept, rejected = [], []
+    for cand, rej in archive_org.ingest(collections=["wbmisc-publicdomain"], rows_per_collection=5):
+        (kept if cand else rejected).append(cand or rej)
+
+    assert not kept and len(rejected) == 1
+    assert "unknown" in rejected[0].reason
+
+
+# --- ingest() end-to-end: size-aware pick actually wired into the real flow ---
+
+
+def test_archive_org_ingest_uses_size_aware_pick_end_to_end(monkeypatch):
+    meta = {
+        "metadata": {
+            "identifier": "film2",
+            "title": "A Prelinger Film",
+            "licenseurl": "http://creativecommons.org/publicdomain/mark/1.0/",
+            "collection": "prelinger",
+        },
+        "files": [
+            {"name": "film2_512kb.mp4", "size": "50000000"},
+            {"name": "film2.mp4", "size": "300000000"},  # largest under the cap -> expected pick
+            {"name": "film2_master.mp4", "size": "900000000"},  # over the cap
+        ],
+    }
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if url == archive_org.ADV_SEARCH:
+            return FakeResp({"response": {"docs": [{"identifier": "film2"}]}})
+        if url.startswith(archive_org.METADATA):
+            return FakeResp(meta)
+        return FakeResp({}, 404)
+
+    monkeypatch.setattr(archive_org.requests, "get", fake_get)
+    monkeypatch.setattr(archive_org.time, "sleep", lambda *_a, **_k: None)
+
+    kept, rejected = [], []
+    for cand, rej in archive_org.ingest(collections=["prelinger"], rows_per_collection=5):
+        (kept if cand else rejected).append(cand or rej)
+
+    assert len(kept) == 1 and not rejected
+    assert kept[0].source_url == "https://archive.org/download/film2/film2.mp4"
