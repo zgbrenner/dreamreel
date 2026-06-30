@@ -3,14 +3,67 @@
 ## Mission
 
 DREAMREEL is a surreal "dream sequence generator": press play and watch a seamless,
-ever-changing mashup of public-domain media (vintage film, photos, art, maps, title
-cards) with drifting stream-of-consciousness text and a generative ambient audio bed,
-all under an old-cinema visual treatment (grain, gate-weave, flicker, dust, vignette).
+ever-changing flow of public-domain **moving image** (vintage film first; photos, art,
+maps, and title cards appear only as rare flash-frames and ghost-layer texture) with
+drifting stream-of-consciousness text and a generative ambient audio bed. The governing
+feel is **bizarre but familiar** — mostly recognizable, near-realistic dream scenes with
+something quietly *off* — not a constant filter wash. The old-cinema treatment (grain,
+gate-weave, flicker, dust, vignette) is one available mode, not the permanent grade. See
+**Content & aesthetic direction** below, which governs.
 
 The heavy lifting is offline. A pre-built, tagged asset pool plus embeddings ships as a
 static manifest. At runtime the app generates sequences procedurally by walking the
 embedding space. There are zero LLM/network inference calls at runtime. The only AI
 spend is the one-time offline tagging pass.
+
+## Content & aesthetic direction (2026 revision — governs everything below)
+
+DREAMREEL renders **dreams, not a film-grain montage**. The governing feel is **bizarre but
+familiar**: most of the time the screen shows a *recognizable, largely realistic scene* with
+**something subtly off** — an object that doesn't belong, a familiar place reconfigured, motion or
+physics slightly wrong, a face that won't resolve — the dream-logic "wrongness" coming from
+**juxtaposition and recombination**, not from a heavy filter wash. The surreal, densely-layered,
+kaleidoscopic look is the **occasional escalation** (peaks of wake intensity, and nightmare arcs),
+which then **relaxes back** to the coherent baseline. This **inverts** the older "chaotic, densely
+layered, always-filtered" default and the wake-mode framing where coherence was the rare *trough*:
+coherence-realism is now the **baseline texture**, dissolution the departure. (Inspiration: Adult
+Swim's *Ambient Swim* as a craft/visual north-star — distinct, artful, unique — **not** a chill-out
+generator and **not** a clone; DREAMREEL keeps its full emotional range and its per-seed
+surreality/tempo.)
+
+Three concrete consequences (target-state where noted; sequence the code to reach them):
+
+- **Video-first; photos demoted to flash-frames.** Dreams are *moving*, and real dreams almost never
+  contain still photographs. The primary walk should surface **`video` overwhelmingly**; `image`
+  assets are kept only as **rare flash-frames / ghost-layer texture** (a quick subliminal cut or a
+  double-exposure ghost), never a held primary beat. Two layers: the **corpus** must shift heavily
+  toward public-domain film (Archive.org), demoting Openverse stills — the bigger lift, and mind
+  video's R2 storage/bandwidth/decode cost; and the **runtime** (`dream/visualPool.ts`) must weight
+  `video` up and route `image` to the flash-frame/ghost path rather than the held primary slot.
+  *(Target-state; today `image` and `video` are treated equally as primary media.)*
+
+- **Gentle by default, nightmares as an arc.** Like real dreams, the *distribution* of dream
+  emotional identities should lean toward the warm/strange end — **tender, nostalgic, love, joy,
+  absurdity, the uncanny-but-benign** — with **fear/ominous/dread a minority** of dreams, plus the
+  classic **mid-dream turn**: a coherent dream drifting *into* nightmare and (sometimes) back out.
+  Today nothing at the seed level biases emotional identity — `dream/seedParams.ts` derives only
+  `surreality`+`tempo`, and mood emerges roughly uniformly from wherever the walk wanders. The fix is
+  a **seed-level emotional-identity / mood-bias distribution** layered onto the seed (most seeds drawn
+  toward the gentle region, a minority toward fear; an optional intra-dream drift toward an axis),
+  expressed through the existing 12-axis taxonomy and the seeded-spine model. *(Target-state — a new
+  concept alongside `seedParams`.)* Scary still happens, deliberately; it is just no longer the
+  ambient default.
+
+- **Artful, not generic.** The "unique and artistic" quality comes from the **corpus** (favor
+  experimental / animated / art film and visually distinctive footage over generic archival clips)
+  and from the look brain committing to **distinctive per-seed treatments** rather than a uniform
+  grade — `dream/filterDirector.ts` stays the single source of truth for that.
+
+The look catalog, mood→filter mapping, transitions, procedural fallback, determinism/steering, and
+memory/recurrence machinery below are all **unchanged in mechanism** — this section only re-aims their
+*defaults and balance* (coherent-realistic baseline, video-first, gentle-leaning distribution). Where
+older language below conflicts (the "chaotic… densely layered" intended look, "photos" as a core
+medium, coherence-as-rare-trough), **this section wins**.
 
 ## Core architecture (do not violate without flagging)
 
@@ -76,6 +129,10 @@ spend is the one-time offline tagging pass.
     rare **coherence troughs** where the walk briefly converges before dissolving again.
     The per-seed sequence of assets, text, layer events, and coherence troughs is preserved
     (timing may vary). **Now the default** experience; the classic reel is opt-out via `?wake=0`.
+    *(Direction note: per **Content & aesthetic direction**, the 2026 target inverts this balance —
+    coherent-realism becomes the baseline and dissolution the occasional departure, including
+    nightmare arcs. Same mechanism; the defaults shift so "coherence" is the resting state, not a
+    rare trough.)*
 - **Live WebGL compositing** is the primary renderer. Offline pre-render (editly) is an
   optional secondary path, behind a flag, not the default.
 - **Dream memory — recurrence, not just selection.** Every visual asset carries open-set ENTITY tags
@@ -149,11 +206,14 @@ See `app/src/manifest/types.ts`, `app/src/dream/dreamwalker.ts`, and
 
 ## Aesthetic tokens (available palette/type/grain — not a single mandated treatment)
 
-These are the design tokens the app draws on. The intended look is **chaotic, fluid,
-multi-modal, and densely layered**, with varied and dynamic filtering — not one uniform,
-always-on old-cinema grade. The old-cinema treatment (grain, gate-weave, flicker, dust,
-vignette) is now **intensity-modulated** rather than applied as a constant master: the
-film grade rises and falls with the wake intensity signal, and warp/density vary with it.
+These are the design tokens the app draws on. Per **Content & aesthetic direction** above, the
+**default** look is a **coherent, lightly-graded, near-realistic** dream image whose wrongness comes
+from juxtaposition/recombination — *not* a constant filter wash. The **chaotic, fluid, multi-modal,
+densely-layered** look with heavy dynamic filtering is the **occasional escalation** (intensity peaks,
+nightmare arcs) that relaxes back to the coherent baseline; it is neither the resting state nor one
+uniform always-on old-cinema grade. The old-cinema treatment (grain, gate-weave, flicker, dust,
+vignette) is **intensity-modulated** rather than a constant master: the film grade rises and falls
+with the wake intensity signal, and warp/density vary with it.
 
 - Palette: ink `#0E0B08`, tungsten amber `#C8A35E`, lamp glow `#E8C887`, silver-bone
   `#D8D2C4`, sepia `#6B5640`, verdigris `#4A6B66` (sparingly). Use as an available palette,
