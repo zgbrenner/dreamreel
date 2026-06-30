@@ -13,11 +13,18 @@
 import type { Asset, MoodAxis } from '../manifest/types';
 import { makeRng, type Rng } from './prng';
 import { cosine, l2norm, projectMood, moodAffinity } from './mood';
+import { moodBiasAt, type MoodBiasVector, type MoodIdentity } from './moodBias';
 import type { SteeringState } from './steering';
 
 export interface DreamwalkerConfig {
   seed: string;
   surreality: number; // 0..1
+  /**
+   * The dream's seed-level emotional identity (dream/moodBias). When present, the walk leans its
+   * START point and its per-beat picks toward this region, so the dream has a coherent mood (most
+   * dreams gentle, a minority nightmare) instead of wandering uniformly. Absent ⇒ unbiased (legacy).
+   */
+  moodIdentity?: MoodIdentity;
 }
 
 // --- behavioral bend tuning (see the seeded-spine-plus-bend model in CLAUDE.md) ---
@@ -30,6 +37,15 @@ const BEND_PUSH = 0.16; // per-beat push from full pointer attention along a see
 const BEND_RELAX = 0.5; // per-beat decay toward the spine when the push eases
 const BEND_EPS = 5e-3; // below this ‖bend‖ snaps to exactly 0 ⇒ the walk returns to the pure spine
 const IDLE_DWELL_GAIN = 0.6; // idle stretches dwell up to ×1.6 — TIMING only, never reorders the script
+
+// --- seed-level emotional identity (dream/moodBias) tuning ---
+// How strongly the dream's emotional identity weights its START asset pick (softmax over mood
+// affinity). Set so a dream reliably BEGINS in its region even in low-surreality dreams, where the
+// per-beat softmax (gated by temperature) barely moves selection.
+const START_MOOD_COUPLING = 5;
+// Image beats per arc cycle: the mid-dream turn peaks roughly once every this many image beats, so a
+// long dream turns toward (and back from) its arc more than once. Pure function of the beat counter.
+const ARC_PERIOD_BEATS = 90;
 
 export interface Beat {
   asset: Asset;
@@ -143,6 +159,12 @@ class DreamwalkerImpl implements Dreamwalker {
   private lastLeaped = false;
   private converging = false;
 
+  // The dream's seed-level emotional identity (null ⇒ unbiased legacy walk), and a deterministic
+  // image-beat counter that phases the optional mid-dream arc. The counter advances once per image
+  // beat — a pure function of the seeded sequence, independent of steering and wall-clock timing.
+  private readonly moodIdentity: MoodIdentity | null;
+  private imageBeat = 0;
+
   // Ambient steering + the seeded basis the pointer-attention bend pushes along. The basis is
   // derived from the seed so a given dream always bends in its own characteristic directions.
   private steering: SteeringState | null = null;
@@ -162,6 +184,7 @@ class DreamwalkerImpl implements Dreamwalker {
     this.dim = pools.embeddingDim;
     this.surreality = clamp01(config.surreality);
     this.seed = config.seed;
+    this.moodIdentity = config.moodIdentity ?? null;
     this.resetState();
   }
 
@@ -222,10 +245,16 @@ class DreamwalkerImpl implements Dreamwalker {
   }
 
   private resetState(): void {
+    this.imageBeat = 0;
     const base = makeRng(this.seed);
     const startEmbedding = (tag: string): number[] => {
       const r = base.fork(tag);
-      return [...this.visual[r.int(this.visual.length)].embedding];
+      // Bias the dream's starting neighbourhood toward its emotional identity so it BEGINS in
+      // region (the per-beat nudge is weak in low-surreality dreams; the start anchors it there).
+      const idx = this.moodIdentity
+        ? pickByMoodAffinity(this.visual, this.moodIdentity.baseline, r)
+        : r.int(this.visual.length);
+      return [...this.visual[idx].embedding];
     };
     const fresh = (rngTag: string, embTag: string): LayerState => {
       const e = startEmbedding(embTag);
@@ -390,7 +419,16 @@ class DreamwalkerImpl implements Dreamwalker {
     return { weights, sum };
   }
 
+  /** The image layer's current mood bias: the identity's baseline, arc-modulated by the deterministic
+   *  image-beat phase. Undefined when the dream has no identity (legacy unbiased walk). */
+  private imageMoodBias(): MoodBiasVector | undefined {
+    if (!this.moodIdentity) return undefined;
+    const phase = (this.imageBeat / ARC_PERIOD_BEATS) % 1;
+    return moodBiasAt(this.moodIdentity, phase);
+  }
+
   private nextImage(tempoMul: number): Beat {
+    this.imageBeat++; // advance the arc phase once per image beat (covers the card path too)
     this.lastLeaped = this.advancePoint(this.image, this.visual);
     this.advanceBend(this.image);
 
@@ -419,7 +457,7 @@ class DreamwalkerImpl implements Dreamwalker {
       }
     }
 
-    const asset = this.pick('image', this.image, this.visual);
+    const asset = this.pick('image', this.image, this.visual, this.imageMoodBias());
     const mood = liveMood;
     const dwellMs = this.dwellFor(asset, mood, tempoMul);
 
@@ -435,7 +473,9 @@ class DreamwalkerImpl implements Dreamwalker {
   private nextGhost(tempoMul: number): Beat {
     this.advancePoint(this.ghost, this.visual);
     this.advanceBend(this.ghost);
-    const asset = this.pick('ghost', this.ghost, this.visual);
+    // Ghost leans to the identity's resting baseline (not the arc) so it stays in the dream's mood
+    // region without coupling to the image layer's beat counter — keeping per-layer determinism.
+    const asset = this.pick('ghost', this.ghost, this.visual, this.moodIdentity?.baseline);
     // ghost cadence is a touch quicker than the image it doubles
     const dwellMs = (this.idleDwellMul() * asset.dwellBase * 700) / tempoMul;
     return { asset, dwellMs, titleCard: false };
@@ -500,6 +540,26 @@ class DreamwalkerImpl implements Dreamwalker {
     }
     return pool[pool.length - 1];
   }
+}
+
+/**
+ * Softmax-roulette index into `pool`, weighting each asset by how well its mood aligns with `bias`
+ * (mood.moodAffinity). One `rng` draw, deterministic. Used to anchor a dream's START asset in its
+ * emotional region so the dream begins in-identity regardless of surreality.
+ */
+function pickByMoodAffinity(pool: Asset[], bias: Record<MoodAxis, number>, rng: Rng): number {
+  let sum = 0;
+  const weights = pool.map((a) => {
+    const w = Math.exp(START_MOOD_COUPLING * moodAffinity(a.mood, bias));
+    sum += w;
+    return w;
+  });
+  let roll = rng.next() * sum;
+  for (let i = 0; i < weights.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return i;
+  }
+  return pool.length - 1;
 }
 
 function clamp01(v: number): number {
