@@ -134,10 +134,12 @@ medium, coherence-as-rare-trough), **this section wins**.
     rare **coherence troughs** where the walk briefly converges before dissolving again.
     The per-seed sequence of assets, text, layer events, and coherence troughs is preserved
     (timing may vary). **Now the default** experience; the classic reel is opt-out via `?wake=0`.
-    *(Direction note: per **Content & aesthetic direction**, the 2026 target inverts this balance —
-    coherent-realism becomes the baseline and dissolution the occasional departure, including
-    nightmare arcs. Same mechanism; the defaults shift so "coherence" is the resting state, not a
-    rare trough.)*
+    *(DONE — per **Content & aesthetic direction**, the 2026 balance is now inverted in
+    `dream/intensity.ts`: the resting intensity is a LOW, coherent baseline and the rare events are
+    occasional **escalation surges** (sustained high-intensity peaks / nightmare arcs) that relax
+    back; troughs are kept as even-deeper-coherence moments. Same mechanism, defaults flipped — the
+    whole look brain follows since filter strength / swap cadence / Butterchurn all scale off
+    intensity. The seeded trough schedule is unchanged.)*
 - **Live WebGL compositing** is the primary renderer. Offline pre-render (editly) is an
   optional secondary path, behind a flag, not the default.
 - **Dream memory — recurrence, not just selection.** Every visual asset carries open-set ENTITY tags
