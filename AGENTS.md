@@ -20,14 +20,24 @@ live in `README.md`, `docs/HANDOFF.md`, `app/package.json`, `pipeline/Makefile`,
 - **Media/CORS reality (expected, not a bug):** the bundled dev seed (`app/public/manifest.seed.json`)
   and the live R2 manifest both point visual assets at **third-party origins** — `archive.org` (all
   **video**), `commons.wikimedia.org`, `iiif.wellcomecollection.org`, `images.metmuseum.org` (images).
-  `archive.org` sends **no CORS header**, so in-browser **video always fails to load and the app
-  degrades to its procedural fallback** (grainy/abstract texture) — by design (see
-  `render/textureLoader.ts`; the e2e smoke test explicitly filters CORS/network errors as ignorable).
-  Museum/Wikimedia **images do load** and appear as real artwork. So a `localhost` dream shows real
-  still imagery + drifting text + working controls, but not the film clips.
-- Richer visual demo: point dev at the real corpus with
+  The image loaders use `crossOrigin="anonymous"`; museum/Wikimedia **images send CORS and load**, but
+  `archive.org` sends **no CORS header**, so in-browser **video fails to load and the app degrades to
+  its procedural fallback** (grainy/abstract texture) — by design (see `render/textureLoader.ts`;
+  the e2e smoke test explicitly filters CORS/network errors as ignorable). So a plain `localhost` dream
+  shows real still imagery + drifting text + working controls, but no film clips.
+- **To actually play the video/film clips locally**, run the dev-only CORS proxy and point the dev
+  server at its rewritten manifest (this is the only way to see moving footage on `localhost`):
+  ```bash
+  node .devproxy/proxy.mjs   # serves http://localhost:8088 (proxies archive.org + adds CORS)
+  # in app/, in another shell:
+  VITE_MANIFEST_URL="http://localhost:8088/manifest.json" npm run dev
+  ```
+  The proxy fetches the live R2 manifest, rewrites the 37 `archive.org` **video** src to itself,
+  follows archive.org's 302 redirects, forwards `Range` requests, and adds `Access-Control-Allow-Origin`.
+  It is a local aid only — never imported by or shipped with the app.
+- Richer **still-image** demo without the proxy: point dev at the real corpus with
   `VITE_MANIFEST_URL="https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json" npm run dev`
-  (images then stream in; videos still CORS-fail as above).
+  (museum images stream in; videos still CORS-fail unless you use the proxy above).
 - Core UX is a single verb: **PLAY/PAUSE**, **NEW DREAM** (new `?seed=`), **SOUND** toggle. `?wake=0`
   opts into the classic reel; `?harness=1` is the render dev harness.
 
