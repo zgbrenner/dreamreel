@@ -649,12 +649,9 @@ export class DreamConductor implements DreamRuntime {
           // Non-video asset becomes the displayed image — clear film-clip audio.
           this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
         } else {
-          // deterministic procedural fallback so the slot is never empty
-          const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
-          const src = this.proc(`fallback:${asset.id}`, kind);
-          this.markLive(src);
-          stack.setLayerTexture(slot, src.texture);
+          // Prefer a real still over procedural static so the slot shows legit media, not shaders.
           this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
+          void this.resolveFallbackTexture(asset.id).then((tex) => stack.setLayerTexture(slot, tex));
         }
       });
     } else if (asset.type === 'video' && asset.src) {
@@ -666,11 +663,9 @@ export class DreamConductor implements DreamRuntime {
           const el = res.texture.userData.video as HTMLVideoElement | undefined;
           this.safeAudio(() => this.mixer?.setFilmClipAudio(true, el));
         } else {
-          const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
-          const src = this.proc(`fallback:${asset.id}`, kind);
-          this.markLive(src);
-          stack.setLayerTexture(slot, src.texture);
+          // A failed clip falls back to real still media (legit imagery) before procedural static.
           this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
+          void this.resolveFallbackTexture(asset.id).then((tex) => stack.setLayerTexture(slot, tex));
         }
       });
     } else {
@@ -842,11 +837,10 @@ export class DreamConductor implements DreamRuntime {
         if (res.ok) {
           this.compositor.crossfadeTo(res.texture, transition, this.crossfadeMs());
         } else {
-          // fall back to a deterministic procedural so the reel never breaks
-          const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
-          const src = this.proc(`fallback:${asset.id}`, kind);
-          this.markLive(src);
-          this.compositor.crossfadeTo(src.texture, transition, this.crossfadeMs());
+          // Prefer another real still over procedural so the reel keeps showing legit media.
+          void this.resolveFallbackTexture(asset.id).then((tex) =>
+            this.compositor.crossfadeTo(tex, transition, this.crossfadeMs()),
+          );
         }
         // Non-video: clear any active film-clip audio.
         this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
@@ -861,12 +855,11 @@ export class DreamConductor implements DreamRuntime {
           const el = res.texture.userData.video as HTMLVideoElement | undefined;
           this.safeAudio(() => this.mixer?.setFilmClipAudio(true, el));
         } else {
-          const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
-          const src = this.proc(`fallback:${asset.id}`, kind);
-          this.markLive(src);
-          this.compositor.crossfadeTo(src.texture, transition, this.crossfadeMs());
-          // Video failed to load; treat as non-video.
+          // A dead clip falls back to real still media before procedural static.
           this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
+          void this.resolveFallbackTexture(asset.id).then((tex) =>
+            this.compositor.crossfadeTo(tex, transition, this.crossfadeMs()),
+          );
         }
       });
       return;
@@ -959,6 +952,37 @@ export class DreamConductor implements DreamRuntime {
   private styled(src: ProceduralSource): ProceduralSource {
     if (this.lastMood) src.setParams(proceduralParams(this.lastMood, this.lastIntensity));
     return src;
+  }
+
+  /**
+   * Resolve a fallback texture for a real asset that failed to load. Prefers ANOTHER real still
+   * (legit media) so a dead clip/URL doesn't collapse the reel to procedural static — the core
+   * complaint when the corpus is video-poor and its lone clip won't load. Only when no still is
+   * available, or the chosen still ALSO fails, do we drop to a procedural source. The still pick is
+   * deterministic (presRng) and excludes the failed asset. Load failure is environmental, so the
+   * extra presentation draw here never perturbs the seeded dream SCRIPT (asset/text/event order is
+   * decided synchronously in the walker, before any texture resolves).
+   */
+  private async resolveFallbackTexture(failedId: string): Promise<THREE.Texture> {
+    const stills = this.manifest.assets.filter(
+      (a) => a.type === 'image' && !!a.src && a.id !== failedId,
+    );
+    if (stills.length > 0) {
+      const still = stills[this.presRng.int(stills.length)];
+      if (still.src) {
+        const res = await this.compositor.showImage(still.src, still.grade);
+        if (res.ok) return res.texture;
+      }
+    }
+    return this.proceduralFallback(failedId);
+  }
+
+  /** Last-resort deterministic procedural texture when no real still can stand in for a failed load. */
+  private proceduralFallback(failedId: string): ProceduralSource['texture'] {
+    const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
+    const src = this.proc(`fallback:${failedId}`, kind);
+    this.markLive(src);
+    return src.texture;
   }
 
   private markLive(src: ProceduralSource): void {
