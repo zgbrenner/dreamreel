@@ -1,0 +1,17 @@
+# Pinned floors for trackfx. Keep in sync with pyproject.toml's [project] dependencies.
+#
+# For a much smaller/faster CPU-only install (no CUDA wheels), use:
+#   pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+# <0.30.0: supervision 0.28.0 soft-deprecated `sv.ByteTrack` (used here) in favor of
+# `ByteTrackTracker` from the separate `trackers` package; removal targeted for
+# 0.30.0. Still fully functional today (just emits a FutureWarning). See the note in
+# trackfx/pipeline.py before bumping past 0.29.x.
+supervision>=0.27.0,<0.30.0
+torch>=2.2
+torchvision>=0.17
+numpy>=1.26
+
+# opencv is pulled in transitively by `supervision` (it depends on opencv-python), and
+# we `import cv2` directly too. Deliberately not pinning a second opencv-python(-headless)
+# package here -- the two distributions both provide the `cv2` module and installing both
+# in one environment can fight over which one wins.

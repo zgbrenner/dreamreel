@@ -1,0 +1,31 @@
+[project]
+name = "trackfx"
+version = "0.1.0"
+description = "DreamReel: tracking-driven surreal video effects (detect -> segment -> track -> effect -> encode)."
+requires-python = ">=3.10"
+dependencies = [
+  # <0.30.0: supervision 0.28.0 soft-deprecated `sv.ByteTrack` in favor of
+  # `ByteTrackTracker` from the separate `trackers` package, removal targeted for
+  # 0.30.0 (still functional today, just warns). See pipeline.py for the migration
+  # note. Bump this range (and migrate the tracker call) when ready.
+  "supervision>=0.27.0,<0.30.0",
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+trackfx = "trackfx.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["trackfx", "trackfx.effects"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
