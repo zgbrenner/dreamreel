@@ -68,6 +68,12 @@ class TorchvisionDetector:
         self.preprocess = weights.transforms()
         self.device = device
         self.conf_threshold = conf_threshold
+        # COCO category names, indexed by the model's label id (index 0 is
+        # "__background__", some ids are "N/A"). Exposed so callers can turn a
+        # detection's `class_id` into a human-readable label without re-deriving the
+        # taxonomy -- e.g. the offline entity-sprite extractor maps it to a DreamReel
+        # entity tag. `class_id` on the emitted Detections indexes straight into this.
+        self.class_names: list[str] = list(weights.meta["categories"])
 
     @torch.inference_mode()
     def __call__(self, frame_bgr: np.ndarray) -> sv.Detections:
