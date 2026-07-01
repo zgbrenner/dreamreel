@@ -55,6 +55,15 @@ npm install
 npm run dev            # http://localhost:5173 — plays against the bundled seed manifest
 ```
 
+The committed seed and some remote manifests may point video assets at archive.org. Browsers
+require CORS-clean media for WebGL video textures, so run the dev-only archive proxy in a second
+terminal when testing those clips:
+
+```bash
+cd app
+npm run dev:proxy      # http://127.0.0.1:8787, forwards Range and adds CORS headers
+```
+
 Point it at a real corpus by setting `VITE_MANIFEST_URL` (an R2/CDN manifest URL) at build
 time; if unset or unreachable the app falls back to `public/manifest.seed.json`.
 

@@ -380,10 +380,16 @@ sound mute all work. Per-kind UI toggles, beat-sync, and a coupling-strength URL
 - **Local with real media:**
   ```bash
   cd app
+  npm run dev:proxy  # second terminal when manifests include archive.org video URLs
   VITE_MANIFEST_URL="https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json" npm run build
   npm run preview -- --port 4173 --strictPort
   # open http://localhost:4173/?wake=1
   ```
+- **Local dev video CORS gotcha:** archive.org does not provide the CORS headers WebGL needs for
+  `crossOrigin="anonymous"` video/image textures. Vite dev rewrites archive.org `src` values through
+  `app/src/manifest/archiveProxy.ts`; run `.devproxy/proxy.mjs` via `npm run dev:proxy` before
+  deciding video is broken locally. Preview/production builds do not use this local proxy, so shipped
+  manifests should point at CORS-clean R2/CDN media or a deployed equivalent proxy/worker.
 - **Tests:** `cd app && npm run test` (vitest, ~141), `npm run typecheck` (**`tsc -b --noEmit`** — the
   build-mode typecheck; plain `tsc -p` misses project-reference errors), `npm run lint`,
   `npm run test:e2e` (Playwright smoke; covers `?wake=1` and now constructs the audio mixer via a silent

@@ -18,13 +18,13 @@ export interface LayerPlan {
 export function planLayers(intensity: number, rng: Rng): LayerPlan {
   const x = Math.max(0, Math.min(1, intensity));
   let layerCount: number;
-  if (x < 0.22) layerCount = 1 + rng.int(3); // band A: 1..3
-  else if (x < 0.66) layerCount = 4 + rng.int(3); // band B: 4..6
-  else layerCount = 7 + rng.int(MAX_LAYERS - 6); // band C: 7..MAX
+  if (x < 0.66) layerCount = 1;
+  else if (x < 0.9) layerCount = 2;
+  else layerCount = 2 + rng.int(2);
   layerCount = Math.min(MAX_LAYERS, layerCount);
 
-  const feedback = Math.min(1, 0.1 + x * 0.85);
-  const warp = Math.min(1, x * x * 0.9); // warp ramps in only as it gets wild
+  const feedback = x < 0.82 ? 0 : Math.min(0.18, (x - 0.82) * 0.75);
+  const warp = Math.min(0.35, x * x * 0.35);
 
   const blends: BlendName[] = ['normal'];
   for (let i = 1; i < layerCount; i++) blends.push(BLENDS[rng.int(BLENDS.length)]);

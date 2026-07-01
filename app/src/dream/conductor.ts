@@ -26,6 +26,7 @@ import {
   proceduralParams,
   butterchurnEngaged,
   butterchurnPresetIndex,
+  type FilterStrengths,
 } from './filterDirector';
 import { pickSwapSlot } from './slotHold';
 import { planLayers, MAX_LAYERS, type LayerPlan } from './layerPlan';
@@ -58,15 +59,15 @@ const IMAGE_FALLBACK_KINDS: ProceduralKind[] = ['fog', 'static', 'horizon', 'orb
 
 // Literal entity-recurrence (sprite) summoning. A cutout is summoned only when its entity is
 // strongly remembered, at a bounded rate, so the effect is a rare, dreamlike return — not a parade.
-const SPRITE_SUMMON_PROB = 0.1; // per primary beat, once an eligible motif exists
-const SPRITE_MIN_WEIGHT = 1.3; // memory weight an entity must reach to be "strongly remembered"
-const SPRITE_COOLDOWN_S = 7; // minimum seconds between summons
+const SPRITE_SUMMON_PROB = 0.03; // per primary beat, once an eligible motif exists
+const SPRITE_MIN_WEIGHT = 2.2; // memory weight an entity must reach to be "strongly remembered"
+const SPRITE_COOLDOWN_S = 20; // minimum seconds between summons
 
 // Rare flash-frame / ghost-layer texture for DEMOTED stills (video-first direction): an `image`
 // asset never holds a primary beat — it surfaces only here, as a quick subliminal double-exposure.
 // Bounded by probability + cooldown so it stays a dreamlike echo, not a slideshow.
-const FLASH_FRAME_PROB = 0.12; // per ghost beat, once demoted stills exist
-const FLASH_FRAME_COOLDOWN_S = 6; // minimum seconds between flash-frames
+const FLASH_FRAME_PROB = 0.035; // per ghost beat, once demoted stills exist
+const FLASH_FRAME_COOLDOWN_S = 18; // minimum seconds between flash-frames
 
 export class DreamConductor implements DreamRuntime {
   private readonly manifest: Manifest;
@@ -377,7 +378,8 @@ export class DreamConductor implements DreamRuntime {
     }
     if (bestEntity === undefined) return;
 
-    const candidates = this.spritePool.get(bestEntity)!;
+    const candidates = this.spritePool.get(bestEntity)!.filter((sp) => (sp.frames ?? 1) > 1);
+    if (candidates.length === 0) return;
     const sprite = candidates[this.spriteRng.int(candidates.length)];
     const placement = makeSpritePlacement(this.spriteRng);
     this.spriteCooldownUntil = this.clock + SPRITE_COOLDOWN_S;
@@ -509,14 +511,16 @@ export class DreamConductor implements DreamRuntime {
     // the stored plan each frame (cheap, no re-roll) so toggled layer visibility tracks the maps.
     // Pinned slots are slots whose video hold hasn't expired yet — they are forced into the visible
     // set by applyPlan so a playing clip can't be ranked out of view as newer swaps fire. ---
-    if (this.currentPlan) stack.applyPlan(this.currentPlan, this.activePins());
+    const pins = this.activePins();
+    const videoFocus = pins.size > 0;
+    if (this.currentPlan) stack.applyPlan(videoFocus ? videoFocusPlan(this.currentPlan) : this.currentPlan, pins);
 
     // intensity-scaled film: a calm base, warped + graded by the heartbeat. These are the
     // CONTINUOUS params — they keep tracking the freshly sampled intensity every frame. setParams
     // merges, so we only push the channels we own here; the post-FX dream-event engine layers on
     // top. warp is derived directly from intensity (layerPlan's curve: min(1, i*i*0.3)) since the
     // recipe's plan.warp is no longer recomputed per frame.
-    this.postfx.setParams({
+    this.postfx.setParams(videoFocus ? videoFocusWakeFilm(intensity) : {
       ...baseWakeFilm(),
       // Keep the media readable: a lighter grade floor and much less bloom so imagery isn't
       // washed to milk; warp/chroma still surge with the heartbeat.
@@ -528,11 +532,12 @@ export class DreamConductor implements DreamRuntime {
 
     if (this.lastWakeMood) {
       const fs = filterStrengths(this.lastWakeMood, s.intensity, s.inTrough);
-      this.postfx.setFilterStrengths(capDistortion(fs));
-      stack.setFeedback(fs.feedback);
+      const readable = videoFocus ? scaleFilterStrengths(capDistortion(fs), 0.18) : capDistortion(fs);
+      this.postfx.setFilterStrengths(readable);
+      stack.setFeedback(videoFocus ? 0 : fs.feedback);
     }
 
-    this.driveButterchurn(stack, s.intensity, s.regime, s.inTrough, s.troughId);
+    this.driveButterchurn(stack, s.intensity, s.regime, s.inTrough, s.troughId, videoFocus);
 
     stack.update(dt); // advance per-slot opacity ramps (cross-fade layer swaps)
     stack.captureFeedback(this.compositor.renderer);
@@ -551,9 +556,15 @@ export class DreamConductor implements DreamRuntime {
     regime: IntensityRegime,
     inTrough: boolean,
     troughId: number,
+    videoFocus: boolean,
   ): void {
     const bc = this.butterchurn;
     if (!bc) return;
+    if (videoFocus) {
+      bc.engage(false);
+      stack.setPsychedelic(null, 0);
+      return;
+    }
     const reduce = this.postfx.params.reduceMotion;
     const engaged = butterchurnEngaged(intensity, regime, reduce);
     bc.engage(engaged);
@@ -1031,6 +1042,46 @@ function baseWakeFilm(): Partial<FilmParams> {
     halation: 0.05,
     haze: 0.03,
     flicker: 0.02,
+  };
+}
+
+function videoFocusPlan(plan: LayerPlan): LayerPlan {
+  return {
+    ...plan,
+    layerCount: 1,
+    feedback: 0,
+    warp: 0,
+    blends: ['normal'],
+  };
+}
+
+function scaleFilterStrengths(fs: FilterStrengths, scale: number): FilterStrengths {
+  return {
+    kaleidoscope: fs.kaleidoscope * scale,
+    liquid: fs.liquid * scale,
+    solarize: fs.solarize * scale,
+    melt: fs.melt * scale,
+    posterize: fs.posterize * scale,
+    feedback: fs.feedback * scale,
+  };
+}
+
+function videoFocusWakeFilm(intensity: number): Partial<FilmParams> {
+  return {
+    ...baseWakeFilm(),
+    grain: 0.025,
+    sepia: 0.04,
+    scanline: 0.005,
+    desat: 0.035,
+    halation: 0.025,
+    haze: 0.01,
+    lightLeak: 0.025,
+    tint: 0.035,
+    breathe: 0.1,
+    filmGrade: 0.12,
+    warp: Math.min(0.03, intensity * intensity * 0.06),
+    chroma: 0.04 + intensity * 0.06,
+    bloom: 0.04 + intensity * 0.06,
   };
 }
 

@@ -30,4 +30,21 @@ describe('LayerStack pin', () => {
     // a non-pinned non-hero visible slot (slot 2, rank 1) should be lower
     expect(mats[2].opacity).toBeLessThan(0.7);
   });
+
+  it('a one-layer focused plan hides newer overlays and leaves the pinned video visible', () => {
+    const stack = new LayerStack(stub() as never);
+    const layers = (stack as unknown as { layers: THREE.Mesh[] }).layers;
+    for (let i = 0; i < 4; i++) {
+      const t = new THREE.Texture();
+      t.userData.ownedByCompositor = false;
+      stack.setLayerTexture(i, t);
+    }
+
+    stack.applyPlan({ layerCount: 1, blends: ['normal'], feedback: 0, warp: 0 } as never, new Set([0]));
+
+    expect(layers[0].visible).toBe(true);
+    expect(layers[1].visible).toBe(false);
+    expect(layers[2].visible).toBe(false);
+    expect(layers[3].visible).toBe(false);
+  });
 });

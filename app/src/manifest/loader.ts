@@ -2,6 +2,7 @@
 import type { Manifest } from './types';
 import { manifestSchema } from './schema';
 import { migrateManifest } from './migrate';
+import { rewriteArchiveUrlsForDev } from './archiveProxy';
 
 export class ManifestError extends Error {
   constructor(
@@ -43,5 +44,5 @@ export function parseManifest(raw: unknown, source = '<inline>'): Manifest {
       .join('\n');
     throw new ManifestError(`invalid manifest (${source}):\n${issues}`);
   }
-  return result.data as Manifest;
+  return rewriteArchiveUrlsForDev(result.data as Manifest);
 }

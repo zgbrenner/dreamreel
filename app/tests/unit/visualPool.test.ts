@@ -26,15 +26,12 @@ describe('visualPool — video-first primary pool, procedural fallback-only', ()
     asset('p2', 'procedural'),
   ];
 
-  it('holds video + title cards as primary and demotes images when archive is on and video exists', () => {
+  it('holds only videos as primary and demotes static/card visuals when archive is on and video exists', () => {
     const pool = visualPool(mixed, true);
-    expect(pool.map((a) => a.id)).toEqual(['vid1', 'tc1']);
+    expect(pool.map((a) => a.id)).toEqual(['vid1']);
     expect(pool.some((a) => a.type === 'image')).toBe(false);
+    expect(pool.some((a) => a.type === 'titlecard')).toBe(false);
     expect(pool.some((a) => a.type === 'procedural')).toBe(false);
-  });
-
-  it('keeps title cards as primary visuals (they are media, not procedural)', () => {
-    expect(visualPool(mixed, true).some((a) => a.type === 'titlecard')).toBe(true);
   });
 
   it('keeps images primary when the corpus has NO video (a video-less corpus must still play)', () => {
@@ -57,7 +54,7 @@ describe('visualPool — video-first primary pool, procedural fallback-only', ()
 
   it('preserves manifest order within the chosen pool (deterministic walk input)', () => {
     const pool = visualPool(mixed, true);
-    expect(pool).toEqual([mixed[2], mixed[3]]);
+    expect(pool).toEqual([mixed[2]]);
   });
 });
 

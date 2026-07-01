@@ -6,6 +6,8 @@ const RUN_SECONDS = Number(process.env.SMOKE_SECONDS ?? 30);
 // intensity sweeps and layer-swaps.
 const WAKE_SECONDS = Number(process.env.SMOKE_SECONDS ?? 20);
 
+// Local Vite dev rewrites archive.org videos through .devproxy/proxy.mjs, but this built
+// preview smoke does not run that dev-only rewrite.
 // The seed manifest references third-party public-domain images (e.g. Wikimedia Commons)
 // that the browser may refuse to load over CORS in a headless/offline run. The app is
 // designed to treat any asset load failure as a graceful fallback to a procedural source

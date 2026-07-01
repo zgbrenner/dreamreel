@@ -197,6 +197,8 @@ medium, coherence-as-rare-trough), **this section wins**.
 
 ```
 dreamreel/
+  AGENTS.md                  # local agent notes, including dev proxy requirements
+  .devproxy/                 # dev-only archive.org CORS proxy for local WebGL video
   app/                      # Vite React TS frontend
     public/manifest.seed.json
     src/
@@ -282,6 +284,27 @@ with the wake intensity signal, and warp/density vary with it.
     enabling. Default-OFF keeps that a deliberate call. See `app/NOTICE`.
 - Respect `prefers-reduced-motion`: dampen weave/flicker/dust, keep dissolves slow; transitions fall
   back to the gentle set and the Butterchurn layer never engages.
+
+## Local video CORS proxy
+
+- Archive.org media is not CORS-clean enough for WebGL video textures when loaded directly with
+  `crossOrigin = "anonymous"`. Do not remove `crossOrigin` from `render/videoTexture.ts` or
+  `render/textureLoader.ts`; WebGL media must stay CORS-clean.
+- Local Vite dev rewrites archive.org `src` values through `app/src/manifest/archiveProxy.ts`
+  only when `import.meta.env.DEV` is true. Run the proxy in a second terminal before judging
+  local video playback:
+
+  ```bash
+  cd app
+  npm run dev:proxy
+  ```
+
+- The proxy implementation is `.devproxy/proxy.mjs`; it listens on `http://127.0.0.1:8787` by
+  default, follows archive.org redirects, forwards `Range` requests, and adds
+  `Access-Control-Allow-Origin: *`. Override the client base with `VITE_ARCHIVE_PROXY_URL` if
+  needed.
+- Production and preview builds do not use the local proxy. Production video must come from
+  CORS-clean R2/CDN URLs, or from a deployed equivalent proxy/worker.
 
 ## Coding conventions
 

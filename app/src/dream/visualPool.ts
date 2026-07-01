@@ -26,7 +26,7 @@ export function visualPool(assets: Asset[], archiveOn: boolean): Asset[] {
     // Video-first: hold `video` + title cards as primary and demote `image` to the flash/ghost
     // path — but only when there is real video to carry the dream. No video → keep images primary.
     const hasVideo = media.some((a) => a.type === 'video');
-    return hasVideo ? media.filter((a) => a.type !== 'image') : media;
+    return hasVideo ? media.filter((a) => a.type === 'video') : media;
   }
   return assets.filter((a) => a.type === 'procedural' || a.type === 'titlecard');
 }
