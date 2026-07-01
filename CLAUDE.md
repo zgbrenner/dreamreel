@@ -40,10 +40,14 @@ Three concrete consequences (target-state where noted; sequence the code to reac
   toward public-domain film (Archive.org), demoting Openverse stills — the bigger lift, and mind
   video's R2 storage/bandwidth/decode cost; and the **runtime** (`dream/visualPool.ts`) must weight
   `video` up and route `image` to the flash-frame/ghost path rather than the held primary slot.
-  *(Runtime DONE: `visualPool` is video-first — when archive is on and the corpus has video, the
-  held-primary pool is `video` + title cards and `image` is demoted to the rare flash-frame /
-  ghost-layer path via `flashFramePool` + `conductor.maybeFlashFrame`; a video-less corpus keeps
-  images primary as a graceful fallback. CORPUS DONE: `pipeline/ingest/archive_org.py`'s
+  *(Runtime DONE: `visualPool` is video-first — when archive is on and the corpus is **video-rich**
+  (at least `MIN_VIDEO_FOR_VIDEO_FIRST` distinct clips), the held-primary pool is `video` + title
+  cards and `image` is demoted to the rare flash-frame / ghost-layer path via `flashFramePool` +
+  `conductor.maybeFlashFrame`; a video-less **or video-poor** corpus keeps images primary as a
+  graceful fallback (a single fragile clip can't carry the reel — demoting all stills would collapse
+  every primary beat to procedural static when it fails to load), and on any real-media load failure
+  the conductor falls back to another real still before procedural (`resolveFallbackTexture`).
+  CORPUS DONE: `pipeline/ingest/archive_org.py`'s
   `COLLECTIONS` grew from 3 generic-archival anchors to 8 — adding `manrayshortfilms` (avant-garde
   shorts), `silentfilmhouse_videos` (1878-1922 silent/proto-experimental film), and three
   public-domain animation collections — with `rows_per_collection` raised 25→60 and a size-aware

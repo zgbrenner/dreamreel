@@ -493,7 +493,7 @@
     {
       "id": "vid-seed-0",
       "type": "video",
-      "src": "https://archive.org/download/Popeye_forPresident/Popeye_forPresident_512kb.mp4",
+      "src": "https://archive.org/download/DuckandC1951/DuckandC1951_512kb.mp4",
       "embedding": [
         0,
         0.5970223141259935,
@@ -520,10 +520,11 @@
       },
       "tags": [
         "film",
-        "archive"
+        "archive",
+        "prelinger"
       ],
       "dwellBase": 7.5,
-      "source": "Archive.org / Prelinger",
+      "source": "Archive.org / Prelinger — Duck and Cover (1951)",
       "license": "PD"
     },
     {
