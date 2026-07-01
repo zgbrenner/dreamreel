@@ -9,9 +9,18 @@ post-processing/tracking/IO spine (`VideoInfo`, `get_video_frames_generator`,
 `VideoSink`, `ByteTrack`, `DetectionsSmoother`) -- model-agnostic, since supervision
 accepts detections from almost anything via `sv.Detections`.
 
-Not currently wired into the rest of DreamReel (no imports from/into `app/` or
-`pipeline/`) -- it's a standalone experiment that may get pulled into the product
-later, hence its own `pyproject.toml`/`requirements.txt`/tests.
+It has its own `pyproject.toml`/`requirements.txt`/tests so it can be installed and
+run independently of the heavier `pipeline/` corpus tooling.
+
+## Two ways to use it
+
+1. **CLI (surreal effects → new video):** the standalone tool described below —
+   `python -m trackfx in.mp4 out.mp4 --effect ghost_trail`.
+2. **Library (tracked masks for the DreamReel corpus):** `trackfx.collect_track_masks`
+   / `trackfx.track_frames` expose just the detect+track spine (no video file, no
+   effect) so the offline pipeline can reuse it. `pipeline/embed/sprite_track.py`
+   drives it to cut **animated entity sprites** for the dream-memory recurrence layer
+   — see "DreamReel integration" below.
 
 ## Model choice & licensing
 
@@ -107,6 +116,38 @@ stabilized boxes are exposed to effects (`EffectContext.smoothed_xyxy`) as
 supplementary metadata -- `glitch_resolve` uses it to scale displacement to a
 stable object size instead of flickering on box jitter.
 
+## DreamReel integration (animated entity sprites)
+
+DreamReel's dream-memory layer summons segmented cutouts of recurring motifs as
+drifting ghosts (`app/src/render/SpriteField.ts`), some **animated** as grid sprite
+sheets the runtime cycles. Those sheets are baked offline into the manifest's
+`entitySprites[]` pool. trackfx is now a **third producer** of that pool, next to
+`pipeline/embed/sprites.py` (static, Grounding DINO + SAM 2) and
+`pipeline/embed/sprite_clips.py` (animated, SAM 2 video tracking):
+
+- `trackfx.collect_track_masks(frames, detector)` runs Mask R-CNN + ByteTrack over a
+  shot's frames and groups per-frame masks by persistent tracker ID.
+- `pipeline/embed/sprite_track.py` keeps the **longest-lived** track (the object
+  genuinely present through the shot — a better recurrence candidate than "whatever was
+  in frame 0"), crops each frame to its union box, and assembles a sprite sheet with the
+  exact `frames`/`cols`/`fps` fields `SpriteField.ts` already consumes.
+
+**No runtime or manifest-schema changes** — it only adds rows to `entitySprites[]`.
+DreamReel runs **zero inference at runtime** (static manifest + WebGL compositor), so
+this is strictly an offline pipeline step, never something `app/` calls.
+
+**Recurrence gate:** Mask R-CNN knows only 80 COCO classes, but recurrence
+(`dream/memory.ts`) matches `EntitySprite.entity` against a source asset's open-vocab
+RAM++ `entities[]`. So a cutout is emitted only when the tracked object's COCO class (or
+a small synonym) is present in that asset's `entities[]`, and the sprite is named with
+the matched RAM++ tag — guaranteeing it can actually be remembered and summoned.
+
+```bash
+# from pipeline/, with the `track` extra + trackfx installed editable, plus ffmpeg:
+pip install -e ".[track]" -e ../trackfx
+python -m embed.sprite_track --manifest out/manifest.json --out out --max 8 --frames 12
+```
+
 ## Tests
 
 ```bash
@@ -114,9 +155,11 @@ pip install -r requirements.txt -e ".[dev]"
 pytest
 ```
 
-Unit tests cover the mask fallback, proxy/full resize math, the effect registry, and
-each effect's output shape/dtype plus its core behavioral claim (e.g. `ghost_trail`
-actually strengthens with track age). A full pipeline round-trip test
+Unit tests cover the mask fallback, proxy/full resize math, the effect registry, each
+effect's output shape/dtype plus its core behavioral claim (e.g. `ghost_trail`
+actually strengthens with track age), and the `track_frames`/`collect_track_masks`
+library spine (persistent IDs + per-track masks via a stub detector). A full pipeline
+round-trip test
 (`test_pipeline_roundtrip.py`) exercises real supervision video IO + `ByteTrack` +
 `DetectionsSmoother` end-to-end via a small synthetic video and a stub detector --
 `detector.py`'s real torchvision backend isn't covered by the unit tests (downloading
