@@ -86,18 +86,18 @@ export function capDistortion(fs: FilterStrengths): FilterStrengths {
 
 /** Per-axis transition families. Names MUST exist in render/transitions.ts TRANSITIONS. */
 export const TRANSITION_BY_AXIS: Record<MoodAxis, readonly string[]> = {
-  melancholy: ['crossLuma', 'fade', 'fadeBlack', 'diagonalWipe'],
-  uncanny: ['solarizeWipe', 'swirl', 'glitch', 'chromaDrift', 'staticDissolve'],
-  nostalgic: ['liquidWave', 'ripple', 'crossLuma', 'waterDrop', 'diagonalWipe'],
-  ominous: ['cut', 'slideHarsh', 'barWipe', 'inkBleed'],
-  tender: ['bloomDissolve', 'lightFlash', 'crossLuma', 'waterDrop'],
-  mechanical: ['glitch', 'pixelize', 'posterizeWipe', 'windowBlinds', 'staticDissolve'],
-  love: ['bloomDissolve', 'lightFlash', 'irisOpen', 'waterDrop'],
-  loss: ['fadeBlack', 'fade', 'crossLuma', 'inkBleed'],
-  joy: ['irisOpen', 'radialReveal', 'bloomDissolve', 'crossZoom'],
-  fear: ['cut', 'glitch', 'slideHarsh', 'staticDissolve', 'crossZoom'],
-  absurdity: ['dreamWarp', 'melt', 'swirl', 'mirrorFold', 'chromaDrift'],
-  strange: ['swirl', 'ripple', 'dreamWarp', 'mirrorFold', 'waterDrop'],
+  melancholy: ['crossLuma', 'fade', 'fadeBlack', 'diagonalWipe', 'lumaMelt'],
+  uncanny: ['solarizeWipe', 'swirl', 'glitch', 'chromaDrift', 'staticDissolve', 'polarSwirl'],
+  nostalgic: ['liquidWave', 'ripple', 'crossLuma', 'waterDrop', 'diagonalWipe', 'pageCurl', 'wateryRefract'],
+  ominous: ['cut', 'slideHarsh', 'barWipe', 'inkBleed', 'venetianSlice', 'shadowWipe'],
+  tender: ['bloomDissolve', 'lightFlash', 'crossLuma', 'waterDrop', 'bokehBloom', 'lumaMelt'],
+  mechanical: ['glitch', 'pixelize', 'posterizeWipe', 'windowBlinds', 'staticDissolve', 'scanlineShutter', 'venetianSlice'],
+  love: ['bloomDissolve', 'lightFlash', 'irisOpen', 'waterDrop', 'bokehBloom', 'lumaMelt'],
+  loss: ['fadeBlack', 'fade', 'crossLuma', 'inkBleed', 'shadowWipe'],
+  joy: ['irisOpen', 'radialReveal', 'bloomDissolve', 'crossZoom', 'irisBloom', 'mosaicSparkle'],
+  fear: ['cut', 'glitch', 'slideHarsh', 'staticDissolve', 'crossZoom', 'venetianSlice', 'shadowWipe'],
+  absurdity: ['dreamWarp', 'melt', 'swirl', 'mirrorFold', 'chromaDrift', 'polarSwirl', 'voronoiShatter'],
+  strange: ['swirl', 'ripple', 'dreamWarp', 'mirrorFold', 'waterDrop', 'polarSwirl', 'voronoiShatter'],
 };
 
 /** Gentle, luminous defaults used when no emotion dominates (the identity path). */

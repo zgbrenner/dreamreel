@@ -33,6 +33,26 @@ describe('LayerStack swap fade-in', () => {
     expect(early).toBeLessThan(0.5);
     expect(later).toBeGreaterThan(early);
   });
+
+  it('setHeroCap scales the hero fade target (hypnagogic onset), default 1 leaves 0.92', () => {
+    const stack = new LayerStack(stubCompositor() as never);
+    const tex = new THREE.Texture();
+    tex.userData.ownedByCompositor = false;
+    stack.setLayerTexture(0, tex);
+    const plan = { layerCount: 1, blends: ['screen'], feedback: 0, warp: 0 } as never;
+    const targets = (stack as unknown as { fadeTarget: number[] }).fadeTarget;
+
+    stack.applyPlan(plan);
+    expect(targets[0]).toBeCloseTo(0.92);
+
+    stack.setHeroCap(0.5);
+    stack.applyPlan(plan);
+    expect(targets[0]).toBeCloseTo(0.46);
+
+    stack.setHeroCap(1);
+    stack.applyPlan(plan);
+    expect(targets[0]).toBeCloseTo(0.92);
+  });
 });
 
 describe('LayerStack resize wiring', () => {

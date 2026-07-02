@@ -1,7 +1,7 @@
 """Run all ingesters, apply the license gate, and write candidates + a rejections report.
 
 Usage:
-    python -m ingest.run --out out/ [--no-archive] [--no-wellcome] [--no-museums]
+    python -m ingest.run --out out/ [--no-archive] [--no-loc] [--no-wellcome] [--no-museums]
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from . import archive_org, museums, openverse, wellcome
+from . import archive_org, loc, museums, openverse, wellcome
 from .normalize import Candidate, Rejection, write_candidates, write_rejections
 
 
@@ -18,8 +18,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--out", type=Path, default=Path("out"))
     ap.add_argument("--no-openverse", action="store_true")
     ap.add_argument("--no-archive", action="store_true")
+    ap.add_argument("--no-loc", action="store_true", help="skip LoC National Screening Room film")
     ap.add_argument("--no-wellcome", action="store_true")
     ap.add_argument("--no-museums", action="store_true", help="skip Met/Smithsonian CC0")
+    # Video-first direction (CLAUDE.md): film volume knob for the LoC National Screening Room.
+    ap.add_argument("--loc", type=int, default=40, help="max LoC National Screening Room items")
     # Video-first direction (CLAUDE.md): images are now flash-frame/ghost-only, never primary, so
     # the default Openverse image volume is cut (was 60) in favour of archive_org's film volume.
     ap.add_argument("--per-theme", type=int, default=20)
@@ -50,6 +53,9 @@ def main() -> None:
     if not args.no_archive:
         print("ingesting Archive.org film…")
         drain(archive_org.ingest())
+    if not args.no_loc and args.loc > 0:
+        print("ingesting Library of Congress National Screening Room film…")
+        drain(loc.ingest(count=args.loc))
     if not args.no_museums:
         print("ingesting Met + Smithsonian CC0…")
         drain(museums.ingest_met())

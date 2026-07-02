@@ -64,6 +64,7 @@ export const assetSchema = z.object({
   aesthetic: z.number().optional(),
   shots: z.array(z.object({ start: z.number(), end: z.number() })).optional(),
   entities: z.array(z.string()).optional(),
+  depthSrc: z.string().url().optional(),
 });
 
 export const manifestSchema = z
