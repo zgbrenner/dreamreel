@@ -78,8 +78,15 @@ const SPRITE_COOLDOWN_S = 20; // minimum seconds between summons
 // Rare flash-frame / ghost-layer texture for DEMOTED stills (video-first direction): an `image`
 // asset never holds a primary beat — it surfaces only here, as a quick subliminal double-exposure.
 // Bounded by probability + cooldown so it stays a dreamlike echo, not a slideshow.
-const FLASH_FRAME_PROB = 0.035; // per ghost beat, once demoted stills exist
+const FLASH_FRAME_PROB = 0.035; // per ghost beat (classic) / per swap beat (wake)
 const FLASH_FRAME_COOLDOWN_S = 18; // minimum seconds between flash-frames
+const WAKE_FLASH_HOLD_S = 0.9; // how long a wake-mode flash-frame stays on the overlay
+
+// Hypnagogic onset (sleep-onset research: imagery begins as fragmentary flashes before cohering
+// into scenes). For the first few seconds of a wake dream, swaps run fast and the hero layer is
+// held translucent, easing to full presence as the dream "falls asleep". Clock-driven and
+// presentation-only — the seeded asset sequence is untouched (timing may vary by contract).
+const ONSET_S = 7;
 
 export class DreamConductor implements DreamRuntime {
   private readonly manifest: Manifest;
@@ -131,6 +138,13 @@ export class DreamConductor implements DreamRuntime {
   private layerCursor = 0;
   private slotHeldUntil: number[] = new Array(MAX_LAYERS).fill(0);
   private activeTrough = -1;
+  // Trough id currently playing as a FALSE AWAKENING (treatment drops to near-zero), or -1.
+  private awakeTroughId = -1;
+  // Hypnagogic-onset window end (wake mode); the first dream opens at clock 0, so the window
+  // starts armed. Re-armed on reseed; inert once the clock passes it.
+  private onsetUntil = ONSET_S;
+  // When a wake-mode flash-frame is on the overlay, the clock time it should clear at (0 = none).
+  private wakeGhostUntil = 0;
   private nextSwapAt = 0;
   private lastWakeMood: Record<MoodAxis, number> | null = null;
   // The discrete layer "recipe" (count + per-layer blends + feedback/warp). Recomputed only
@@ -308,6 +322,10 @@ export class DreamConductor implements DreamRuntime {
     this.walker = this.buildWalker();
     this.intensity.reseed(seed);
     this.activeTrough = -1;
+    this.awakeTroughId = -1;
+    this.onsetUntil = this.clock + ONSET_S; // a new dream falls asleep again
+    this.wakeGhostUntil = 0;
+    this.compositor.setWakeGhost(null, 0);
     this.layerCursor = 0;
     this.slotHeldUntil.fill(0);
     this.currentPlan = null;
@@ -496,7 +514,13 @@ export class DreamConductor implements DreamRuntime {
     if (s.inTrough && s.troughId !== this.activeTrough) {
       this.activeTrough = s.troughId;
       const kind = coherenceForTrough(this.seed, s.troughId);
-      this.walker.setConvergence(kind === 'rhyme');
+      // rhyme converges the walk; a FALSE AWAKENING converges too (the image settles) while the
+      // continuous section below drops every treatment to near-zero — "am I awake?".
+      this.walker.setConvergence(kind === 'rhyme' || kind === 'awake');
+      if (kind === 'awake') {
+        this.awakeTroughId = s.troughId;
+        this.hooks.setCaption({ whisper: '' }); // the awake moment is wordless
+      }
       if (kind === 'phrase') {
         const beat = this.walker.next('text', this.tempoMul);
         this.hooks.setCaption({ whisper: beat.asset.text ?? '' });
@@ -505,7 +529,12 @@ export class DreamConductor implements DreamRuntime {
       // single-sample exit: we already know this tick is outside any trough.
       this.walker.setConvergence(false);
       this.activeTrough = -1;
+      this.awakeTroughId = -1;
     }
+
+    // Hypnagogic onset: 0..1 progress through the opening window (1 once fully "asleep").
+    const onset =
+      this.clock < this.onsetUntil ? 1 - (this.onsetUntil - this.clock) / ONSET_S : 1;
 
     // sporadic layer swap; the interval shrinks as intensity rises (and with faster tempo).
     if (this.clock >= this.nextSwapAt) {
@@ -514,7 +543,15 @@ export class DreamConductor implements DreamRuntime {
       // lucid trough holds even longer so the clear image can be taken in.
       let interval = (0.4 + (1 - intensity) * 1.6) / Math.max(0.5, this.tempoMul);
       if (s.inTrough) interval *= 2.0;
+      // During onset the imagery is fragmentary: rapid, short-lived flashes cohering into scenes.
+      interval *= 0.35 + 0.65 * onset;
       this.nextSwapAt = this.clock + interval;
+    }
+
+    // A wake-mode flash-frame clears itself after its brief hold.
+    if (this.wakeGhostUntil > 0 && this.clock >= this.wakeGhostUntil) {
+      this.compositor.setWakeGhost(null, 0);
+      this.wakeGhostUntil = 0;
     }
 
     // --- Now advance the CONTINUOUS look and the per-slot fade ramps, then capture feedback.
@@ -525,6 +562,8 @@ export class DreamConductor implements DreamRuntime {
     // set by applyPlan so a playing clip can't be ranked out of view as newer swaps fire. ---
     const pins = this.activePins();
     const videoFocus = pins.size > 0;
+    // Hero presence eases in across the hypnagogic onset (translucent fragments → full scene).
+    stack.setHeroCap(onset >= 1 ? 1 : 0.5 + 0.5 * onset);
     if (this.currentPlan) stack.applyPlan(videoFocus ? videoFocusPlan(this.currentPlan) : this.currentPlan, pins);
 
     // intensity-scaled film: a calm base, warped + graded by the heartbeat. These are the
@@ -532,25 +571,37 @@ export class DreamConductor implements DreamRuntime {
     // merges, so we only push the channels we own here; the post-FX dream-event engine layers on
     // top. warp is derived directly from intensity (layerPlan's curve: min(1, i*i*0.3)) since the
     // recipe's plan.warp is no longer recomputed per frame.
-    this.postfx.setParams(videoFocus ? videoFocusWakeFilm(intensity) : {
-      ...baseWakeFilm(),
-      // Keep the media readable: a LOW grade floor at the coherent baseline (the 2026 direction —
-      // near-realistic at rest, treatment only at escalation); warp/chroma still surge with the
-      // heartbeat.
-      filmGrade: 0.16 - intensity * 0.06,
-      warp: Math.min(1, intensity * intensity * 0.3),
-      chroma: 0.03 + intensity * 0.40,
-      bloom: 0.04 + intensity * 0.16,
-    });
+    // FALSE AWAKENING: every treatment drops to near-zero — the rawest, cleanest the reel ever
+    // gets — until the trough releases and the dream pulls back under.
+    const falseAwake = s.inTrough && s.troughId === this.awakeTroughId;
+    if (falseAwake) {
+      this.postfx.setParams(falseAwakeningFilm());
+    } else {
+      this.postfx.setParams(videoFocus ? videoFocusWakeFilm(intensity) : {
+        ...baseWakeFilm(),
+        // Keep the media readable: a LOW grade floor at the coherent baseline (the 2026 direction —
+        // near-realistic at rest, treatment only at escalation); warp/chroma still surge with the
+        // heartbeat. During the hypnagogic onset a touch of extra haze softens the fragments.
+        haze: 0.03 + (1 - onset) * 0.08,
+        filmGrade: 0.16 - intensity * 0.06,
+        warp: Math.min(1, intensity * intensity * 0.3),
+        chroma: 0.03 + intensity * 0.40,
+        bloom: 0.04 + intensity * 0.16,
+      });
+    }
     // Gate the post-FX dream-event engine + dust on the heartbeat so swells/specks belong to
     // escalation, not the resting baseline. Classic mode never calls this and keeps full energy.
-    this.postfx.setWakeEnergy(intensity);
+    this.postfx.setWakeEnergy(falseAwake ? 0 : intensity);
 
     if (this.lastWakeMood) {
       const fs = filterStrengths(this.lastWakeMood, s.intensity, s.inTrough);
-      const readable = videoFocus ? scaleFilterStrengths(capDistortion(fs), 0.18) : capDistortion(fs);
+      const readable = falseAwake
+        ? scaleFilterStrengths(fs, 0)
+        : videoFocus
+          ? scaleFilterStrengths(capDistortion(fs), 0.18)
+          : capDistortion(fs);
       this.postfx.setFilterStrengths(readable);
-      stack.setFeedback(videoFocus ? 0 : fs.feedback);
+      stack.setFeedback(falseAwake || videoFocus ? 0 : fs.feedback);
     }
 
     this.driveButterchurn(stack, s.intensity, s.regime, s.inTrough, s.troughId, videoFocus);
@@ -716,6 +767,11 @@ export class DreamConductor implements DreamRuntime {
       attribution: ccByAttribution(asset),
       attributionUrl: asset.attributionUrl,
     });
+
+    // Rare flash-frame: a demoted still may flash over the fan this beat (video-first policy —
+    // this is the only way `image` assets surface in wake mode). Per swap beat, so the seeded
+    // roll cadence follows the dream script, not the frame rate.
+    this.maybeFlashFrame(sample.intensity, true);
   }
 
   /** Returns the set of slots whose video hold hasn't expired yet. */
@@ -822,8 +878,10 @@ export class DreamConductor implements DreamRuntime {
    *  assets appear under the video-first policy). Returns true if it took the ghost slot this beat.
    *  Deterministic (seeded `flashRng`), bounded by `FLASH_FRAME_COOLDOWN_S`, and off under reduced
    *  motion. The seeded decision (roll + cooldown) is independent of async load timing, so the dream
-   *  script stays reproducible per seed even though a still may only become visible a beat later. */
-  private maybeFlashFrame(intensity: number): boolean {
+   *  script stays reproducible per seed even though a still may only become visible a beat later.
+   *  In WAKE mode (`wake=true`, called once per swap beat) the still lands on the compositor's
+   *  wake-ghost overlay — above the layer fan — and self-clears after WAKE_FLASH_HOLD_S. */
+  private maybeFlashFrame(intensity: number, wake = false): boolean {
     if (this.flashPool.length === 0 || this.postfx.params.reduceMotion) return false;
     if (this.clock < this.flashCooldownUntil) return false;
     if (this.flashRng.next() > FLASH_FRAME_PROB) return false;
@@ -835,7 +893,12 @@ export class DreamConductor implements DreamRuntime {
 
     const cached = this.flashTex.get(asset.id);
     if (cached) {
-      this.compositor.setGhost(cached, opacity);
+      if (wake) {
+        this.compositor.setWakeGhost(cached, opacity);
+        this.wakeGhostUntil = this.clock + WAKE_FLASH_HOLD_S;
+      } else {
+        this.compositor.setGhost(cached, opacity);
+      }
       this.postfx.triggerSplice(0.4); // subliminal flash read (photosensitivity-guarded in postfx)
       return true;
     }
@@ -1068,6 +1131,32 @@ function baseWakeFilm(): Partial<FilmParams> {
     tint: 0.03,
     breathe: 0.12,
     exposure: 1,
+  };
+}
+
+/**
+ * The FALSE-AWAKENING film patch: everything at (or near) zero. Not the videoFocus grade — this
+ * is the one moment the reel is allowed to look like plain unfiltered footage, so the return of
+ * the treatment when the trough releases reads as sinking back into the dream.
+ */
+function falseAwakeningFilm(): Partial<FilmParams> {
+  return {
+    vignette: 0.05,
+    grain: 0.015,
+    sepia: 0,
+    scanline: 0,
+    desat: 0,
+    halation: 0,
+    haze: 0,
+    flicker: 0,
+    lightLeak: 0,
+    tint: 0,
+    breathe: 0.04,
+    exposure: 1,
+    filmGrade: 0.02,
+    warp: 0,
+    chroma: 0.01,
+    bloom: 0.03,
   };
 }
 

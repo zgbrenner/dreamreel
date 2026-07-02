@@ -39,6 +39,8 @@ export class Compositor {
   private readonly stageMaterial = new TransitionMaterial('fade');
   private readonly ghostMaterial: THREE.MeshBasicMaterial;
   private readonly ghostMesh: THREE.Mesh;
+  private readonly wakeGhostMesh: THREE.Mesh;
+  private readonly wakeGhostMaterial: THREE.MeshBasicMaterial;
 
   private videoPool = new VideoPool({ cap: 3 });
   private current: THREE.Texture | null = null;
@@ -76,6 +78,22 @@ export class Compositor {
     this.ghostMesh.renderOrder = 1;
     this.ghostMesh.visible = false;
     this.scene.add(this.ghostMesh);
+
+    // Wake-mode flash-frame overlay: same double-exposure treatment as the ghost, but rendered
+    // ABOVE the LayerStack fan (renderOrder 10..18) — the classic ghost at renderOrder 1 is
+    // occluded by the fan's near-opaque hero, so wake flash-frames need their own plane.
+    this.wakeGhostMaterial = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    this.wakeGhostMesh = new THREE.Mesh(quad, this.wakeGhostMaterial);
+    this.wakeGhostMesh.frustumCulled = false;
+    this.wakeGhostMesh.renderOrder = 19;
+    this.wakeGhostMesh.visible = false;
+    this.scene.add(this.wakeGhostMesh);
 
     this.renderFrame = (r) => r.render(this.scene, this.camera);
   }
@@ -247,6 +265,25 @@ export class Compositor {
     }
     this.ghostMaterial.opacity = THREE.MathUtils.clamp(opacity, 0, 1);
     this.ghostMesh.visible = true;
+  }
+
+  /**
+   * Set or clear the wake-mode flash-frame overlay (above the layer fan). Textures shown here are
+   * cached and owned by the conductor's flash pool — never disposed by this method.
+   */
+  setWakeGhost(tex: THREE.Texture | null, opacity: number): void {
+    if (!tex || opacity <= 0) {
+      this.wakeGhostMesh.visible = false;
+      this.wakeGhostMaterial.opacity = 0;
+      this.wakeGhostMaterial.map = null;
+      return;
+    }
+    if (this.wakeGhostMaterial.map !== tex) {
+      this.wakeGhostMaterial.map = tex;
+      this.wakeGhostMaterial.needsUpdate = true;
+    }
+    this.wakeGhostMaterial.opacity = THREE.MathUtils.clamp(opacity, 0, 1);
+    this.wakeGhostMesh.visible = true;
   }
 
   get currentTransition(): string {

@@ -21,6 +21,9 @@ video = ["scenedetect[opencv]>=0.6"]
 # Offline entity-cutout extraction (literal motif recurrence). Grounding DINO + SAM 2 via
 # transformers — both Apache-2.0 (code + weights).
 sprites = ["transformers>=4.49", "torch>=2.2", "Pillow>=10.2"]
+# Offline per-still depth baking (2.5D parallax, embed/depth.py). Depth Anything V2 SMALL only —
+# the sole Apache-2.0 checkpoint; the Base/Large/Giant weights are CC-BY-NC and barred.
+depth = ["transformers>=4.49", "torch>=2.2", "Pillow>=10.2"]
 # Track-based entity cutouts (embed/sprite_track.py) via the sibling `trackfx` package
 # (torchvision Mask R-CNN + supervision ByteTrack). trackfx isn't on PyPI — it lives in
 # this repo — so also install it editable alongside these deps:  pip install -e ../trackfx

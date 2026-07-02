@@ -32,6 +32,9 @@ export class LayerStack {
   private readonly quad = new THREE.PlaneGeometry(2, 2);
   private readonly layers: THREE.Mesh[] = [];
   private readonly mats: THREE.MeshBasicMaterial[] = [];
+  // Presentation-only scale on the hero layer's resting opacity (0..1). The hypnagogic onset
+  // eases it 0.5 → 1 so the opening imagery reads as translucent fragments cohering into a scene.
+  private heroCap = 1;
   private feedbackTrail = 0; // melancholy echo-trail strength, 0..1 (set by the conductor)
   // Per-slot write order, so applyPlan can show the MOST RECENT images (the newest is the
   // opaque "hero"; older ones fan behind it) rather than a fixed slot range — otherwise a
@@ -153,6 +156,11 @@ export class LayerStack {
     this.fadeOpacity[index] = 0; // new texture fades in rather than hard-cutting
   }
 
+  /** Presentation-only cap on the hero layer's opacity (clamped 0..1; default 1 = unchanged). */
+  setHeroCap(cap: number): void {
+    this.heroCap = Math.max(0, Math.min(1, cap));
+  }
+
   /**
    * Apply a LayerPlan. Shows the `layerCount` MOST-RECENTLY-written layers (by writeSeq): the
    * newest is a near-opaque NormalBlending "hero" so the current image always reads clearly;
@@ -186,7 +194,7 @@ export class LayerStack {
       const mat = this.mats[slot];
       if (rank === 0) {
         mat.blending = THREE.NormalBlending; // hero: the current image, mostly opaque
-        this.fadeTarget[slot] = 0.92;
+        this.fadeTarget[slot] = 0.92 * this.heroCap;
       } else {
         mat.blending = BLEND_MAP[plan.blends[rank] ?? 'screen'];
         let target = Math.max(0.18, 0.6 - rank * 0.09);

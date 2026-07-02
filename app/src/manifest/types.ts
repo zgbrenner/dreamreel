@@ -99,6 +99,10 @@ export interface Asset {
   // asset (clock, staircase, bird, hands, moon…). These feed the runtime's DreamMemory so motifs
   // RECUR across a dream (dream/memory.ts). Absent → no recurrence contribution (graceful).
   entities?: string[];
+  // Optional R2 URL of a grayscale DEPTH map baked offline (Depth Anything V2 Small, Apache-2.0 —
+  // pipeline/embed/depth.py). Enables runtime 2.5D depth-parallax / rack-focus treatments on the
+  // asset. Absent on legacy manifests → flat rendering, exactly as before (graceful).
+  depthSrc?: string;
 }
 
 // A segmented entity cutout (RGBA PNG on R2) — the literal pixels of a recurring motif, extracted

@@ -12,7 +12,7 @@
 
 import type { Asset, MoodAxis } from '../manifest/types';
 import { makeRng, type Rng } from './prng';
-import { cosine, l2norm, projectMood, moodAffinity } from './mood';
+import { cosine, l2norm, projectMood, moodAffinity, dominantAxes } from './mood';
 import { moodBiasAt, type MoodBiasVector, type MoodIdentity } from './moodBias';
 import type { SteeringState } from './steering';
 
@@ -99,6 +99,18 @@ const AESTHETIC_NEUTRAL = 5.5; // LAION scores cluster around here; the pivot fo
 // its variety. Added to the pre-softmax exponent; 0 when no memory/entities are present.
 export const RECUR_COUPLING = 0.5;
 export const RECUR_ECHO_CAP = 3.0; // clamp the echo so a heavily-remembered candidate can't dominate
+// Entity MATCH-CUT: a small pre-softmax bonus for candidates sharing an entity with the
+// immediately-previous pick — "same thing, wrong form" (dog → a different dog in a different
+// film), the core dream-logic sensation. Adjacency-sharp, unlike the slow memory echo above.
+export const ENTITY_MATCH_COUPLING = 0.35;
+export const ENTITY_MATCH_CAP = 2; // count at most this many shared entities toward the bonus
+// Within-dream bizarreness ramp (REM research: reports get longer, more connected, more bizarre
+// as the night progresses). Temperature / leap probability / drift drift upward as the dream
+// ages, phased by the deterministic image-beat counter — a pure function of the seeded sequence.
+const RAMP_BEATS = 240; // beats to reach the fully-ramped late-dream state (~10-15 min)
+const RAMP_TEMP = 0.25; // temperature multiplier spans (1-RAMP_TEMP/2) .. (1+RAMP_TEMP/2)
+const RAMP_LEAP = 0.6; // leap-probability multiplier spans 0.7 .. 1.3
+const RAMP_DRIFT = 0.3; // drift multiplier spans 0.85 .. 1.15
 
 /** Signed pre-softmax aesthetic boost for an asset (0 when it carries no score). Exported for tests. */
 export function aestheticBoost(aesthetic: number | undefined): number {
@@ -111,6 +123,41 @@ function isCard(a: Asset): boolean {
   return a.tags.some((t) => CARD_TAGS.has(t));
 }
 
+/** Shared-entity count between a candidate and the previous pick, capped (0 when either lacks tags).
+ *  Exported for tests. */
+export function entityOverlap(candidate: string[] | undefined, prev: string[] | undefined): number {
+  if (!candidate?.length || !prev?.length) return 0;
+  const prevSet = new Set(prev);
+  let n = 0;
+  for (const e of candidate) {
+    if (prevSet.has(e) && ++n >= ENTITY_MATCH_CAP) break;
+  }
+  return n;
+}
+
+/**
+ * Leap targets with a through-line back to the previous pick: prefer candidates sharing an
+ * entity ("a peripheral association in one scene becomes dominant in the next"), else sharing a
+ * dominant mood axis (the emotional theme bridging the cut), else the whole pool. Pure; exported
+ * for tests.
+ */
+export function throughlineCandidates(
+  pool: Asset[],
+  prevEntities: string[] | undefined,
+  prevTopAxes: MoodAxis[] | undefined,
+): Asset[] {
+  if (prevEntities?.length) {
+    const shared = pool.filter((a) => entityOverlap(a.entities, prevEntities) > 0);
+    if (shared.length > 0) return shared;
+  }
+  if (prevTopAxes?.length) {
+    const axes = new Set(prevTopAxes);
+    const moodKin = pool.filter((a) => dominantAxes(a.mood, 2).some((w) => axes.has(w.axis)));
+    if (moodKin.length > 0) return moodKin;
+  }
+  return pool;
+}
+
 interface LayerState {
   rng: Rng;
   e: number[]; // SPINE: the pure seeded embedding point. Advanced only by the seeded rng — never by
@@ -119,6 +166,11 @@ interface LayerState {
   bend: number[]; // accumulated steering offset; decays toward 0 (relax) and is capped (BEND_MAX).
   bendActive: boolean; // false when bend is exactly the zero vector — the fast path that equals the spine.
   recent: string[];
+  // The SPINE pick's entities + top mood axes from the previous beat — the through-line the next
+  // beat can carry across a cut (match-cut bonus; leap-with-through-line targets). Spine-derived
+  // only, so steering never perturbs them.
+  lastEntities?: string[];
+  lastTopAxes?: MoodAxis[];
 }
 
 export interface DreamwalkerPools {
@@ -283,25 +335,45 @@ class DreamwalkerImpl implements Dreamwalker {
     this.basisY = randUnit(sr, this.dim);
   }
 
+  /** 0..1 phase of the within-dream bizarreness ramp — the dream gets stranger as it ages. */
+  private rampPhase(): number {
+    return Math.min(1, this.imageBeat / RAMP_BEATS);
+  }
+
   private temperature(): number {
     // Tight enough that picks actually track embedding similarity at typical surreality —
     // consecutive beats should feel related; only high-surreality dreams approach a flat softmax.
-    const base = 0.10 + this.surreality * 0.7;
+    // The ramp loosens it slowly as the dream ages (late dreams are the strange ones).
+    const ramp = 1 - RAMP_TEMP / 2 + RAMP_TEMP * this.rampPhase();
+    const base = (0.10 + this.surreality * 0.7) * ramp;
     return this.converging ? base * 0.25 : base;
   }
 
-  /** Drift this layer's point; occasionally leap to a random asset's embedding. */
+  /**
+   * Drift this layer's point; occasionally leap. A leap is a non-sequitur WITH A THROUGH-LINE
+   * (dream-bizarreness research: discontinuities carry a peripheral association or emotional
+   * theme across the cut): the target is drawn from candidates sharing an entity with the
+   * previous pick, else sharing a dominant mood axis, else the whole pool. Exactly one uniform
+   * draw either way, so the rng cadence is unchanged.
+   */
   private advancePoint(st: LayerState, pool: Asset[]): boolean {
-    const driftScale = (0.10 + this.surreality * 0.4) * (this.converging ? 0.3 : 1);
+    const ramp = this.rampPhase();
+    const driftScale =
+      (0.10 + this.surreality * 0.4) *
+      (1 - RAMP_DRIFT / 2 + RAMP_DRIFT * ramp) *
+      (this.converging ? 0.3 : 1);
     const e = st.e.slice();
     for (let i = 0; i < this.dim; i++) e[i] += st.rng.gaussian() * driftScale;
     let leaped = false;
     // Quadratic: non-sequitur hard cuts stay rare for a typical dream (~4.5% at surreality 0.5)
     // and only frenzied seeds leap often — the walk, not random jumps, carries the narrative.
-    const leapP = this.converging ? 0 : this.surreality * this.surreality * 0.18;
+    const leapP = this.converging
+      ? 0
+      : this.surreality * this.surreality * 0.18 * (1 - RAMP_LEAP / 2 + RAMP_LEAP * ramp);
     if (st.rng.next() < leapP) {
-      const j = st.rng.int(pool.length);
-      st.e = [...pool[j].embedding];
+      const cands = throughlineCandidates(pool, st.lastEntities, st.lastTopAxes);
+      const j = st.rng.int(cands.length);
+      st.e = [...cands[j].embedding];
       leaped = true;
     } else {
       st.e = l2norm(e);
@@ -372,7 +444,7 @@ class DreamwalkerImpl implements Dreamwalker {
     if (candidates.length === 0) candidates = pool;
 
     const T = this.temperature();
-    const spine = this.weigh(candidates, st.e, T, moodBias);
+    const spine = this.weigh(candidates, st.e, T, moodBias, st.lastEntities);
 
     if (this.hooks?.onSelect) {
       let h = 0;
@@ -390,13 +462,17 @@ class DreamwalkerImpl implements Dreamwalker {
     // so this is bit-identical to spineChosen (and we skip the work).
     let liveChosen = spineChosen;
     if (st.bendActive) {
-      const live = this.weigh(candidates, st.eLive, T, moodBias);
+      const live = this.weigh(candidates, st.eLive, T, moodBias, st.lastEntities);
       liveChosen = candidates[selectIndex(live.weights, live.sum, u)];
     }
 
     // Persistent state advances on the SPINE pick only -> the spine is independent of steering.
     st.recent.push(spineChosen.id);
     if (st.recent.length > RECENT_WINDOW) st.recent.shift();
+    // Through-line for the NEXT beat: the spine pick's entities + dominant axes (match-cut bonus
+    // and leap targeting both read these).
+    st.lastEntities = spineChosen.entities;
+    st.lastTopAxes = dominantAxes(spineChosen.mood, 2).map((w) => w.axis);
     // Rhyme moments: snap the spine onto its chosen embedding so the next pick stays near it,
     // producing a tight thematic cluster. Drift/temperature alone don't converge fast enough.
     if (this.converging) st.e = spineChosen.embedding.slice();
@@ -408,6 +484,7 @@ class DreamwalkerImpl implements Dreamwalker {
     e: number[],
     T: number,
     moodBias?: Record<MoodAxis, number>,
+    prevEntities?: string[],
   ): { weights: number[]; sum: number } {
     const scores = candidates.map((a) => cosine(e, a.embedding) / T);
     const max = Math.max(...scores);
@@ -419,8 +496,12 @@ class DreamwalkerImpl implements Dreamwalker {
       const recurBoost = this.recurrenceEcho
         ? RECUR_COUPLING * Math.min(this.recurrenceEcho(candidates[i].entities), RECUR_ECHO_CAP)
         : 0;
+      // Match-cut: lean toward candidates sharing an entity with the previous pick.
+      const matchBoost =
+        ENTITY_MATCH_COUPLING * entityOverlap(candidates[i].entities, prevEntities);
       const w =
-        Math.exp(s - max + moodBoost + aesBoost + recurBoost) * (TYPE_WEIGHTS[candidates[i].type] ?? 1);
+        Math.exp(s - max + moodBoost + aesBoost + recurBoost + matchBoost) *
+        (TYPE_WEIGHTS[candidates[i].type] ?? 1);
       sum += w;
       return w;
     });
