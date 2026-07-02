@@ -73,6 +73,22 @@ export function capDistortion(fs: FilterStrengths): FilterStrengths {
   return { ...fs, kaleidoscope: Math.min(fs.kaleidoscope, 0.3), liquid: Math.min(fs.liquid, 0.45) };
 }
 
+/**
+ * Datamosh smear strength for the LayerStack feedback trail (0..~0.8) — a NIGHTMARE-SURGE
+ * treatment only: zero at the coherent baseline, in troughs, and under reduced motion; ramps in
+ * quadratically above ~0.7 intensity inside a frenzy so the image dissolves along its own motion
+ * only at the peak of an escalation. Pure — part of the single look brain.
+ */
+export function moshStrength(
+  intensity: number,
+  regime: IntensityRegime,
+  reduceMotion: boolean,
+): number {
+  if (reduceMotion || regime !== 'frenzy') return 0;
+  const x = clamp01((intensity - 0.7) / 0.25);
+  return x * x * 0.8;
+}
+
 // ============================================================================
 // Transition selection (gl-transitions catalog in render/transitions.ts).
 // Each axis nominates a family of transition names; the live mood weights those

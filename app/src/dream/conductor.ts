@@ -21,6 +21,7 @@ import {
 import { coherenceForTrough } from './coherence';
 import {
   filterStrengths,
+  moshStrength,
   capDistortion,
   pickTransition,
   proceduralParams,
@@ -118,6 +119,12 @@ export class DreamConductor implements DreamRuntime {
   private flashPool: Asset[] = [];
   private readonly flashTex = new Map<string, THREE.Texture>();
   private readonly flashLoading = new Set<string>();
+  // Baked depth maps (Asset.depthSrc) and flow textures (Asset.flowSrc), cached per asset id.
+  // Conductor-owned: disposed in dispose(), never by the materials they're bound to.
+  private readonly depthTex = new Map<string, THREE.Texture>();
+  private readonly depthLoading = new Set<string>();
+  private readonly flowTex = new Map<string, THREE.Texture>();
+  private readonly flowLoading = new Set<string>();
   private flashCooldownUntil = 0;
   private seed: string;
   private surreality: number;
@@ -353,6 +360,10 @@ export class DreamConductor implements DreamRuntime {
     this.spriteTex.clear();
     for (const t of this.flashTex.values()) t.dispose();
     this.flashTex.clear();
+    for (const t of this.depthTex.values()) t.dispose();
+    this.depthTex.clear();
+    for (const t of this.flowTex.values()) t.dispose();
+    this.flowTex.clear();
     for (const p of this.procCache.values()) p.dispose();
     this.procCache.clear();
     this.textCardTex?.dispose();
@@ -455,6 +466,13 @@ export class DreamConductor implements DreamRuntime {
     this.applySteeringToFilm(steer);
     const sh = shimmerFromSteering(steer);
     this.compositor.setShimmer(sh.dx, sh.dy, sh.zoom);
+    // 2.5D depth-parallax drive (presentation-only, like the shimmer): pointer/tilt attention
+    // leans the depth-bound layers, and a slow clock drift keeps even a passive dream breathing
+    // dimensionally. Only assets with a baked depth map respond; everything else stays flat.
+    const px = (sh.dx * 1.6 + Math.sin(this.clock * 0.13) * 0.35) * 0.05;
+    const py = (sh.dy * 1.6 + Math.cos(this.clock * 0.11) * 0.3) * 0.05;
+    this.layerStack?.setParallax(px, py);
+    this.compositor.setGhostParallax(px, py);
 
     if (!this.playing) return;
     this.clock += dt;
@@ -593,6 +611,13 @@ export class DreamConductor implements DreamRuntime {
     // escalation, not the resting baseline. Classic mode never calls this and keeps full energy.
     this.postfx.setWakeEnergy(falseAwake ? 0 : intensity);
 
+    // Datamosh: at the peak of a frenzy the feedback trail re-samples itself displaced along the
+    // hero clip's baked flow (or a procedural swirl) — the image dissolving along its own motion.
+    stack.setMosh(
+      falseAwake ? 0 : moshStrength(intensity, s.regime, this.postfx.params.reduceMotion),
+      this.clock,
+    );
+
     if (this.lastWakeMood) {
       const fs = filterStrengths(this.lastWakeMood, s.intensity, s.inTrough);
       const readable = falseAwake
@@ -727,6 +752,10 @@ export class DreamConductor implements DreamRuntime {
       void this.compositor.showImage(asset.src, asset.grade).then((res) => {
         if (res.ok) {
           stack.setLayerTexture(slot, res.texture);
+          // 2.5D: bind the baked depth map once it's in (guarded — the slot may have moved on).
+          this.sideTexture(asset.depthSrc, asset.id, this.depthTex, this.depthLoading, (d) =>
+            stack.setLayerDepth(slot, d, res.texture),
+          );
           // Non-video asset becomes the displayed image — clear film-clip audio.
           this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
         } else {
@@ -743,6 +772,13 @@ export class DreamConductor implements DreamRuntime {
         if (res.ok) {
           stack.setLayerTexture(slot, res.texture);
           this.slotHeldUntil[slot] = this.clock + (sample.inTrough ? 13.0 : 9.0);
+          // Datamosh direction: the hero clip's baked flow field, when it carries one (else the
+          // material's procedural swirl stands in). Caller-owned cache; never disposed by the fb.
+          if (asset.flowSrc) {
+            this.sideTexture(asset.flowSrc, asset.id, this.flowTex, this.flowLoading, (f) =>
+              stack.setMoshFlow(f),
+            );
+          }
           // Route film-clip native audio through the mixer (best-effort).
           const el = res.texture.userData.video as HTMLVideoElement | undefined;
           this.safeAudio(() => this.mixer?.setFilmClipAudio(true, el));
@@ -772,6 +808,35 @@ export class DreamConductor implements DreamRuntime {
     // this is the only way `image` assets surface in wake mode). Per swap beat, so the seeded
     // roll cadence follows the dream script, not the frame rate.
     this.maybeFlashFrame(sample.intensity, true);
+  }
+
+  /**
+   * Deliver an asset's baked side-texture (depth map or flow) from a cache, loading it once on
+   * miss. `cb` fires only on success — synchronously when cached, else after the async load; the
+   * caller must re-validate its target (e.g. LayerStack.setLayerDepth's expectMap guard).
+   */
+  private sideTexture(
+    src: string | undefined,
+    id: string,
+    cache: Map<string, THREE.Texture>,
+    loading: Set<string>,
+    cb: (tex: THREE.Texture) => void,
+  ): void {
+    if (!src) return;
+    const cached = cache.get(id);
+    if (cached) {
+      cb(cached);
+      return;
+    }
+    if (loading.has(id)) return;
+    loading.add(id);
+    void loadImageTexture(src).then((res) => {
+      loading.delete(id);
+      if (!res.ok) return;
+      res.texture.userData.ownedByCompositor = false; // conductor-owned cache
+      cache.set(id, res.texture);
+      cb(res.texture);
+    });
   }
 
   /** Returns the set of slots whose video hold hasn't expired yet. */
@@ -893,11 +958,13 @@ export class DreamConductor implements DreamRuntime {
 
     const cached = this.flashTex.get(asset.id);
     if (cached) {
+      // 2.5D flash: a depth-bound still drifts dimensionally for its brief hold.
+      const depth = asset.depthSrc ? (this.depthTex.get(asset.id) ?? null) : null;
       if (wake) {
-        this.compositor.setWakeGhost(cached, opacity);
+        this.compositor.setWakeGhost(cached, opacity, depth);
         this.wakeGhostUntil = this.clock + WAKE_FLASH_HOLD_S;
       } else {
-        this.compositor.setGhost(cached, opacity);
+        this.compositor.setGhost(cached, opacity, depth);
       }
       this.postfx.triggerSplice(0.4); // subliminal flash read (photosensitivity-guarded in postfx)
       return true;
@@ -910,6 +977,8 @@ export class DreamConductor implements DreamRuntime {
         this.flashLoading.delete(asset.id);
         if (res.ok) this.flashTex.set(asset.id, res.texture);
       });
+      // Warm the depth cache alongside so a later flash of this still can drift in 2.5D.
+      this.sideTexture(asset.depthSrc, asset.id, this.depthTex, this.depthLoading, () => {});
     }
     return true;
   }

@@ -103,6 +103,14 @@ export interface Asset {
   // pipeline/embed/depth.py). Enables runtime 2.5D depth-parallax / rack-focus treatments on the
   // asset. Absent on legacy manifests → flat rendering, exactly as before (graceful).
   depthSrc?: string;
+  // Optional R2 URL of a small RG-encoded optical-FLOW texture (RAFT, pipeline/embed/flow.py) for
+  // motion-aware treatments (datamosh smear along real scene motion). Absent → procedural flow.
+  flowSrc?: string;
+  // Optional baked MOTION metadata (RAFT, pipeline/embed/flow.py): overall motion energy plus
+  // compact in/out motion signatures (8-bin direction histogram + mean magnitude) used for
+  // MOTION-MATCHED CUTS — the walk leans toward a next clip whose opening motion continues the
+  // current clip's closing motion. Absent → no motion bias (graceful).
+  motion?: { energy?: number; inSig?: number[]; outSig?: number[] };
 }
 
 // A segmented entity cutout (RGBA PNG on R2) — the literal pixels of a recurring motif, extracted

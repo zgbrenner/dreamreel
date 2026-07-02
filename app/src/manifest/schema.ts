@@ -65,6 +65,14 @@ export const assetSchema = z.object({
   shots: z.array(z.object({ start: z.number(), end: z.number() })).optional(),
   entities: z.array(z.string()).optional(),
   depthSrc: z.string().url().optional(),
+  flowSrc: z.string().url().optional(),
+  motion: z
+    .object({
+      energy: z.number().optional(),
+      inSig: z.array(z.number()).optional(),
+      outSig: z.array(z.number()).optional(),
+    })
+    .optional(),
 });
 
 export const manifestSchema = z
