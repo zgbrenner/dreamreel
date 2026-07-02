@@ -203,7 +203,7 @@ export class LayerStack {
    * eliminating the hard-cut flicker on layer swaps.
    */
   update(dtSec: number): void {
-    const factor = Math.min(1, dtSec * 8); // ~0.3 s to reach target (1 - e^(-8*0.3) ≈ 0.91)
+    const factor = Math.min(1, dtSec * 3); // ~0.8 s to reach target — a soft dissolve, not a blink
     for (let i = 0; i < MAX_LAYERS; i++) {
       this.fadeOpacity[i] += (this.fadeTarget[i] - this.fadeOpacity[i]) * factor;
       this.mats[i].opacity = this.fadeOpacity[i];

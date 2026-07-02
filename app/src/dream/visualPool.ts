@@ -20,13 +20,18 @@ import type { Asset } from '../manifest/types';
  *
  * Pure + standalone so the policy is unit-testable without standing up the WebGL conductor.
  */
+/** Fewer videos than this and the corpus can't sustain a video-only walk — a tiny pool recycles
+ *  the same clips within the recent-window and title-card interjections dominate. */
+export const MIN_PRIMARY_VIDEOS = 4;
+
 export function visualPool(assets: Asset[], archiveOn: boolean): Asset[] {
   const media = assets.filter((a) => a.type !== 'procedural');
   if (archiveOn && media.length > 0) {
     // Video-first: hold `video` + title cards as primary and demote `image` to the flash/ghost
-    // path — but only when there is real video to carry the dream. No video → keep images primary.
-    const hasVideo = media.some((a) => a.type === 'video');
-    return hasVideo ? media.filter((a) => a.type === 'video') : media;
+    // path — but only when there is enough real video to carry the dream. A video-less (or
+    // video-starved) corpus keeps images primary so the reel still plays with variety.
+    const videos = media.filter((a) => a.type === 'video');
+    return videos.length >= MIN_PRIMARY_VIDEOS ? videos : media;
   }
   return assets.filter((a) => a.type === 'procedural' || a.type === 'titlecard');
 }
@@ -44,6 +49,6 @@ export function visualPool(assets: Asset[], archiveOn: boolean): Asset[] {
 export function flashFramePool(assets: Asset[], archiveOn: boolean): Asset[] {
   if (!archiveOn) return [];
   const media = assets.filter((a) => a.type !== 'procedural');
-  if (!media.some((a) => a.type === 'video')) return [];
+  if (media.filter((a) => a.type === 'video').length < MIN_PRIMARY_VIDEOS) return [];
   return media.filter((a) => a.type === 'image');
 }

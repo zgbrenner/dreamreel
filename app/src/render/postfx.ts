@@ -229,6 +229,9 @@ export class PostFX {
   private readonly rng: Rng = makeRng('dreamfx');
   private readonly events: DreamEvent[] = [];
   private nextEventAt = 1.5;
+  // Wake-intensity gate for the event engine + dust (1 = classic full energy; wake mode feeds the
+  // heartbeat via setWakeEnergy so swells belong to escalation, not the resting baseline).
+  private wakeEnergy = 1;
   private readonly leakColor = new THREE.Color().copy(PAL.lamp);
   private readonly tintColor = new THREE.Color(1, 0.98, 0.9);
 
@@ -285,6 +288,17 @@ export class PostFX {
   /** Kick a one-shot dream swell on a chosen channel (used on beats / non-sequiturs). */
   triggerDreamSurge(target: EventTarget = 'bloom', strength = 1): void {
     this.spawnEvent(target, strength);
+  }
+
+  /**
+   * Gate the dream-event engine + dust on the wake intensity heartbeat (0..1). At the coherent
+   * baseline the swells fall silent and the dust/scratches all but vanish; both return as the
+   * heartbeat escalates. Classic mode never calls this, so it keeps the full old-cinema energy
+   * (the default of 1).
+   */
+  setWakeEnergy(intensity: number): void {
+    this.wakeEnergy = THREE.MathUtils.clamp(intensity, 0, 1);
+    this.dust.setEnergy(THREE.MathUtils.smoothstep(this.wakeEnergy, 0.05, 0.8));
   }
 
   setIntensity(reduceMotion: boolean): void {
@@ -350,9 +364,12 @@ export class PostFX {
     }
     if (elapsed >= this.nextEventAt) {
       // pick a channel at random; calmer reels (reduced motion) fire less often / weaker.
+      // In wake mode the amplitude is also gated on the intensity heartbeat: silent at the
+      // coherent baseline, full swells only as escalation builds (classic keeps wakeEnergy=1).
+      const surgeGate = THREE.MathUtils.smoothstep(this.wakeEnergy, 0.3, 0.8);
       const targets: EventTarget[] = ['bleach', 'bloom', 'vignette', 'leak', 'tint', 'chroma'];
       const target = targets[this.rng.int(targets.length)];
-      this.spawnEvent(target, (0.4 + this.rng.next() * 0.6) * motion);
+      this.spawnEvent(target, (0.4 + this.rng.next() * 0.6) * motion * surgeGate);
       // next surge in 4..11s (further apart when motion is dampened)
       this.nextEventAt = elapsed + (4 + this.rng.next() * 7) / Math.max(0.4, motion);
     }
@@ -409,8 +426,9 @@ export class PostFX {
     (this.effect.u('uTintColor').value as THREE.Color).copy(this.tintColor);
     this.effect.u('uTint').value = THREE.MathUtils.clamp(p.tint + this.envelope('tint') * 0.5, 0, 0.9);
 
-    // bloom: base + breath + flare events
-    this.bloom.intensity = Math.max(0, p.bloom + breath * 0.15 + this.envelope('bloom') * 0.9);
+    // bloom: base + breath + flare events. The breath term scales with p.breathe so a calm wake
+    // baseline (breathe 0.12) barely swells while the classic default (0.5) keeps its 0.15 depth.
+    this.bloom.intensity = Math.max(0, p.bloom + breath * 0.3 * breatheDepth + this.envelope('bloom') * 0.9);
 
     // chromatic aberration: tiny base + surge events, gentle idle wobble
     const chromaAmt = p.chroma * 0.0018 + this.envelope('chroma') * 0.004;

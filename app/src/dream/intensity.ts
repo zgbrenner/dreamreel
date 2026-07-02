@@ -44,11 +44,11 @@ const TROUGH_RAMP = 1.0;
 
 // Surges: occasional sustained ESCALATION peaks rising out of the coherent baseline and relaxing
 // back — rarer and longer than troughs, so chaos reads as a deliberate departure, not the default.
-const SURGE_MIN_GAP = 20;
-const SURGE_MAX_GAP = 46;
-const SURGE_DUR = 7.0;
+const SURGE_MIN_GAP = 32;
+const SURGE_MAX_GAP = 75;
+const SURGE_DUR = 5.0;
 const SURGE_RAMP = 2.5;
-const SURGE_PEAK = 0.96; // intensity at a surge's plateau
+const SURGE_PEAK = 0.85; // intensity at a surge's plateau
 
 // Coherent resting baseline: low and gently varying (the lucid, near-realistic default).
 const BASE_CENTER = 0.16;

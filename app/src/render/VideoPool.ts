@@ -48,8 +48,28 @@ export class VideoPool {
     const entry: Active = { texture: res.texture, video, seq: this.seq++ };
 
     const hasShot = !!shot && shot.end > shot.start;
-    const startAt = hasShot ? (shot as Shot).start : 0;
+    let startAt = hasShot ? (shot as Shot).start : 0;
+    let shotActive = hasShot;
+    // A baked shot window can lie beyond the deployed clip (shots[] computed against the full
+    // source film while the mirrored clip is a short excerpt). Seeking past the end would clamp to
+    // the last frame and freeze the clip forever — once duration is known, fall back to the whole
+    // clip instead. Runs on every seek, so it also fires from the loadedmetadata retry when the
+    // duration only becomes known after the shot handler was installed.
+    const clampToDuration = () => {
+      const d = video.duration;
+      if (!Number.isFinite(d) || d <= 0) return;
+      if (startAt >= d - 0.5) {
+        startAt = 0;
+        shotActive = false;
+        if (entry.shotHandler) {
+          video.removeEventListener?.('timeupdate', entry.shotHandler);
+          entry.shotHandler = undefined;
+        }
+        video.loop = true;
+      }
+    };
     const seekStart = () => {
+      clampToDuration();
       try {
         video.currentTime = startAt;
       } catch {
@@ -60,7 +80,7 @@ export class VideoPool {
     // If the element isn't seekable yet, seek once metadata is in.
     if ((video.readyState ?? 0) < 1) video.addEventListener?.('loadedmetadata', seekStart, { once: true });
 
-    if (hasShot) {
+    if (shotActive) {
       // Loop WITHIN the shot window rather than the whole film: disable native loop and wrap back
       // to the shot start whenever playback reaches the shot end.
       video.loop = false;

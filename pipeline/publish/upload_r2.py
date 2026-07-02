@@ -67,13 +67,41 @@ def upload_media(derivatives: dict[str, Path]) -> dict[str, str]:
     return urls
 
 
+def _find_hotlinks(manifest: dict, public_base: str) -> list[str]:
+    """IDs of media entries whose src is an external hotlink instead of a mirrored R2 URL."""
+    base = public_base.rstrip("/") + "/"
+    bad: list[str] = []
+    for a in manifest.get("assets", []):
+        src = a.get("src")
+        if a.get("type") in ("image", "video") and src and not src.startswith(base):
+            bad.append(a["id"])
+    for group in ("audio", "entitySprites"):
+        for a in manifest.get(group, []):
+            src = a.get("src")
+            if src and not src.startswith(base):
+                bad.append(a["id"])
+    return bad
+
+
 def publish_manifest(manifest: dict, media_urls: dict[str, str]) -> dict:
-    """Rewrite asset/audio src to R2 URLs and upload manifest.<version>.json + latest pointer."""
+    """Rewrite asset/audio src to R2 URLs and upload manifest.<version>.json + latest pointer.
+
+    Refuses to ship a manifest that still hotlinks external origins (archive.org is not
+    CORS-clean for WebGL, and the policy is mirror-never-hotlink) — this is the guard that would
+    have caught the Round 5 src regression. Set R2_ALLOW_HOTLINKS=1 to override deliberately.
+    """
     _rewrite_for_upload(manifest, media_urls)
 
     version = manifest["version"]
     bucket = os.environ["R2_BUCKET"]
     public_base = os.environ["R2_PUBLIC_BASE"].rstrip("/")
+
+    hotlinks = _find_hotlinks(manifest, public_base)
+    if hotlinks and os.environ.get("R2_ALLOW_HOTLINKS") != "1":
+        raise ValueError(
+            f"refusing to publish: {len(hotlinks)} media srcs are external hotlinks, not {public_base} "
+            f"(first few: {hotlinks[:5]}). Run publish.repair_srcs, or set R2_ALLOW_HOTLINKS=1 to override."
+        )
     client = _client()
     body = (json.dumps(manifest) + "\n").encode("utf-8")
 

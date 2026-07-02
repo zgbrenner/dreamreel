@@ -54,7 +54,9 @@ export function filterStrengths(
 ): FilterStrengths {
   const pow = FILTER_AXES.map((a) => Math.pow(Math.max(0, mood[a]), SHARPEN));
   const sum = pow.reduce((s, x) => s + x, 0) || 1;
-  const scale = (0.10 + 0.32 * clamp01(intensity)) * (inTrough ? TROUGH_EASE : 1);
+  // No additive floor: at zero intensity the catalog is a true identity (no filter), per the
+  // 2026 coherent-baseline direction — treatment strength belongs to escalation.
+  const scale = 0.42 * clamp01(intensity) * (inTrough ? TROUGH_EASE : 1);
 
   const out = zero();
   FILTER_AXES.forEach((axis, i) => {

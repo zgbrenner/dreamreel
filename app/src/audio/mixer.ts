@@ -252,6 +252,7 @@ export function createMixer(deps: MixerDeps): Mixer {
       if (filmclipVideoEl) {
         const node = videoSources.get(filmclipVideoEl);
         if (node) disconnectFromBus(node);
+        filmclipVideoEl.muted = true;
         filmclipVideoEl = null;
       }
       focus = nextFocus(focus, 'filmclip', false);
@@ -272,6 +273,7 @@ export function createMixer(deps: MixerDeps): Mixer {
     if (filmclipVideoEl && filmclipVideoEl !== el) {
       const oldNode = videoSources.get(filmclipVideoEl);
       if (oldNode) disconnectFromBus(oldNode);
+      filmclipVideoEl.muted = true;
     }
 
     // Reuse or create the MediaElementAudioSourceNode for this element.
@@ -289,6 +291,12 @@ export function createMixer(deps: MixerDeps): Mixer {
     if (!sourceNode) return;
 
     connectToBus(sourceNode, 'filmclip');
+    // The loader muted the element for autoplay, but a muted media element outputs SILENCE even
+    // through a MediaElementAudioSourceNode — the whole film-clip bus was inert. Once captured by
+    // the graph the element no longer plays to speakers directly, so unmuting is safe: audibility
+    // is governed by the bus gain, ducking, and the master sound toggle (and the mixer only exists
+    // after the user's start gesture).
+    el.muted = false;
     filmclipVideoEl = el;
     focus = nextFocus(focus, 'filmclip', true);
     applyDuck();

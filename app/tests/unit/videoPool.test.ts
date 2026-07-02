@@ -78,6 +78,29 @@ describe('VideoPool', () => {
     expect(v.currentTime).toBe(15);
   });
 
+  it('a shot window beyond the clip duration falls back to the whole clip (stale full-film shots)', async () => {
+    const load = okLoader();
+    const stale = new VideoPool({
+      cap: 2,
+      reducedMotion: () => false,
+      load: async () => {
+        const res = await load();
+        if (res.ok) (res.texture.userData.video as FakeVideo & { duration: number }).duration = 12;
+        return res;
+      },
+    });
+    // shots[] baked against the full source film — the deployed clip is a 12 s excerpt.
+    const res = await stale.acquire('u', { start: 47, end: 55 });
+    if (!res.ok) return;
+    const v = res.texture.userData.video as FakeVideo;
+    expect(v.currentTime).toBe(0); // seeked to 0, not clamped to the last frame
+    expect(v.loop).toBe(true); // native loop restored — no dead window-loop handler
+
+    v.currentTime = 11; // the (removed) shot handler must not wrap playback back
+    v.fire('timeupdate');
+    expect(v.currentTime).toBe(11);
+  });
+
   it('an ignored/empty shot window falls back to playing from 0', async () => {
     const pool = new VideoPool({ cap: 2, reducedMotion: () => false, load: okLoader() });
     const res = await pool.acquire('u', { start: 5, end: 5 }); // zero-length → no shot

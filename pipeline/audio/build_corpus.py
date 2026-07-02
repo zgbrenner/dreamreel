@@ -7,8 +7,12 @@ the existing live manifest in place: it adds `audioEmbeddingDim`, the `audio[]` 
 visual corpus (images/videos keep their exact embeddings + R2 srcs).
 
 This is an operational driver (like ingest/run.py), not a unit under test. Run from pipeline/:
-    python -m audio.build_corpus --manifest out/manifest.json --out out/ \
-        --music 20 --voice 15 --foley 20
+    python -m audio.build_corpus --out out/ --music 20 --voice 15 --foley 20
+
+By default it augments the LIVE manifest (manifest/latest.json on R2), whose srcs are the
+mirrored CDN URLs. Passing --manifest a local PRE-publish manifest is almost always wrong: its
+srcs are origin hotlinks, and shipping those regresses every visual asset (the Round 5 incident —
+archive.org video is not CORS-clean, so hotlinked video is dark in production).
 
 Then upload with audio.ship_corpus (uploads the new audio derivatives + the augmented manifest).
 """
@@ -216,7 +220,22 @@ def augment_manifest(manifest: dict, embedder, audio_assets: list[dict]) -> dict
     return manifest
 
 
-def build(manifest_path: Path, out_dir: Path, per_kind: dict[str, int]) -> Path:
+DEFAULT_MANIFEST_URL = (
+    "https://pub-0f361adf4c4d425198bd06d2d9ab5194.r2.dev/manifest/latest.json"
+)
+
+
+def _load_manifest(path: Path | None, url: str) -> dict:
+    """Load the manifest to augment: a local file if given, else the live R2 manifest."""
+    if path is not None:
+        return json.loads(path.read_text(encoding="utf-8"))
+    print(f"[build_corpus] fetching live manifest {url}")
+    resp = requests.get(url, timeout=120)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def build(manifest_path: Path | None, out_dir: Path, per_kind: dict[str, int], url: str = DEFAULT_MANIFEST_URL) -> Path:
     embedder = _best_embedder()
     print(f"[build_corpus] CLAP embedder backend: {embedder.backend}, dim={embedder.dim}")
     audio_axes = build_axes(embedder)
@@ -237,7 +256,7 @@ def build(manifest_path: Path, out_dir: Path, per_kind: dict[str, int]) -> Path:
     audio_assets = build_audio_assets(embedder, audio_axes, rows)
     print(f"[build_corpus] built {len(audio_assets)} audio assets")
 
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = _load_manifest(manifest_path, url)
     manifest = augment_manifest(manifest, embedder, audio_assets)
 
     out_path = out_dir / f"manifest.{manifest['version']}.json"
@@ -253,13 +272,17 @@ def build(manifest_path: Path, out_dir: Path, per_kind: dict[str, int]) -> Path:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="DREAMREEL Round 5 audio corpus builder")
-    ap.add_argument("--manifest", type=Path, default=Path("out/manifest.json"))
+    ap.add_argument(
+        "--manifest", type=Path, default=None,
+        help="local manifest to augment (default: fetch the LIVE manifest — see module docstring)",
+    )
+    ap.add_argument("--url", type=str, default=DEFAULT_MANIFEST_URL)
     ap.add_argument("--out", type=Path, default=Path("out"))
     ap.add_argument("--music", type=int, default=20)
     ap.add_argument("--voice", type=int, default=15)
     ap.add_argument("--foley", type=int, default=20)
     args = ap.parse_args()
-    build(args.manifest, args.out, {"music": args.music, "voice": args.voice, "foley": args.foley})
+    build(args.manifest, args.out, {"music": args.music, "voice": args.voice, "foley": args.foley}, url=args.url)
 
 
 if __name__ == "__main__":

@@ -18,10 +18,13 @@ export function isArchiveUrl(src: string): boolean {
 }
 
 export function archiveProxyUrlFor(src: string, opts: ArchiveProxyOptions = {}): string {
-  const dev = opts.dev ?? import.meta.env.DEV;
+  // import.meta.env only exists under Vite; scripts/validate-manifest.ts runs this under plain
+  // tsx, where dereferencing .DEV would throw. Outside Vite, treat as non-dev (no rewrite).
+  const env = import.meta.env as ImportMetaEnv | undefined;
+  const dev = opts.dev ?? env?.DEV ?? false;
   if (!dev || !isArchiveUrl(src)) return src;
 
-  const proxyBase = opts.proxyBase ?? import.meta.env.VITE_ARCHIVE_PROXY_URL ?? DEFAULT_ARCHIVE_PROXY_URL;
+  const proxyBase = opts.proxyBase ?? env?.VITE_ARCHIVE_PROXY_URL ?? DEFAULT_ARCHIVE_PROXY_URL;
   const absolute = /^[a-z][a-z\d+.-]*:/i.test(proxyBase);
   const u = new URL(proxyBase, RELATIVE_BASE);
   u.searchParams.set('url', src);

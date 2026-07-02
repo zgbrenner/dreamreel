@@ -48,7 +48,7 @@ describe('IntensityEngine coherent baseline (2026 inversion)', () => {
 
   it('still escalates: surges push intensity to a high peak somewhere in a long run', () => {
     const peak = Math.max(...series('peaks', 6000, 0.1).map((s) => s.intensity));
-    expect(peak).toBeGreaterThan(0.85);
+    expect(peak).toBeGreaterThan(0.8); // SURGE_PEAK is 0.85 — escalation without total obliteration
   });
 });
 

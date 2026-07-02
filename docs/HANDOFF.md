@@ -1,6 +1,16 @@
 # DREAMREEL — Handoff / Pick-Up Doc
 
-_Last updated: 2026-06-29 (coverage backfill + PD-poetry + so400m re-embed, all live). Read this first when resuming._
+_Last updated: 2026-07-02 (production audit). Read this first when resuming._
+
+## ⚠ 2026-07-02 audit — read `docs/AUDIT-2026-07-02.md` first
+
+Production video has been dark since `v2026.06.23-1515`: that reship silently reverted every
+visual asset's `src` from its R2 CDN URL to an origin hotlink (archive.org video is not CORS-clean
+for WebGL). A validated repair (`publish/repair_srcs.py`) is ready but **has not been shipped** —
+run `python -m publish.repair_srcs --out out --upload` with the R2 env to fix the live site.
+`publish_manifest` now refuses to ship hotlinked manifests. The same audit re-grounded the wake
+look on the intensity heartbeat (event engine/dust/grade/filters gated), tamed leap/title-card
+cadence, and fixed several video-path bugs. Details, follow-ups, and rollback in the audit doc.
 
 ## Latest session (2026-06-29) — the headline
 
