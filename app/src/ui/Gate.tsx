@@ -9,6 +9,7 @@ import { DreamConductor } from '../dream/conductor';
 import { deriveSeedParams } from '../dream/seedParams';
 import { readShareState } from '../state/url';
 import { composePoster, downloadBlob, posterFilename, shareUrlFor } from './poster';
+import { recordDreamLoop, loopFilename } from './loop';
 
 /**
  * The luminous projection gate: hosts the compositor canvas and the idle screen. On mount it
@@ -104,6 +105,33 @@ export function Gate({ manifest }: { manifest: Manifest }) {
     };
     window.addEventListener('keydown', onPosterKey);
 
+    // "l" records a ~4s dream loop (WebM, seed burned into a corner) — the poster's moving-image
+    // sibling, same hidden-key, chrome-free pattern. Repeat presses are ignored while a recording
+    // is in flight; capture is best-effort and never disturbs the reel.
+    let loopInFlight = false;
+    const onLoopKey = (e: KeyboardEvent) => {
+      if (e.key !== 'l' && e.key !== 'L') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
+        return;
+      }
+      if (loopInFlight) return;
+      loopInFlight = true;
+      const { seed } = useStore.getState();
+      recordDreamLoop({ source: compositor.renderer.domElement, seed })
+        .then((blob) => {
+          if (blob) downloadBlob(blob, loopFilename(seed));
+        })
+        .catch(() => {
+          /* best-effort */
+        })
+        .finally(() => {
+          loopInFlight = false;
+        });
+    };
+    window.addEventListener('keydown', onLoopKey);
+
     // Ambient/TV mode (?ambient=1): fullscreen + screen wake lock, both feature-detected and
     // best-effort. The wake lock follows play state (release on pause) and is re-acquired when
     // the document becomes visible again.
@@ -164,6 +192,7 @@ export function Gate({ manifest }: { manifest: Manifest }) {
 
     return () => {
       window.removeEventListener('keydown', onPosterKey);
+      window.removeEventListener('keydown', onLoopKey);
       ambientCleanup?.();
       ro.disconnect();
       reduce.removeEventListener('change', applyReduce);

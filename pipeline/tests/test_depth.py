@@ -73,9 +73,11 @@ def _fake_depth_fn(path: Path):
     return np.linspace(0, 1, 32 * 24).reshape(24, 32)
 
 
-def test_annotate_bakes_pngs_for_images_only(tmp_path: Path, monkeypatch):
+def test_annotate_bakes_pngs_for_images_only_when_video_excluded(tmp_path: Path, monkeypatch):
     _fake_fetch(monkeypatch)
-    out, derivs = depth_mod.annotate(_manifest(), tmp_path, depth_fn=_fake_depth_fn)
+    out, derivs = depth_mod.annotate(
+        _manifest(), tmp_path, depth_fn=_fake_depth_fn, include_video=False
+    )
     assert set(derivs) == {"img-0000", "img-0001"}
     assert all(p.exists() for p in derivs.values())
     # depthSrc is NOT set by annotate (that happens post-upload via apply_urls)
@@ -84,15 +86,44 @@ def test_annotate_bakes_pngs_for_images_only(tmp_path: Path, monkeypatch):
     assert out["version"] != "2026.07.01-0000"
 
 
+def test_annotate_bakes_video_depth_from_midframe(tmp_path: Path, monkeypatch):
+    _fake_fetch(monkeypatch)
+    grabbed: list[str] = []
+
+    def fake_midframe(_local: Path, dest_dir: Path, asset_id: str) -> Path:
+        grabbed.append(asset_id)
+        p = dest_dir / f"{asset_id}-midframe.png"
+        p.write_bytes(_fake_image_bytes())
+        return p
+
+    _, derivs = depth_mod.annotate(
+        _manifest(), tmp_path, depth_fn=_fake_depth_fn, midframe_fn=fake_midframe
+    )
+    assert set(derivs) == {"img-0000", "img-0001", "vid-0000"}
+    assert grabbed == ["vid-0000"]  # midframe extraction runs for videos only
+
+
+def test_annotate_video_midframe_failure_skips_gracefully(tmp_path: Path, monkeypatch):
+    _fake_fetch(monkeypatch)
+    _, derivs = depth_mod.annotate(
+        _manifest(), tmp_path, depth_fn=_fake_depth_fn, midframe_fn=lambda *_: None
+    )
+    assert set(derivs) == {"img-0000", "img-0001"}  # video skipped, stills unaffected
+
+
 def test_annotate_only_missing_skips_already_baked(tmp_path: Path, monkeypatch):
     _fake_fetch(monkeypatch)
-    _, derivs = depth_mod.annotate(_manifest(), tmp_path, only_missing=True, depth_fn=_fake_depth_fn)
+    _, derivs = depth_mod.annotate(
+        _manifest(), tmp_path, only_missing=True, depth_fn=_fake_depth_fn, include_video=False
+    )
     assert set(derivs) == {"img-0000"}
 
 
 def test_annotate_limit(tmp_path: Path, monkeypatch):
     _fake_fetch(monkeypatch)
-    _, derivs = depth_mod.annotate(_manifest(), tmp_path, limit=1, depth_fn=_fake_depth_fn)
+    _, derivs = depth_mod.annotate(
+        _manifest(), tmp_path, limit=1, depth_fn=_fake_depth_fn, include_video=False
+    )
     assert len(derivs) == 1
 
 
