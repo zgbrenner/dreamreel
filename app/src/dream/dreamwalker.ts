@@ -104,6 +104,10 @@ export const RECUR_ECHO_CAP = 3.0; // clamp the echo so a heavily-remembered can
 // film), the core dream-logic sensation. Adjacency-sharp, unlike the slow memory echo above.
 export const ENTITY_MATCH_COUPLING = 0.35;
 export const ENTITY_MATCH_CAP = 2; // count at most this many shared entities toward the bonus
+// MOTION-MATCHED CUT: lean toward a next clip whose opening motion continues the current clip's
+// closing motion (baked RAFT signatures, pipeline/embed/flow.py) — the editor's invisible cut.
+// 0 when either side lacks a signature (legacy manifests unaffected).
+export const MOTION_MATCH_COUPLING = 0.4;
 // Within-dream bizarreness ramp (REM research: reports get longer, more connected, more bizarre
 // as the night progresses). Temperature / leap probability / drift drift upward as the dream
 // ages, phased by the deterministic image-beat counter — a pure function of the seeded sequence.
@@ -121,6 +125,22 @@ const CARD_TAGS = new Set(['card', 'intertitle', 'titlecard']);
 
 function isCard(a: Asset): boolean {
   return a.tags.some((t) => CARD_TAGS.has(t));
+}
+
+/** Cosine similarity of two baked motion signatures; 0 when either is missing/mismatched or
+ *  degenerate. Exported for tests. */
+export function sigAffinity(a: number[] | undefined, b: number[] | undefined): number {
+  if (!a || !b || a.length === 0 || a.length !== b.length) return 0;
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  if (na < 1e-12 || nb < 1e-12) return 0;
+  return dot / Math.sqrt(na * nb);
 }
 
 /** Shared-entity count between a candidate and the previous pick, capped (0 when either lacks tags).
@@ -171,6 +191,9 @@ interface LayerState {
   // only, so steering never perturbs them.
   lastEntities?: string[];
   lastTopAxes?: MoodAxis[];
+  // The SPINE pick's closing-motion signature (baked, pipeline/embed/flow.py) — the next beat
+  // leans toward clips whose opening motion continues it (motion-matched cuts).
+  lastOutSig?: number[];
 }
 
 export interface DreamwalkerPools {
@@ -444,7 +467,7 @@ class DreamwalkerImpl implements Dreamwalker {
     if (candidates.length === 0) candidates = pool;
 
     const T = this.temperature();
-    const spine = this.weigh(candidates, st.e, T, moodBias, st.lastEntities);
+    const spine = this.weigh(candidates, st.e, T, moodBias, st.lastEntities, st.lastOutSig);
 
     if (this.hooks?.onSelect) {
       let h = 0;
@@ -462,7 +485,7 @@ class DreamwalkerImpl implements Dreamwalker {
     // so this is bit-identical to spineChosen (and we skip the work).
     let liveChosen = spineChosen;
     if (st.bendActive) {
-      const live = this.weigh(candidates, st.eLive, T, moodBias, st.lastEntities);
+      const live = this.weigh(candidates, st.eLive, T, moodBias, st.lastEntities, st.lastOutSig);
       liveChosen = candidates[selectIndex(live.weights, live.sum, u)];
     }
 
@@ -470,9 +493,10 @@ class DreamwalkerImpl implements Dreamwalker {
     st.recent.push(spineChosen.id);
     if (st.recent.length > RECENT_WINDOW) st.recent.shift();
     // Through-line for the NEXT beat: the spine pick's entities + dominant axes (match-cut bonus
-    // and leap targeting both read these).
+    // and leap targeting both read these), and its closing-motion signature (motion-matched cuts).
     st.lastEntities = spineChosen.entities;
     st.lastTopAxes = dominantAxes(spineChosen.mood, 2).map((w) => w.axis);
+    st.lastOutSig = spineChosen.motion?.outSig;
     // Rhyme moments: snap the spine onto its chosen embedding so the next pick stays near it,
     // producing a tight thematic cluster. Drift/temperature alone don't converge fast enough.
     if (this.converging) st.e = spineChosen.embedding.slice();
@@ -485,6 +509,7 @@ class DreamwalkerImpl implements Dreamwalker {
     T: number,
     moodBias?: Record<MoodAxis, number>,
     prevEntities?: string[],
+    prevOutSig?: number[],
   ): { weights: number[]; sum: number } {
     const scores = candidates.map((a) => cosine(e, a.embedding) / T);
     const max = Math.max(...scores);
@@ -499,8 +524,11 @@ class DreamwalkerImpl implements Dreamwalker {
       // Match-cut: lean toward candidates sharing an entity with the previous pick.
       const matchBoost =
         ENTITY_MATCH_COUPLING * entityOverlap(candidates[i].entities, prevEntities);
+      // Motion-matched cut: opening motion that continues the previous clip's closing motion.
+      const motionBoost =
+        MOTION_MATCH_COUPLING * sigAffinity(prevOutSig, candidates[i].motion?.inSig);
       const w =
-        Math.exp(s - max + moodBoost + aesBoost + recurBoost + matchBoost) *
+        Math.exp(s - max + moodBoost + aesBoost + recurBoost + matchBoost + motionBoost) *
         (TYPE_WEIGHTS[candidates[i].type] ?? 1);
       sum += w;
       return w;

@@ -1,7 +1,7 @@
 // Through-line machinery: entity match-cuts and leap targeting (dream-bizarreness research —
 // discontinuities carry a peripheral association or emotional theme across the cut).
 import { describe, it, expect } from 'vitest';
-import { entityOverlap, throughlineCandidates } from '../../src/dream/dreamwalker';
+import { entityOverlap, throughlineCandidates, sigAffinity } from '../../src/dream/dreamwalker';
 import { MOOD_AXES, type Asset, type MoodAxis } from '../../src/manifest/types';
 
 function moodWith(overrides: Partial<Record<MoodAxis, number>>): Record<MoodAxis, number> {
@@ -34,6 +34,22 @@ describe('entityOverlap', () => {
     expect(entityOverlap(undefined, ['dog'])).toBe(0);
     expect(entityOverlap(['dog'], undefined)).toBe(0);
     expect(entityOverlap([], [])).toBe(0);
+  });
+});
+
+describe('sigAffinity (motion-matched cuts)', () => {
+  it('is 1 for identical signatures and lower for diverging motion', () => {
+    const right = [1, 0, 0, 0, 0, 0, 0, 0, 0.5];
+    const left = [0, 0, 0, 0, 1, 0, 0, 0, 0.5];
+    expect(sigAffinity(right, right)).toBeCloseTo(1);
+    expect(sigAffinity(right, left)).toBeLessThan(sigAffinity(right, right));
+  });
+
+  it('is 0 when either signature is missing, mismatched, or degenerate (legacy manifests)', () => {
+    expect(sigAffinity(undefined, [1, 0])).toBe(0);
+    expect(sigAffinity([1, 0], undefined)).toBe(0);
+    expect(sigAffinity([1, 0], [1, 0, 0])).toBe(0);
+    expect(sigAffinity([0, 0], [0, 0])).toBe(0);
   });
 });
 

@@ -1,6 +1,7 @@
 // app/src/render/Compositor.ts
 import * as THREE from 'three';
 import { TransitionMaterial } from './TransitionMaterial';
+import { DepthLayerMaterial } from './DreamLayerMaterial';
 import { TRANSITION_NAMES } from './transitions';
 import { loadImageTexture, type TextureLoadResult } from './textureLoader';
 import { VideoPool, type Shot } from './VideoPool';
@@ -37,10 +38,10 @@ export class Compositor {
   private readonly resizeListeners = new Set<(w: number, h: number) => void>();
 
   private readonly stageMaterial = new TransitionMaterial('fade');
-  private readonly ghostMaterial: THREE.MeshBasicMaterial;
+  private readonly ghostMaterial: DepthLayerMaterial;
   private readonly ghostMesh: THREE.Mesh;
   private readonly wakeGhostMesh: THREE.Mesh;
-  private readonly wakeGhostMaterial: THREE.MeshBasicMaterial;
+  private readonly wakeGhostMaterial: DepthLayerMaterial;
 
   private videoPool = new VideoPool({ cap: 3 });
   private current: THREE.Texture | null = null;
@@ -66,7 +67,7 @@ export class Compositor {
     stage.frustumCulled = false;
     this.scene.add(stage);
 
-    this.ghostMaterial = new THREE.MeshBasicMaterial({
+    this.ghostMaterial = new DepthLayerMaterial({
       transparent: true,
       opacity: 0,
       depthTest: false,
@@ -82,7 +83,7 @@ export class Compositor {
     // Wake-mode flash-frame overlay: same double-exposure treatment as the ghost, but rendered
     // ABOVE the LayerStack fan (renderOrder 10..18) — the classic ghost at renderOrder 1 is
     // occluded by the fan's near-opaque hero, so wake flash-frames need their own plane.
-    this.wakeGhostMaterial = new THREE.MeshBasicMaterial({
+    this.wakeGhostMaterial = new DepthLayerMaterial({
       transparent: true,
       opacity: 0,
       depthTest: false,
@@ -247,11 +248,13 @@ export class Compositor {
     this.shimmerTarget.zoom = zoom;
   }
 
-  /** Set or clear the ghost (double-exposure) layer. */
-  setGhost(tex: THREE.Texture | null, opacity: number): void {
+  /** Set or clear the ghost (double-exposure) layer. `depth` (caller-owned, optional) enables
+   *  2.5D parallax on the ghost when the asset carries a baked depth map. */
+  setGhost(tex: THREE.Texture | null, opacity: number, depth: THREE.Texture | null = null): void {
     if (!tex || opacity <= 0) {
       this.ghostMesh.visible = false;
       this.ghostMaterial.opacity = 0;
+      this.ghostMaterial.setDepth(null);
       const prev = this.ghostMaterial.map;
       this.ghostMaterial.map = null;
       this.disposeIfOwned(prev, [this.current, this.crossfade?.to]);
@@ -263,6 +266,7 @@ export class Compositor {
       this.ghostMaterial.needsUpdate = true;
       this.disposeIfOwned(prev, [this.current, this.crossfade?.to, tex]);
     }
+    this.ghostMaterial.setDepth(depth);
     this.ghostMaterial.opacity = THREE.MathUtils.clamp(opacity, 0, 1);
     this.ghostMesh.visible = true;
   }
@@ -271,19 +275,27 @@ export class Compositor {
    * Set or clear the wake-mode flash-frame overlay (above the layer fan). Textures shown here are
    * cached and owned by the conductor's flash pool — never disposed by this method.
    */
-  setWakeGhost(tex: THREE.Texture | null, opacity: number): void {
+  setWakeGhost(tex: THREE.Texture | null, opacity: number, depth: THREE.Texture | null = null): void {
     if (!tex || opacity <= 0) {
       this.wakeGhostMesh.visible = false;
       this.wakeGhostMaterial.opacity = 0;
       this.wakeGhostMaterial.map = null;
+      this.wakeGhostMaterial.setDepth(null);
       return;
     }
     if (this.wakeGhostMaterial.map !== tex) {
       this.wakeGhostMaterial.map = tex;
       this.wakeGhostMaterial.needsUpdate = true;
     }
+    this.wakeGhostMaterial.setDepth(depth);
     this.wakeGhostMaterial.opacity = THREE.MathUtils.clamp(opacity, 0, 1);
     this.wakeGhostMesh.visible = true;
+  }
+
+  /** Presentation-only parallax offset for the two ghost planes (depth-bound assets only). */
+  setGhostParallax(x: number, y: number): void {
+    this.ghostMaterial.setParallax(x, y);
+    this.wakeGhostMaterial.setParallax(x, y);
   }
 
   get currentTransition(): string {

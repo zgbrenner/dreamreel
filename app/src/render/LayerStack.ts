@@ -12,6 +12,7 @@
 
 import * as THREE from 'three';
 import { MAX_LAYERS, type LayerPlan, type BlendName } from '../dream/layerPlan';
+import { DepthLayerMaterial, MoshFeedbackMaterial } from './DreamLayerMaterial';
 import type { Compositor } from './Compositor';
 
 // three.js has no true Photoshop "screen"/"lighten"/"overlay" blend modes built in.
@@ -31,7 +32,7 @@ const half = (n: number): number => Math.max(1, Math.floor(n / 2));
 export class LayerStack {
   private readonly quad = new THREE.PlaneGeometry(2, 2);
   private readonly layers: THREE.Mesh[] = [];
-  private readonly mats: THREE.MeshBasicMaterial[] = [];
+  private readonly mats: DepthLayerMaterial[] = [];
   // Presentation-only scale on the hero layer's resting opacity (0..1). The hypnagogic onset
   // eases it 0.5 → 1 so the opening imagery reads as translucent fragments cohering into a scene.
   private heroCap = 1;
@@ -48,7 +49,7 @@ export class LayerStack {
   private readonly fadeTarget = new Array<number>(MAX_LAYERS).fill(0);
   private fbA: THREE.WebGLRenderTarget;
   private fbB: THREE.WebGLRenderTarget;
-  private readonly fbMat: THREE.MeshBasicMaterial;
+  private readonly fbMat: MoshFeedbackMaterial;
   private readonly fbMesh: THREE.Mesh;
   // Optional psychedelic (Butterchurn) overlay — sits above the whole fan, additively blended.
   // Hidden by default; when no texture/opacity is set it renders nothing, so output is identical
@@ -68,7 +69,8 @@ export class LayerStack {
     this.unsubResize = compositor.addResizeListener((w, h) => this.resize(w, h));
 
     for (let i = 0; i < MAX_LAYERS; i++) {
-      const mat = new THREE.MeshBasicMaterial({
+      // DepthLayerMaterial === MeshBasicMaterial unless a baked depth map is bound (2.5D drift).
+      const mat = new DepthLayerMaterial({
         transparent: true,
         opacity: 0,
         depthTest: false,
@@ -86,7 +88,9 @@ export class LayerStack {
       compositor.addOverlay(mesh);
     }
 
-    this.fbMat = new THREE.MeshBasicMaterial({
+    // MoshFeedbackMaterial === MeshBasicMaterial at uMosh 0; nightmare surges smear the trail
+    // along baked/procedural flow (the datamosh path — see DreamLayerMaterial).
+    this.fbMat = new MoshFeedbackMaterial({
       transparent: true,
       opacity: 0,
       depthTest: false,
@@ -151,9 +155,38 @@ export class LayerStack {
     const prev = mat.map;
     if (prev && prev !== tex && prev.userData.ownedByCompositor) prev.dispose();
     mat.map = tex;
+    mat.setDepth(null); // a new texture starts flat; setLayerDepth re-binds when its map arrives
     mat.needsUpdate = true;
     this.writeSeq[index] = ++this.seqCounter;
     this.fadeOpacity[index] = 0; // new texture fades in rather than hard-cutting
+  }
+
+  /**
+   * Bind a baked depth map to a slot for 2.5D parallax — guarded by `expectMap`: depth loads are
+   * async, so by the time one arrives the slot may already show a different texture. The depth
+   * texture is cached and owned by the conductor; never disposed here.
+   */
+  setLayerDepth(index: number, depth: THREE.Texture | null, expectMap: THREE.Texture): void {
+    if (index < 0 || index >= MAX_LAYERS) return;
+    const mat = this.mats[index];
+    if (mat.map !== expectMap) return; // slot moved on — stale depth, drop it
+    mat.setDepth(depth);
+  }
+
+  /** Presentation-only parallax offset applied to every depth-bound layer (UV units, small). */
+  setParallax(x: number, y: number): void {
+    for (const mat of this.mats) mat.setParallax(x, y);
+  }
+
+  /** Datamosh smear strength for the feedback trail (0 = stock; surge-gated by the conductor). */
+  setMosh(strength: number, timeSec: number): void {
+    this.fbMat.setMosh(strength);
+    this.fbMat.setMoshTime(timeSec);
+  }
+
+  /** Bind (or clear) the current hero clip's baked flow texture for the mosh smear direction. */
+  setMoshFlow(tex: THREE.Texture | null): void {
+    this.fbMat.setFlow(tex);
   }
 
   /** Presentation-only cap on the hero layer's opacity (clamped 0..1; default 1 = unchanged). */

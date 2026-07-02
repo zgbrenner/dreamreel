@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { loadManifest, ManifestError } from './manifest/loader';
 import type { Manifest } from './manifest/types';
 import { useStore } from './state/store';
+import { readShareState } from './state/url';
 import { Gate } from './ui/Gate';
 import { ProjectorPanel } from './ui/ProjectorPanel';
 import { Captions } from './ui/Captions';
@@ -18,6 +19,9 @@ const MANIFEST_URL = import.meta.env.VITE_MANIFEST_URL || DEFAULT_MANIFEST_URL;
 
 const PANEL_PREF_KEY = 'dreamreel.panelOpen';
 
+/** Ambient/TV mode: hide all chrome after this long without pointer movement. */
+const AMBIENT_CHROME_HIDE_MS = 8000;
+
 function readPanelPref(): boolean {
   try {
     return localStorage.getItem(PANEL_PREF_KEY) !== '0';
@@ -30,7 +34,33 @@ export default function App() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState(readPanelPref);
+  // Ambient/TV mode (?ambient=1) — a non-UI engine flag, read once per page load like ?wake=0.
+  const [ambient] = useState(() => readShareState().ambient);
+  const [chromeVisible, setChromeVisible] = useState(true);
   const togglePlay = useStore((s) => s.togglePlay);
+
+  // Ambient mode auto-hides ALL chrome (panel + captions) after ~8s without pointer movement;
+  // any movement brings it back. Presentation only — the dream itself is untouched.
+  useEffect(() => {
+    if (!ambient) return;
+    let timer: number | undefined;
+    const arm = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setChromeVisible(false), AMBIENT_CHROME_HIDE_MS);
+    };
+    const onPointer = () => {
+      setChromeVisible(true);
+      arm();
+    };
+    arm();
+    window.addEventListener('pointermove', onPointer);
+    window.addEventListener('pointerdown', onPointer);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('pointermove', onPointer);
+      window.removeEventListener('pointerdown', onPointer);
+    };
+  }, [ambient]);
 
   // Remember the control-drawer preference (a non-essential UI pref, so localStorage is allowed).
   useEffect(() => {
@@ -98,11 +128,16 @@ export default function App() {
     );
   }
 
+  const chromeHidden = ambient && !chromeVisible;
+
   return (
     <main className="relative h-full w-full overflow-hidden bg-ink">
       <Gate manifest={manifest} />
-      <Captions panelOpen={panelOpen} />
-      <ProjectorPanel open={panelOpen} onToggle={() => setPanelOpen((o) => !o)} />
+      {/* Captions stay mounted so mandatory CC-BY attribution is still rendered when hidden. */}
+      <Captions panelOpen={panelOpen && !chromeHidden} chromeHidden={chromeHidden} />
+      {!chromeHidden && (
+        <ProjectorPanel open={panelOpen} onToggle={() => setPanelOpen((o) => !o)} />
+      )}
     </main>
   );
 }
