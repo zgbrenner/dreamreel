@@ -22,6 +22,8 @@ import { coherenceForTrough } from './coherence';
 import {
   filterStrengths,
   moshStrength,
+  swapFadeRate,
+  preferSlow,
   capDistortion,
   pickTransition,
   proceduralParams,
@@ -618,6 +620,12 @@ export class DreamConductor implements DreamRuntime {
       this.clock,
     );
 
+    // Mood-shaped swap dynamics: tender dreams dissolve long and luminous, fearful escalations
+    // cut hard. Presentation-only (fade timing, never selection).
+    stack.setFadeRate(
+      swapFadeRate(this.lastWakeMood, intensity, s.inTrough, this.postfx.params.reduceMotion),
+    );
+
     if (this.lastWakeMood) {
       const fs = filterStrengths(this.lastWakeMood, s.intensity, s.inTrough);
       const readable = falseAwake
@@ -768,9 +776,19 @@ export class DreamConductor implements DreamRuntime {
         }
       });
     } else if (asset.type === 'video' && asset.src) {
-      void this.compositor.showVideo(asset.src, asset.grade, this.pickShot(asset)).then((res) => {
+      // Gentle-register beats prefer the clip's slow-motion variant when one is baked. The pick
+      // is deterministic (mood + intensity are logical state); shot windows don't apply to the
+      // time-stretched variant, so the slow clip plays whole.
+      const slow = asset.slowSrc && preferSlow(mood, intensity) ? asset.slowSrc : undefined;
+      void this.compositor
+        .showVideo(slow ?? asset.src, asset.grade, slow ? undefined : this.pickShot(asset))
+        .then((res) => {
         if (res.ok) {
           stack.setLayerTexture(slot, res.texture);
+          // 2.5D: midpoint-frame depth (pipeline/embed/depth.py) drifts the moving image too.
+          this.sideTexture(asset.depthSrc, asset.id, this.depthTex, this.depthLoading, (d) =>
+            stack.setLayerDepth(slot, d, res.texture),
+          );
           this.slotHeldUntil[slot] = this.clock + (sample.inTrough ? 13.0 : 9.0);
           // Datamosh direction: the hero clip's baked flow field, when it carries one (else the
           // material's procedural swirl stands in). Caller-owned cache; never disposed by the fb.

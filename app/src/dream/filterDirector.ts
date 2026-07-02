@@ -74,6 +74,40 @@ export function capDistortion(fs: FilterStrengths): FilterStrengths {
 }
 
 /**
+ * Mood-shaped swap dynamics: the per-second ease rate for the LayerStack's cross-fade
+ * (higher = snappier). A tender/nostalgic dream dissolves long and luminous (~1.5 s); a
+ * fearful/ominous escalation cuts hard (~0.25 s); troughs and reduced-motion always dissolve
+ * slowly; a flat/neutral mood keeps the 3.0 default (~0.8 s). Pure — part of the look brain.
+ */
+export function swapFadeRate(
+  mood: Record<MoodAxis, number> | null,
+  intensity: number,
+  inTrough: boolean,
+  reduceMotion: boolean,
+): number {
+  if (inTrough) return 2.0;
+  if (reduceMotion) return 2.2;
+  if (!mood) return 3.0;
+  const soft = Math.max(mood.tender, mood.nostalgic, mood.love, mood.loss);
+  const sharp = Math.max(mood.fear, mood.ominous) * clamp01(intensity);
+  // Blend from the 3.0 default: strong soft moods slow toward 1.8; sharp+intense speeds toward 10.
+  const softPull = clamp01((soft - 0.55) / 0.35);
+  const sharpPull = clamp01((sharp - 0.35) / 0.4);
+  return 3.0 * (1 - softPull) + 1.8 * softPull + 7.0 * sharpPull;
+}
+
+/**
+ * Whether a video beat should prefer the clip's SLOW-MOTION variant (Asset.slowSrc, baked by
+ * pipeline/embed/retime.py): only on distinctly tender/nostalgic/love beats at low intensity —
+ * dream slow-motion is a gentle-register treatment. Deterministic (mood + intensity are logical
+ * state). Pure — part of the look brain.
+ */
+export function preferSlow(mood: Record<MoodAxis, number> | null, intensity: number): boolean {
+  if (!mood) return false;
+  return Math.max(mood.tender, mood.nostalgic, mood.love) > 0.6 && intensity < 0.35;
+}
+
+/**
  * Datamosh smear strength for the LayerStack feedback trail (0..~0.8) — a NIGHTMARE-SURGE
  * treatment only: zero at the coherent baseline, in troughs, and under reduced motion; ramps in
  * quadratically above ~0.7 intensity inside a frenzy so the image dissolves along its own motion

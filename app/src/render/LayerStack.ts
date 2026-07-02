@@ -36,6 +36,7 @@ export class LayerStack {
   // Presentation-only scale on the hero layer's resting opacity (0..1). The hypnagogic onset
   // eases it 0.5 → 1 so the opening imagery reads as translucent fragments cohering into a scene.
   private heroCap = 1;
+  private fadeRate = 3; // per-second cross-fade ease; mood-shaped via setFadeRate
   private feedbackTrail = 0; // melancholy echo-trail strength, 0..1 (set by the conductor)
   // Per-slot write order, so applyPlan can show the MOST RECENT images (the newest is the
   // opaque "hero"; older ones fan behind it) rather than a fixed slot range — otherwise a
@@ -243,8 +244,13 @@ export class LayerStack {
    * A freshly-set texture starts at fadeOpacity=0 (reset in setLayerTexture) and ramps up,
    * eliminating the hard-cut flicker on layer swaps.
    */
+  /** Mood-shaped cross-fade ease rate (per second; filterDirector.swapFadeRate). Default 3. */
+  setFadeRate(rate: number): void {
+    this.fadeRate = Math.max(0.5, Math.min(12, rate));
+  }
+
   update(dtSec: number): void {
-    const factor = Math.min(1, dtSec * 3); // ~0.8 s to reach target — a soft dissolve, not a blink
+    const factor = Math.min(1, dtSec * this.fadeRate); // rate 3 ≈ 0.8 s dissolve (the default)
     for (let i = 0; i < MAX_LAYERS; i++) {
       this.fadeOpacity[i] += (this.fadeTarget[i] - this.fadeOpacity[i]) * factor;
       this.mats[i].opacity = this.fadeOpacity[i];

@@ -100,17 +100,59 @@ def _ensure_local(src: str, dest_dir: Path, asset_id: str) -> Path | None:
         return None
 
 
+def _probe_duration(path: Path) -> float:
+    """Clip duration in seconds via ffprobe; 0.0 when unavailable."""
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+            capture_output=True, timeout=60, check=True,
+        )
+        return float(out.stdout.decode().strip())
+    except Exception:  # noqa: BLE001
+        return 0.0
+
+
+def _extract_midframe(path: Path, dest_dir: Path, asset_id: str) -> Path | None:
+    """Grab a representative interior frame of a video clip (its midpoint) as a PNG.
+
+    A single static depth map is a deliberate approximation for the short (~12 s) mirrored
+    clips: foreground/background separation is roughly stable across a clip, so midpoint depth
+    gives a convincing 2.5D drift on the moving image without a per-frame depth video.
+    """
+    import subprocess
+
+    dur = _probe_duration(path)
+    mid = dur / 2 if dur > 0.5 else 1.0
+    dest = dest_dir / f"{asset_id}-midframe.png"
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-ss", f"{mid:.2f}", "-i", str(path), "-frames:v", "1", str(dest)],
+            capture_output=True, timeout=120, check=True,
+        )
+        return dest if dest.exists() and dest.stat().st_size > 0 else None
+    except Exception as e:  # noqa: BLE001
+        print(f"[depth] WARN midframe extraction failed for {asset_id}: {e}")
+        return None
+
+
 def annotate(
     manifest: dict[str, Any],
     work_dir: Path,
     limit: int | None = None,
     only_missing: bool = False,
     depth_fn: DepthFn | None = None,
+    include_video: bool = True,
+    midframe_fn: Callable[[Path, Path, str], Path | None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Path]]:
-    """Bake depth PNGs for image assets. Returns (manifest copy, {asset_id: png path}).
+    """Bake depth PNGs for image AND (midpoint-frame) video assets. Returns
+    (manifest copy, {asset_id: png path}).
 
     `depthSrc` itself is written by apply_urls() after the PNGs are uploaded — a local-only run
-    produces the derivatives without touching the manifest fields.
+    produces the derivatives without touching the manifest fields. Video assets get depth from a
+    single midpoint frame (see _extract_midframe); pass include_video=False for stills only.
     """
     out = json.loads(json.dumps(manifest))
     fn = depth_fn
@@ -119,18 +161,24 @@ def annotate(
         if not ok:
             print("[depth] note: needs the `depth` extra (transformers + torch) + Pillow — nothing baked")
             return out, {}
+    grab = midframe_fn or _extract_midframe
 
-    images = [a for a in out.get("assets", []) if a.get("type") == "image" and a.get("src")]
+    kinds = ("image", "video") if include_video else ("image",)
+    targets = [a for a in out.get("assets", []) if a.get("type") in kinds and a.get("src")]
     if only_missing:
-        images = [a for a in images if not a.get("depthSrc")]
+        targets = [a for a in targets if not a.get("depthSrc")]
     if limit is not None:
-        images = images[:limit]
+        targets = targets[:limit]
 
     derivs: dict[str, Path] = {}
-    for a in images:
+    for a in targets:
         local = _ensure_local(a["src"], work_dir, a["id"])
         if local is None:
             continue
+        if a["type"] == "video":
+            local = grab(local, work_dir, a["id"])
+            if local is None:
+                continue
         depth = fn(local)
         if depth is None:
             continue
@@ -167,16 +215,19 @@ def main() -> None:
     ap.add_argument("--manifest", type=Path, default=None)
     ap.add_argument("--url", type=str, default=None)
     ap.add_argument("--out", type=Path, default=Path("out"))
-    ap.add_argument("--limit", type=int, default=None, help="bake only the first N images (smoke)")
+    ap.add_argument("--limit", type=int, default=None, help="bake only the first N assets (smoke)")
     ap.add_argument("--only-missing", action="store_true", help="skip assets that already carry depthSrc")
+    ap.add_argument("--no-video", action="store_true", help="stills only (skip midpoint-frame video depth)")
     ap.add_argument("--upload", action="store_true", help="upload depth PNGs + manifest to R2 (needs R2_* env)")
     args = ap.parse_args()
 
     manifest = load_manifest(args.manifest, args.url)
     work_dir = args.out / "depth"
-    annotated, derivs = annotate(manifest, work_dir, args.limit, args.only_missing)
-    total_img = sum(1 for a in annotated.get("assets", []) if a.get("type") == "image")
-    print(f"[depth] baked {len(derivs)}/{total_img} image depth maps")
+    annotated, derivs = annotate(
+        manifest, work_dir, args.limit, args.only_missing, include_video=not args.no_video
+    )
+    total = sum(1 for a in annotated.get("assets", []) if a.get("type") in ("image", "video"))
+    print(f"[depth] baked {len(derivs)}/{total} depth maps")
 
     args.out.mkdir(parents=True, exist_ok=True)
 

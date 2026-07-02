@@ -106,6 +106,10 @@ export interface Asset {
   // Optional R2 URL of a small RG-encoded optical-FLOW texture (RAFT, pipeline/embed/flow.py) for
   // motion-aware treatments (datamosh smear along real scene motion). Absent → procedural flow.
   flowSrc?: string;
+  // Optional R2 URL of a motion-interpolated SLOW-MOTION variant of a video clip (ffmpeg
+  // minterpolate, pipeline/embed/retime.py). The runtime deterministically prefers it on
+  // tender/nostalgic low-intensity beats. Absent → the normal-speed src plays (graceful).
+  slowSrc?: string;
   // Optional baked MOTION metadata (RAFT, pipeline/embed/flow.py): overall motion energy plus
   // compact in/out motion signatures (8-bin direction histogram + mean magnitude) used for
   // MOTION-MATCHED CUTS — the walk leans toward a next clip whose opening motion continues the
