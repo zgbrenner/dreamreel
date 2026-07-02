@@ -29,6 +29,9 @@ export class DustField {
   private readonly rng = makeRng('dust');
   private readonly count: number;
   private intensity = 1;
+  // Wake-heartbeat gate (1 = classic full dust). PostFX.setWakeEnergy drives this in wake mode so
+  // the specks/scratches all but vanish at the coherent baseline and return with escalation.
+  private energy = 1;
 
   constructor(count = 60) {
     this.count = count;
@@ -79,7 +82,17 @@ export class DustField {
 
   setIntensity(reduceMotion: boolean): void {
     this.intensity = reduceMotion ? 0.35 : 1;
-    (this.points.material as THREE.PointsMaterial).opacity = 0.5 * this.intensity;
+    this.applyOpacity();
+  }
+
+  /** 0..1 wake-intensity gate on speck/scratch visibility (classic never calls this; stays 1). */
+  setEnergy(energy: number): void {
+    this.energy = Math.max(0, Math.min(1, energy));
+    this.applyOpacity();
+  }
+
+  private applyOpacity(): void {
+    (this.points.material as THREE.PointsMaterial).opacity = 0.5 * this.intensity * this.energy;
   }
 
   update(dt: number, elapsed: number): void {
@@ -101,7 +114,7 @@ export class DustField {
       const phase = Math.sin(elapsed * (0.7 + i * 0.5) + i * 2.1);
       const on = phase > 0.85 ? (phase - 0.85) / 0.15 : 0;
       const mat = s.material as THREE.MeshBasicMaterial;
-      mat.opacity = on * 0.25 * this.intensity;
+      mat.opacity = on * 0.25 * this.intensity * this.energy;
       // when a scratch fades out, re-place it for the next blink (seeded, deterministic).
       if (on <= 0.001) s.position.x = this.rng.next() * 2 - 1;
     }

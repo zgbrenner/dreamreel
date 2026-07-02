@@ -148,6 +148,19 @@ describe('Dreamwalker layers', () => {
     }
   });
 
+  it('title cards are sparse punctuation: never two within the minimum beat gap', () => {
+    // Even at maximum surreality (the most card-prone dream), consecutive cards must be
+    // separated by at least 8 image beats — an intertitle is punctuation, not a medium.
+    const w = createDreamwalker(pools, { seed: 'card-gap', surreality: 1 });
+    let lastCardBeat = -Infinity;
+    for (let beat = 1; beat <= 800; beat++) {
+      if (w.next('image', 1).titleCard) {
+        expect(beat - lastCardBeat).toBeGreaterThanOrEqual(8);
+        lastCardBeat = beat;
+      }
+    }
+  });
+
   it('currentMood returns all axes in 0..1', () => {
     const w = createDreamwalker(pools, { seed: 'm', surreality: 0.5 });
     w.next('image', 1);

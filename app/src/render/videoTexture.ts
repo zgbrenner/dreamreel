@@ -44,6 +44,17 @@ export function loadVideoTexture(
       clearTimeout(timer);
       video.oncanplay = null;
       video.onerror = null;
+      if (!r.ok) {
+        // Failure path never reaches the VideoPool's dispose-driven teardown — detach the src
+        // here so a failed/timed-out element stops buffering instead of leaking until GC.
+        try {
+          video.pause?.();
+          video.removeAttribute?.('src');
+          video.load?.();
+        } catch {
+          /* ignore */
+        }
+      }
       resolve(r);
     };
     const timer = setTimeout(() => finish({ ok: false, reason: 'timeout' }), timeoutMs);

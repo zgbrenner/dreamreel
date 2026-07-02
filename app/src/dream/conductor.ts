@@ -57,6 +57,18 @@ export interface ConductorHooks {
 
 const IMAGE_FALLBACK_KINDS: ProceduralKind[] = ['fog', 'static', 'horizon', 'orbs'];
 
+/**
+ * Deterministic procedural fallback kind for a failed asset load. Pure hash of the asset id —
+ * NEVER a draw from the shared presRng: fallback picks happen inside async load callbacks, and
+ * drawing a shared stream there would interleave with the synchronous per-swap draws in a
+ * network-timing-dependent order, breaking the same-seed-same-dream contract.
+ */
+function fallbackKindFor(assetId: string): ProceduralKind {
+  let h = 0;
+  for (let i = 0; i < assetId.length; i++) h = (h * 31 + assetId.charCodeAt(i)) | 0;
+  return IMAGE_FALLBACK_KINDS[Math.abs(h) % IMAGE_FALLBACK_KINDS.length];
+}
+
 // Literal entity-recurrence (sprite) summoning. A cutout is summoned only when its entity is
 // strongly remembered, at a bounded rate, so the effect is a rare, dreamlike return — not a parade.
 const SPRITE_SUMMON_PROB = 0.03; // per primary beat, once an eligible motif exists
@@ -522,13 +534,17 @@ export class DreamConductor implements DreamRuntime {
     // recipe's plan.warp is no longer recomputed per frame.
     this.postfx.setParams(videoFocus ? videoFocusWakeFilm(intensity) : {
       ...baseWakeFilm(),
-      // Keep the media readable: a lighter grade floor and much less bloom so imagery isn't
-      // washed to milk; warp/chroma still surge with the heartbeat.
-      filmGrade: 0.38 - intensity * 0.25,
+      // Keep the media readable: a LOW grade floor at the coherent baseline (the 2026 direction —
+      // near-realistic at rest, treatment only at escalation); warp/chroma still surge with the
+      // heartbeat.
+      filmGrade: 0.16 - intensity * 0.06,
       warp: Math.min(1, intensity * intensity * 0.3),
-      chroma: 0.12 + intensity * 0.45,
-      bloom: 0.10 + intensity * 0.18,
+      chroma: 0.03 + intensity * 0.40,
+      bloom: 0.04 + intensity * 0.16,
     });
+    // Gate the post-FX dream-event engine + dust on the heartbeat so swells/specks belong to
+    // escalation, not the resting baseline. Classic mode never calls this and keeps full energy.
+    this.postfx.setWakeEnergy(intensity);
 
     if (this.lastWakeMood) {
       const fs = filterStrengths(this.lastWakeMood, s.intensity, s.inTrough);
@@ -634,6 +650,9 @@ export class DreamConductor implements DreamRuntime {
     );
     this.layerCursor = nextCursor;
     const asset = beat.asset;
+    // The slot is being repurposed — drop any stale video hold now so a pin never props up a
+    // non-video texture (the video success branch below re-arms it when a clip actually lands).
+    this.slotHeldUntil[slot] = 0;
 
     if (beat.titleCard || asset.type === 'titlecard') {
       const tex = this.makeTitleCard(asset.text ?? '', mood);
@@ -661,7 +680,7 @@ export class DreamConductor implements DreamRuntime {
           this.safeAudio(() => this.mixer?.setFilmClipAudio(false));
         } else {
           // deterministic procedural fallback so the slot is never empty
-          const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
+          const kind = fallbackKindFor(asset.id);
           const src = this.proc(`fallback:${asset.id}`, kind);
           this.markLive(src);
           stack.setLayerTexture(slot, src.texture);
@@ -677,7 +696,7 @@ export class DreamConductor implements DreamRuntime {
           const el = res.texture.userData.video as HTMLVideoElement | undefined;
           this.safeAudio(() => this.mixer?.setFilmClipAudio(true, el));
         } else {
-          const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
+          const kind = fallbackKindFor(asset.id);
           const src = this.proc(`fallback:${asset.id}`, kind);
           this.markLive(src);
           stack.setLayerTexture(slot, src.texture);
@@ -854,7 +873,7 @@ export class DreamConductor implements DreamRuntime {
           this.compositor.crossfadeTo(res.texture, transition, this.crossfadeMs());
         } else {
           // fall back to a deterministic procedural so the reel never breaks
-          const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
+          const kind = fallbackKindFor(asset.id);
           const src = this.proc(`fallback:${asset.id}`, kind);
           this.markLive(src);
           this.compositor.crossfadeTo(src.texture, transition, this.crossfadeMs());
@@ -872,7 +891,7 @@ export class DreamConductor implements DreamRuntime {
           const el = res.texture.userData.video as HTMLVideoElement | undefined;
           this.safeAudio(() => this.mixer?.setFilmClipAudio(true, el));
         } else {
-          const kind = IMAGE_FALLBACK_KINDS[this.presRng.int(IMAGE_FALLBACK_KINDS.length)];
+          const kind = fallbackKindFor(asset.id);
           const src = this.proc(`fallback:${asset.id}`, kind);
           this.markLive(src);
           this.compositor.crossfadeTo(src.texture, transition, this.crossfadeMs());
@@ -1042,6 +1061,13 @@ function baseWakeFilm(): Partial<FilmParams> {
     halation: 0.05,
     haze: 0.03,
     flicker: 0.02,
+    // setParams merges, so without these the wake reel inherits the CLASSIC defaults
+    // (lightLeak 0.3 / tint 0.25 / breathe 0.5) — a constant warm old-film wash that fights the
+    // coherent baseline. Own them here at near-off levels; escalation adds its own treatment.
+    lightLeak: 0.03,
+    tint: 0.03,
+    breathe: 0.12,
+    exposure: 1,
   };
 }
 

@@ -82,6 +82,8 @@ export interface Dreamwalker {
 }
 
 const RECENT_WINDOW = 6;
+// Minimum image beats between title-card interjections — cards are punctuation, not a medium.
+const CARD_MIN_GAP_BEATS = 8;
 const TEXT_MOOD_COUPLING = 1.2;
 // Bias selection toward scarce moving-image so video reads as a real part of the reel, not a
 // rarity. Multiplicative on the pre-softmax weight (deterministic — no extra RNG draw).
@@ -157,6 +159,7 @@ class DreamwalkerImpl implements Dreamwalker {
   private ghost!: LayerState;
   private text!: LayerState;
   private lastLeaped = false;
+  private lastCardBeat = -Infinity;
   private converging = false;
 
   // The dream's seed-level emotional identity (null ⇒ unbiased legacy walk), and a deterministic
@@ -271,6 +274,7 @@ class DreamwalkerImpl implements Dreamwalker {
     this.ghost = fresh('ghost', 'seed-ghost');
     this.text = fresh('text', 'seed-text');
     this.lastLeaped = false;
+    this.lastCardBeat = -Infinity;
 
     // Seeded bend basis: two unit directions in embedding space the pointer-attention bend leans
     // along. A dedicated `:steer` stream keeps it from perturbing the walk/leap draws.
@@ -280,17 +284,21 @@ class DreamwalkerImpl implements Dreamwalker {
   }
 
   private temperature(): number {
-    const base = 0.12 + this.surreality * 1.1;
+    // Tight enough that picks actually track embedding similarity at typical surreality —
+    // consecutive beats should feel related; only high-surreality dreams approach a flat softmax.
+    const base = 0.10 + this.surreality * 0.7;
     return this.converging ? base * 0.25 : base;
   }
 
   /** Drift this layer's point; occasionally leap to a random asset's embedding. */
   private advancePoint(st: LayerState, pool: Asset[]): boolean {
-    const driftScale = (0.12 + this.surreality * 0.6) * (this.converging ? 0.3 : 1);
+    const driftScale = (0.10 + this.surreality * 0.4) * (this.converging ? 0.3 : 1);
     const e = st.e.slice();
     for (let i = 0; i < this.dim; i++) e[i] += st.rng.gaussian() * driftScale;
     let leaped = false;
-    const leapP = this.converging ? 0 : this.surreality * 0.28;
+    // Quadratic: non-sequitur hard cuts stay rare for a typical dream (~4.5% at surreality 0.5)
+    // and only frenzied seeds leap often — the walk, not random jumps, carries the narrative.
+    const leapP = this.converging ? 0 : this.surreality * this.surreality * 0.18;
     if (st.rng.next() < leapP) {
       const j = st.rng.int(pool.length);
       st.e = [...pool[j].embedding];
@@ -434,26 +442,31 @@ class DreamwalkerImpl implements Dreamwalker {
 
     const liveMood = projectMood(this.image.eLive, this.moodAxes);
 
-    // Title-card interjection: surreality-, leap-, and absurdity-dependent.
+    // Title-card interjection: rare mood-tinted punctuation, never a substitute for the picture.
+    // Gated so a card can't fire right after a non-sequitur leap (an intertitle on top of a hard
+    // cut reads as noise) and never twice within CARD_MIN_GAP_BEATS. The rng draw is unconditional
+    // (when cards exist) so gating never changes the stream's draw cadence.
     const pCard =
-      0.02 +
-      (this.lastLeaped ? 0.05 : 0) +
-      this.surreality * 0.03 +
-      liveMood.absurdity * 0.02 +
-      liveMood.strange * 0.015;
-    if (this.cards.length > 0 && this.image.rng.next() < pCard) {
-      const recent = new Set(this.image.recent);
-      const pool = this.cards.filter((c) => !recent.has(c.id));
-      // Only interject a card if one is available outside the recent window — never repeat.
-      if (pool.length > 0) {
-        const card = this.pickCardByMood(pool, liveMood);
-        this.image.recent.push(card.id);
-        if (this.image.recent.length > RECENT_WINDOW) this.image.recent.shift();
-        return {
-          asset: card,
-          dwellMs: (this.idleDwellMul() * card.dwellBase * 1000) / tempoMul,
-          titleCard: true,
-        };
+      0.008 + this.surreality * 0.02 + liveMood.absurdity * 0.012 + liveMood.strange * 0.008;
+    if (this.cards.length > 0) {
+      const roll = this.image.rng.next();
+      const gateOpen =
+        !this.lastLeaped && this.imageBeat - this.lastCardBeat >= CARD_MIN_GAP_BEATS;
+      if (gateOpen && roll < pCard) {
+        const recent = new Set(this.image.recent);
+        const pool = this.cards.filter((c) => !recent.has(c.id));
+        // Only interject a card if one is available outside the recent window — never repeat.
+        if (pool.length > 0) {
+          const card = this.pickCardByMood(pool, liveMood);
+          this.lastCardBeat = this.imageBeat;
+          this.image.recent.push(card.id);
+          if (this.image.recent.length > RECENT_WINDOW) this.image.recent.shift();
+          return {
+            asset: card,
+            dwellMs: (this.idleDwellMul() * card.dwellBase * 1000) / tempoMul,
+            titleCard: true,
+          };
+        }
       }
     }
 
