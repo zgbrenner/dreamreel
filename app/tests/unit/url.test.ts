@@ -47,6 +47,39 @@ describe('shareable URL state', () => {
   });
 });
 
+describe('ambient flag', () => {
+  it('defaults ambient OFF, and only ?ambient=1 / ?ambient=true opt in', async () => {
+    const { readShareState } = await import('../../src/state/url');
+    // Default (no param): ambient/TV mode is opt-in -> OFF.
+    installWindow();
+    expect(readShareState().ambient).toBe(false);
+    // Explicit opt-in.
+    installWindow('?ambient=1');
+    expect(readShareState().ambient).toBe(true);
+    installWindow('?ambient=true');
+    expect(readShareState().ambient).toBe(true);
+    // Anything else stays off.
+    installWindow('?ambient=0');
+    expect(readShareState().ambient).toBe(false);
+    installWindow('?ambient=false');
+    expect(readShareState().ambient).toBe(false);
+    installWindow('?ambient=yes');
+    expect(readShareState().ambient).toBe(false);
+  });
+
+  it('is never serialized into share URLs — ?seed= stays the only shareable dream param', async () => {
+    installWindow('?seed=abc');
+    const { writeShareState } = await import('../../src/state/url');
+    writeShareState({ seed: 'abc' });
+    const search = window.location.search;
+    expect(search).toContain('seed=abc');
+    expect(search).not.toContain('ambient');
+    // Same never-serialized rule as the other engine-mode flags.
+    expect(search).not.toContain('wake');
+    expect(search).not.toContain('butterchurn');
+  });
+});
+
 describe('wake flag', () => {
   it('defaults wake ON, and only ?wake=0 / ?wake=false opt out', async () => {
     const { readShareState } = await import('../../src/state/url');

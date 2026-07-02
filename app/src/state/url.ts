@@ -9,6 +9,8 @@ export interface ShareState {
   wake: boolean;
   /** Non-UI engine flag: opt IN to the optional psychedelic Butterchurn layer with ?butterchurn=1. */
   butterchurn: boolean;
+  /** Non-UI engine flag: opt IN to ambient/TV mode (fullscreen + wake lock + auto-hidden chrome) with ?ambient=1. */
+  ambient: boolean;
 }
 
 export function randomSeed(): string {
@@ -26,7 +28,11 @@ export function readShareState(): ShareState {
   // opt in explicitly with ?butterchurn=1 (or =true).
   const bcParam = q.get('butterchurn');
   const butterchurn = bcParam === '1' || bcParam === 'true';
-  return { seed, wake, butterchurn };
+  // Ambient/TV mode is OFF by default; opt in explicitly with ?ambient=1 (or =true). Like ?wake=,
+  // it is a non-UI engine mode flag — read from the URL, never serialized into share URLs.
+  const ambientParam = q.get('ambient');
+  const ambient = ambientParam === '1' || ambientParam === 'true';
+  return { seed, wake, butterchurn, ambient };
 }
 
 export function writeShareState(s: { seed: string }): void {
