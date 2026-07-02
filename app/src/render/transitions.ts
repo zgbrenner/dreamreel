@@ -507,6 +507,273 @@ const staticDissolve: TransitionDef = {
   `,
 };
 
+// ============================================================================
+// Catalog expansion (2026-07-02): ~10 more original gl-transitions-spec shaders
+// widening the emotional families — love/tender (bokehBloom, lumaMelt),
+// nostalgic/liquid (pageCurl, wateryRefract), joy (irisBloom, mosaicSparkle),
+// fear/ominous (venetianSlice, shadowWipe), absurdity/strange (polarSwirl,
+// voronoiShatter), mechanical (scanlineShutter). Same spec shape
+// (vec4 transition(vec2 uv)), progress/ratio uniforms only; no source was copied.
+// dream/filterDirector.ts wires each into the mood families it selects from.
+// ============================================================================
+
+// A soft bokeh-bloom dissolve: the crossfade is sampled through a widening ring of
+// taps, so out-of-focus discs of light swell at the crossover — tender/love.
+const bokehBloom: TransitionDef = {
+  name: 'bokehBloom',
+  glsl: /* glsl */ `
+    vec4 bkMix(vec2 uv, float t) {
+      vec2 c = clamp(uv, 0.0, 1.0);
+      return mix(getFromColor(c), getToColor(c), t);
+    }
+    vec4 transition(vec2 uv) {
+      float t = smoothstep(0.0, 1.0, progress);
+      float amt = sin(progress * 3.14159) * 0.02;
+      vec4 acc = bkMix(uv, t);
+      acc += bkMix(uv + vec2(amt, 0.0), t);
+      acc += bkMix(uv - vec2(amt, 0.0), t);
+      acc += bkMix(uv + vec2(0.0, amt), t);
+      acc += bkMix(uv - vec2(0.0, amt), t);
+      acc += bkMix(uv + vec2(amt, amt) * 0.7071, t);
+      acc += bkMix(uv - vec2(amt, amt) * 0.7071, t);
+      acc *= 1.0 / 7.0;
+      // bright regions glow softly while the picture is defocused
+      float lum = dot(acc.rgb, vec3(0.299, 0.587, 0.114));
+      acc.rgb += acc.rgb * lum * sin(progress * 3.14159) * 0.35;
+      return acc;
+    }
+  `,
+};
+
+// A luminance-gated melt: the incoming frame arrives through its brightest regions
+// first while the outgoing image sags gently downward — tender/love/melancholy.
+const lumaMelt: TransitionDef = {
+  name: 'lumaMelt',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec4 to = getToColor(uv);
+      float lum = dot(to.rgb, vec3(0.299, 0.587, 0.114));
+      // brighter regions of the new frame open first; darker ones melt in later
+      float gate = clamp(progress * 1.5 - (1.0 - lum) * 0.5, 0.0, 1.0);
+      // the outgoing frame sags downward where the gate is opening
+      float sag = gate * (1.0 - gate) * 0.06;
+      vec4 from = getFromColor(clamp(uv + vec2(0.0, sag), 0.0, 1.0));
+      return mix(from, to, smoothstep(0.0, 1.0, gate));
+    }
+  `,
+};
+
+// A page-curl-like diagonal sweep: the old frame folds back over a soft cylinder
+// (paper-tinted backside, shaded fold, trailing shadow) revealing the new — nostalgic.
+const pageCurl: TransitionDef = {
+  name: 'pageCurl',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec2 dir = normalize(vec2(1.0, 0.4)); // sweep from the lower-left corner
+      float d = dot(uv, dir);
+      float maxD = dot(vec2(1.0), dir);
+      float roll = 0.12; // radius of the curl
+      float edge = progress * (maxD + 0.3) - 0.15;
+      if (d < edge - roll) {
+        // fully revealed: the new page, with a soft shadow trailing the curl
+        vec4 to = getToColor(uv);
+        float sh = 1.0 - clamp((edge - roll - d) / 0.18, 0.0, 1.0);
+        to.rgb *= 1.0 - sh * 0.25;
+        return to;
+      }
+      if (d < edge) {
+        // inside the curl: the old page mirrored over the fold, lit like a cylinder
+        float k = (edge - d) / roll;
+        vec2 fuv = clamp(uv + dir * (edge - d) * 2.0, 0.0, 1.0);
+        vec4 from = getFromColor(fuv);
+        from.rgb = mix(from.rgb, vec3(0.92, 0.88, 0.80), 0.35); // paper backside tint
+        from.rgb *= 0.75 + 0.25 * sin(k * 3.14159);
+        return from;
+      }
+      return getFromColor(uv);
+    }
+  `,
+};
+
+// A watery refraction dissolve: both frames shimmer through a drifting noise flow
+// field that swells mid-cut and stills again — nostalgic/liquid.
+const wateryRefract: TransitionDef = {
+  name: 'wateryRefract',
+  glsl: /* glsl */ `
+    float wrHash(vec2 p) {
+      p = fract(p * vec2(123.34, 345.45));
+      p += dot(p, p + 34.345);
+      return fract(p.x * p.y);
+    }
+    float wrNoise(vec2 p) {
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      float a = wrHash(i), b = wrHash(i + vec2(1.0, 0.0));
+      float c = wrHash(i + vec2(0.0, 1.0)), d = wrHash(i + vec2(1.0, 1.0));
+      return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+    }
+    vec4 transition(vec2 uv) {
+      float amp = sin(progress * 3.14159) * 0.045;
+      vec2 flow = vec2(
+        wrNoise(uv * 6.0 + progress * 2.0) - 0.5,
+        wrNoise(uv * 6.0 + 31.7 - progress * 2.0) - 0.5
+      );
+      vec2 ruv = clamp(uv + flow * amp * 2.0, 0.0, 1.0);
+      return mix(getFromColor(ruv), getToColor(ruv), smoothstep(0.1, 0.9, progress));
+    }
+  `,
+};
+
+// A radial iris-bloom: an aspect-true iris eases open with a luminous rim riding
+// the aperture — joy.
+const irisBloom: TransitionDef = {
+  name: 'irisBloom',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec2 c = (uv - 0.5) * vec2(ratio, 1.0);
+      float r = length(c);
+      float rad = progress * progress * (0.5 + ratio * 0.5); // accelerates open like a bloom
+      float t = smoothstep(rad + 0.06, rad - 0.06, r);
+      vec4 mixed = mix(getFromColor(uv), getToColor(uv), t);
+      // a warm rim rides the opening iris
+      float rim = 1.0 - clamp(abs(r - rad) / 0.05, 0.0, 1.0);
+      mixed.rgb += vec3(1.0, 0.93, 0.75) * rim * sin(progress * 3.14159) * 0.5;
+      return mixed;
+    }
+  `,
+};
+
+// A mosaic sparkle: coarse tiles flip to the new frame in a scattered order, each
+// with a brief bright glint as it turns — joy.
+const mosaicSparkle: TransitionDef = {
+  name: 'mosaicSparkle',
+  glsl: /* glsl */ `
+    float msHash(vec2 p) {
+      p = fract(p * vec2(123.34, 345.45));
+      p += dot(p, p + 34.345);
+      return fract(p.x * p.y);
+    }
+    vec4 transition(vec2 uv) {
+      vec2 cell = floor(uv * vec2(24.0 * ratio, 24.0));
+      float n = msHash(cell);
+      float front = progress * 1.15 - 0.075; // each tile flips at its own moment
+      vec4 col = mix(getFromColor(uv), getToColor(uv), step(n, front));
+      // a brief sparkle as a tile flips
+      float spark = 1.0 - clamp(abs(front - n) / 0.06, 0.0, 1.0);
+      col.rgb += vec3(1.0, 0.96, 0.85) * spark * 0.6;
+      return col;
+    }
+  `,
+};
+
+// A hard venetian slice: thin alternating slats shear in from opposite sides with
+// no feathering — fear/ominous/mechanical.
+const venetianSlice: TransitionDef = {
+  name: 'venetianSlice',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      float bands = 18.0;
+      float odd = mod(floor(uv.y * bands), 2.0);
+      float local = mix(uv.x, 1.0 - uv.x, odd); // alternate slats slice opposite ways
+      float t = step(local, progress * 1.04 - 0.02);
+      return mix(getFromColor(uv), getToColor(uv), t);
+    }
+  `,
+};
+
+// A shadow-wipe: a wall of darkness crosses the frame, swallowing the old image;
+// the new one is already standing when the light returns — fear/ominous/loss.
+const shadowWipe: TransitionDef = {
+  name: 'shadowWipe',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      float span = 0.3;
+      float front = progress * (1.0 + 3.0 * span) - span; // the shadow's leading edge
+      float dark = (1.0 - smoothstep(front, front + span, uv.x))
+                 * smoothstep(front - 2.0 * span, front - span, uv.x);
+      float t = step(uv.x, front - span); // the swap hides inside full darkness
+      vec4 col = mix(getFromColor(uv), getToColor(uv), t);
+      col.rgb *= 1.0 - dark * 0.92;
+      return col;
+    }
+  `,
+};
+
+// A polar-coordinates swirl morph: mid-cut the picture is remapped toward its own
+// polar unwrap (angle->x, radius->y) and back — absurdity/strange/uncanny.
+const polarSwirl: TransitionDef = {
+  name: 'polarSwirl',
+  glsl: /* glsl */ `
+    vec4 transition(vec2 uv) {
+      vec2 c = uv - 0.5;
+      vec2 polar = vec2(atan(c.y, c.x) / 6.28318 + 0.5, length(c) * 1.4142);
+      float k = sin(progress * 3.14159);
+      vec2 warped = clamp(mix(uv, polar, k * 0.85), 0.0, 1.0);
+      vec4 from = getFromColor(warped);
+      vec4 to = getToColor(warped);
+      return mix(from, to, smoothstep(0.35, 0.65, progress));
+    }
+  `,
+};
+
+// A voronoi shatter: the frame breaks into irregular cells, each shard detaching at
+// its own moment and drifting away as the new frame stands — absurdity/strange.
+const voronoiShatter: TransitionDef = {
+  name: 'voronoiShatter',
+  glsl: /* glsl */ `
+    vec2 vshHash2(vec2 p) {
+      return vec2(
+        fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453),
+        fract(sin(dot(p, vec2(269.5, 183.3))) * 43758.5453)
+      );
+    }
+    vec4 transition(vec2 uv) {
+      vec2 g = uv * vec2(6.0 * ratio, 6.0);
+      vec2 cellId = floor(g);
+      // nearest voronoi seed among the 3x3 neighbourhood (constant loop bounds)
+      float best = 8.0;
+      vec2 bestId = cellId;
+      for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+          vec2 nb = cellId + vec2(float(x), float(y));
+          float d = length(g - (nb + vshHash2(nb)));
+          if (d < best) { best = d; bestId = nb; }
+        }
+      }
+      vec2 h = vshHash2(bestId);
+      float n = fract(h.x * 1.37 + h.y * 0.61);
+      // each shard detaches at its own moment and slides away as it fades
+      float t = clamp(progress * 1.6 - n * 0.6, 0.0, 1.0);
+      vec2 drift = (vshHash2(bestId + 7.0) - 0.5) * t * 0.25;
+      vec4 from = getFromColor(clamp(uv + drift, 0.0, 1.0));
+      return mix(from, getToColor(uv), smoothstep(0.25, 0.85, t));
+    }
+  `,
+};
+
+// A scanline shutter: the swap rolls down in staggered scanlines, rows tearing
+// sideways near the front under a thin phosphor-bright line — mechanical.
+const scanlineShutter: TransitionDef = {
+  name: 'scanlineShutter',
+  glsl: /* glsl */ `
+    float ssHash(float x) { return fract(sin(x * 91.7) * 43758.5453); }
+    vec4 transition(vec2 uv) {
+      float lines = 96.0;
+      float row = floor(uv.y * lines);
+      float yTop = 1.0 - uv.y; // distance rolled from the top of the frame
+      float sweep = progress * 1.3 - 0.15;
+      float t = step(yTop, sweep - ssHash(row) * 0.05);
+      // rows near the shutter tear sideways slightly
+      float near = 1.0 - clamp(abs(yTop - sweep) / 0.08, 0.0, 1.0);
+      vec2 tuv = clamp(uv + vec2((ssHash(row + 31.0) - 0.5) * 0.05 * near, 0.0), 0.0, 1.0);
+      vec4 col = mix(getFromColor(tuv), getToColor(tuv), t);
+      // a thin bright scanline rides the shutter front
+      col.rgb += vec3(0.6, 0.7, 0.65) * near * near * 0.35;
+      return col;
+    }
+  `,
+};
+
 export const TRANSITIONS: Record<string, TransitionDef> = {
   fade,
   filmBurn,
@@ -537,6 +804,17 @@ export const TRANSITIONS: Record<string, TransitionDef> = {
   diagonalWipe,
   mirrorFold,
   staticDissolve,
+  bokehBloom,
+  lumaMelt,
+  pageCurl,
+  wateryRefract,
+  irisBloom,
+  mosaicSparkle,
+  venetianSlice,
+  shadowWipe,
+  polarSwirl,
+  voronoiShatter,
+  scanlineShutter,
 };
 
 export const TRANSITION_NAMES = Object.keys(TRANSITIONS);

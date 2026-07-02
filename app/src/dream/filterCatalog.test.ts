@@ -80,6 +80,26 @@ describe('catalog integrity', () => {
     }
     expect(Object.keys(TRANSITIONS).length).toBeGreaterThanOrEqual(29);
   });
+
+  it('the 2026-07-02 expansion shaders are defined and each is wired into a mood family', () => {
+    const added = [
+      'bokehBloom', 'lumaMelt', 'pageCurl', 'wateryRefract', 'irisBloom', 'mosaicSparkle',
+      'venetianSlice', 'shadowWipe', 'polarSwirl', 'voronoiShatter', 'scanlineShutter',
+    ];
+    const familyNames = new Set(Object.values(TRANSITION_BY_AXIS).flat());
+    for (const name of added) {
+      expect(TRANSITIONS[name], `${name} defined`).toBeTruthy();
+      expect(familyNames.has(name), `${name} wired into a mood family`).toBe(true);
+    }
+    expect(Object.keys(TRANSITIONS).length).toBeGreaterThanOrEqual(40);
+  });
+
+  it('the reduced-motion and trough sets stay untouched by expansions (no hard cuts/strobes)', () => {
+    // These sets are frozen contracts: gentle, no-flicker. Expansion shaders belong in the
+    // mood families, never here — venetianSlice/shadowWipe/scanlineShutter are hard/strobing.
+    expect([...GENTLE_TRANSITIONS]).toEqual(['fade', 'crossLuma', 'bloomDissolve', 'liquidWave']);
+    expect([...TROUGH_TRANSITIONS]).toEqual(['fade', 'crossLuma']);
+  });
 });
 
 describe('pickTransition — determinism + blends + defaults', () => {

@@ -7,8 +7,11 @@ gl-transitions specification.
   gl-transitions (https://github.com/gl-transitions/gl-transitions)
   License: MIT
   The gl-transitions collection and specification are released under the MIT License.
-  DREAMREEL's transition shaders (app/src/render/transitions.ts) are original
-  implementations conforming to that specification; no shader source was copied verbatim.
+  DREAMREEL's transition shaders (app/src/render/transitions.ts — the full ~40-shader
+  catalog, including the 2026-06-24 and 2026-07-02 expansions) are original
+  implementations conforming to that specification; well-known transition concepts
+  (page curl, iris, venetian bars, voronoi shatter, …) are reimplemented from the
+  effect idea, and no shader source was copied verbatim.
 
 This product includes 3D simplex-noise GLSL used for the film-grain treatment.
 
