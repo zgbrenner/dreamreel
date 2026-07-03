@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { MAX_LAYERS, type LayerPlan, type BlendName } from '../dream/layerPlan';
 import { DepthLayerMaterial, MoshFeedbackMaterial } from './DreamLayerMaterial';
+import { TransitionMaterial } from './TransitionMaterial';
 import type { Compositor } from './Compositor';
 
 // three.js has no true Photoshop "screen"/"lighten"/"overlay" blend modes built in.
@@ -57,6 +58,15 @@ export class LayerStack {
   // to the layer stack without it (the base reel is never touched by this path).
   private readonly psychMat: THREE.MeshBasicMaterial;
   private readonly psychMesh: THREE.Mesh;
+  // gl-transition overlay for CALM hero swaps: a mood-selected wipe from the outgoing hero to the
+  // incoming, rendered above the fan (renderOrder 17.5, below psych/ghost). Engaged only on
+  // single-hero swaps (the conductor gates it), so it never covers the dense collage — where a
+  // wipe would fight the layering and the opacity cross-fade is kept instead.
+  private readonly transitionMat = new TransitionMaterial('fade');
+  private readonly transitionMesh: THREE.Mesh;
+  private transitionActive = false;
+  private transitionElapsed = 0;
+  private transitionDuration = 0;
   private readonly compositor: Compositor;
   private readonly unsubResize: () => void;
 
@@ -117,6 +127,60 @@ export class LayerStack {
     psychMesh.visible = false;
     this.psychMesh = psychMesh;
     compositor.addOverlay(psychMesh);
+
+    this.transitionMat.setRatio(width / height);
+    const transitionMesh = new THREE.Mesh(this.quad, this.transitionMat);
+    transitionMesh.frustumCulled = false;
+    transitionMesh.renderOrder = MAX_LAYERS + 9.5; // above the fan (≤17), below psych(18)/ghost(19)
+    transitionMesh.visible = false;
+    this.transitionMesh = transitionMesh;
+    compositor.addOverlay(transitionMesh);
+  }
+
+  /** The texture currently shown as hero (highest-writeSeq visible slot), or null. */
+  currentHeroTexture(): THREE.Texture | null {
+    let best = -1;
+    let tex: THREE.Texture | null = null;
+    for (let i = 0; i < MAX_LAYERS; i++) {
+      if (this.layers[i].visible && this.mats[i].map && this.writeSeq[i] > best) {
+        best = this.writeSeq[i];
+        tex = this.mats[i].map;
+      }
+    }
+    return tex;
+  }
+
+  /**
+   * Begin a gl-transition wipe from `from` to `to` over `durationSec`, using the named
+   * mood-selected shader. Neither texture is owned/disposed here (the caller owns them; both stay
+   * alive for the brief transition). A null `from` or `to`, or a zero duration, is a no-op that
+   * leaves the plain opacity cross-fade in charge.
+   */
+  beginTransition(
+    from: THREE.Texture | null,
+    to: THREE.Texture | null,
+    name: string,
+    durationSec: number,
+  ): void {
+    if (!from || !to || from === to || durationSec <= 0) return;
+    const { width, height } = this.compositor.size;
+    this.transitionMat.setTransition(name);
+    this.transitionMat.setFrom(from);
+    this.transitionMat.setTo(to);
+    this.transitionMat.setProgress(0);
+    this.transitionMat.setRatio(width / height);
+    this.transitionMesh.visible = true;
+    this.transitionActive = true;
+    this.transitionElapsed = 0;
+    this.transitionDuration = durationSec;
+  }
+
+  private endTransition(): void {
+    this.transitionActive = false;
+    this.transitionMesh.visible = false;
+    // Release the texture refs so a settled transition never pins a recycled texture alive.
+    this.transitionMat.setFrom(null);
+    this.transitionMat.setTo(null);
   }
 
   /**
@@ -255,11 +319,25 @@ export class LayerStack {
       this.fadeOpacity[i] += (this.fadeTarget[i] - this.fadeOpacity[i]) * factor;
       this.mats[i].opacity = this.fadeOpacity[i];
     }
+    // Advance the gl-transition overlay (calm hero swaps); the underlying fade also runs so the
+    // settled hero is already at full opacity when the overlay hides — a seamless handoff.
+    if (this.transitionActive) {
+      this.transitionElapsed += dtSec;
+      const p = this.transitionElapsed / this.transitionDuration;
+      if (p >= 1) this.endTransition();
+      else this.transitionMat.setProgress(p);
+    }
+  }
+
+  /** True while a gl-transition wipe is playing (exposed for the conductor + tests). */
+  get transitionInFlight(): boolean {
+    return this.transitionActive;
   }
 
   resize(width: number, height: number): void {
     this.fbA.setSize(half(width), half(height));
     this.fbB.setSize(half(width), half(height));
+    this.transitionMat.setRatio(width / height);
   }
 
   /**
@@ -295,6 +373,8 @@ export class LayerStack {
     for (const mesh of this.layers) this.compositor.removeOverlay(mesh);
     this.compositor.removeOverlay(this.fbMesh);
     this.compositor.removeOverlay(this.psychMesh);
+    this.compositor.removeOverlay(this.transitionMesh);
+    this.transitionMat.dispose(); // holds no owned textures (from/to are caller-owned refs)
     for (const m of this.mats) {
       if (m.map && m.map.userData.ownedByCompositor) m.map.dispose();
       m.dispose();

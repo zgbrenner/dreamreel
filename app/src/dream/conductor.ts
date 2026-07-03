@@ -264,6 +264,9 @@ export class DreamConductor implements DreamRuntime {
     this.compositor.start();
     this.compositor.resumeVideos();
     try {
+      // Per-seed sonic identity: derive the synth character before the graph is built so this
+      // dream's bed is its own instrument (mood still plays it via setMood). Best-effort.
+      this.safeAudio(() => this.audio.setSeed(this.seed));
       await this.audio.start();
       this.audio.setVolume(this.soundOn);
       this.audio.setTempo(this.tempoMul);
@@ -362,6 +365,7 @@ export class DreamConductor implements DreamRuntime {
     this.butterchurn?.engage(false);
     this.layerStack?.setPsychedelic(null, 0);
     this.safeAudio(() => this.audio.setTempo(tempoMul));
+    this.safeAudio(() => this.audio.setSeed(seed)); // "New dream" re-tunes the bed to the new voice
     // Reset audio walk accumulators so the new seed starts a fresh audio sequence.
     this.audioWalker?.reseed(seed);
     this.audioCadence = makeAudioCadence();
@@ -769,9 +773,29 @@ export class DreamConductor implements DreamRuntime {
     // non-video texture (the video success branch below re-arms it when a clip actually lands).
     this.slotHeldUntil[slot] = 0;
 
+    // Wake-mode gl-transition: on a CALM single-hero swap, route the hero handoff through the
+    // mood-mapped transition catalog (the same brain classic mode uses) instead of a plain
+    // opacity cross-fade. Gated to layerCount===1 so the wipe never covers the dense collage —
+    // there the fade is kept. The presRng roll keeps selection deterministic per seed; timing may
+    // vary (presentation only). `heroFrom` is the outgoing hero, captured BEFORE the swap writes.
+    const reduce = this.postfx.params.reduceMotion;
+    const useTransition = this.currentPlan.layerCount === 1;
+    const heroFrom = useTransition ? stack.currentHeroTexture() : null;
+    const transitionName = useTransition
+      ? pickTransition(mood, intensity, sample.inTrough, this.presRng.next(), reduce)
+      : 'fade';
+    const transitionDurSec = Math.max(
+      0.3,
+      Math.min(1.5, 2.5 / swapFadeRate(mood, intensity, sample.inTrough, reduce)),
+    );
+    const beginHeroTransition = (to: THREE.Texture): void => {
+      if (useTransition) stack.beginTransition(heroFrom, to, transitionName, transitionDurSec);
+    };
+
     if (beat.titleCard || asset.type === 'titlecard') {
       const tex = this.makeTitleCard(asset.text ?? '', mood);
       stack.setLayerTexture(slot, tex);
+      beginHeroTransition(tex);
       this.hooks.setCaption({
         reel: beat.titleCard ? 'INTERTITLE' : reelLabel(asset),
         source: asset.source,
@@ -787,10 +811,12 @@ export class DreamConductor implements DreamRuntime {
       const src = this.proc(asset.id, asset.kind ?? 'fog');
       this.markLive(src);
       stack.setLayerTexture(slot, src.texture);
+      beginHeroTransition(src.texture);
     } else if (asset.type === 'image' && asset.src) {
       void this.compositor.showImage(asset.src, asset.grade).then((res) => {
         if (res.ok) {
           stack.setLayerTexture(slot, res.texture);
+          beginHeroTransition(res.texture);
           // 2.5D: bind the baked depth map once it's in (guarded — the slot may have moved on).
           this.sideTexture(asset.depthSrc, asset.id, this.depthTex, this.depthLoading, (d) =>
             stack.setLayerDepth(slot, d, res.texture),
@@ -830,6 +856,7 @@ export class DreamConductor implements DreamRuntime {
         .then((res) => {
         if (res.ok) {
           stack.setLayerTexture(slot, res.texture);
+          beginHeroTransition(res.texture);
           // 2.5D: midpoint-frame depth (pipeline/embed/depth.py) drifts the moving image too.
           this.sideTexture(asset.depthSrc, asset.id, this.depthTex, this.depthLoading, (d) =>
             stack.setLayerDepth(slot, d, res.texture),

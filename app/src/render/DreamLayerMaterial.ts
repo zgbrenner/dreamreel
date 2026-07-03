@@ -25,14 +25,22 @@
 import * as THREE from 'three';
 
 function injectUvPrelude(shader: { fragmentShader: string }, uniformDecls: string, prelude: string): void {
+  // `vMapUv` is only declared by three.js under USE_MAP — a material with no texture bound (e.g.
+  // the feedback quad at the coherent baseline) compiles WITHOUT it, so the whole displaced-UV
+  // prelude must be guarded on USE_MAP. The stock `#include <map_fragment>` stays unconditional
+  // (it no-ops when USE_MAP is undefined); only our additions are gated.
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <map_fragment>',
     [
+      '#ifdef USE_MAP',
       'vec2 dreamMapUv = vMapUv;',
       prelude,
       '#define vMapUv dreamMapUv',
+      '#endif',
       '#include <map_fragment>',
+      '#ifdef USE_MAP',
       '#undef vMapUv',
+      '#endif',
     ].join('\n'),
   );
   shader.fragmentShader = uniformDecls + '\n' + shader.fragmentShader;
