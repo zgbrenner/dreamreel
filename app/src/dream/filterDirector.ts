@@ -108,6 +108,19 @@ export function preferSlow(mood: Record<MoodAxis, number> | null, intensity: num
 }
 
 /**
+ * Whether a gentle beat is eligible for the "dream turns to colour" moment — the mood gate for a
+ * colorized clip (Asset.colorSrc, DeOldify via pipeline/embed/colorize.py) to bloom. Warm/joyful
+ * and calm: the Wizard-of-Oz register. The conductor still gates the actual turn behind a seeded
+ * probability + cooldown so it stays rare. Pure — part of the look brain.
+ */
+export function preferColor(mood: Record<MoodAxis, number> | null, intensity: number): boolean {
+  if (!mood) return false;
+  return (
+    Math.max(mood.tender, mood.nostalgic, mood.love, mood.joy) > 0.62 && intensity < 0.4
+  );
+}
+
+/**
  * Datamosh smear strength for the LayerStack feedback trail (0..~0.8) — a NIGHTMARE-SURGE
  * treatment only: zero at the coherent baseline, in troughs, and under reduced motion; ramps in
  * quadratically above ~0.7 intensity inside a frenzy so the image dissolves along its own motion
