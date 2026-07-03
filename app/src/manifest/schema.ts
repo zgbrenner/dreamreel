@@ -67,6 +67,7 @@ export const assetSchema = z.object({
   depthSrc: z.string().url().optional(),
   flowSrc: z.string().url().optional(),
   slowSrc: z.string().url().optional(),
+  colorSrc: z.string().url().optional(),
   motion: z
     .object({
       energy: z.number().optional(),

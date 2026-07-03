@@ -1,6 +1,6 @@
 // swapFadeRate + preferSlow: mood-shaped swap dynamics and the slow-variant pick (look brain).
 import { describe, it, expect } from 'vitest';
-import { swapFadeRate, preferSlow } from '../../src/dream/filterDirector';
+import { swapFadeRate, preferSlow, preferColor } from '../../src/dream/filterDirector';
 import { MOOD_AXES, type MoodAxis } from '../../src/manifest/types';
 
 function moodWith(overrides: Partial<Record<MoodAxis, number>>): Record<MoodAxis, number> {
@@ -46,5 +46,19 @@ describe('preferSlow', () => {
     expect(preferSlow(moodWith({ fear: 0.9 }), 0.1)).toBe(false);
     expect(preferSlow(moodWith({}), 0.1)).toBe(false);
     expect(preferSlow(null, 0.1)).toBe(false);
+  });
+});
+
+describe('preferColor (the colour-turn mood gate)', () => {
+  it('is eligible on warm/joyful calm beats (tender/nostalgic/love/joy)', () => {
+    expect(preferColor(moodWith({ joy: 0.8 }), 0.2)).toBe(true);
+    expect(preferColor(moodWith({ tender: 0.7 }), 0.3)).toBe(true);
+  });
+
+  it('is not eligible at higher intensity, on non-gentle moods, or without a mood', () => {
+    expect(preferColor(moodWith({ joy: 0.8 }), 0.5)).toBe(false);
+    expect(preferColor(moodWith({ fear: 0.9, ominous: 0.9 }), 0.1)).toBe(false);
+    expect(preferColor(moodWith({}), 0.1)).toBe(false);
+    expect(preferColor(null, 0.1)).toBe(false);
   });
 });

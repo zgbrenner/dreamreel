@@ -24,6 +24,7 @@ import {
   moshStrength,
   swapFadeRate,
   preferSlow,
+  preferColor,
   capDistortion,
   pickTransition,
   proceduralParams,
@@ -83,6 +84,12 @@ const SPRITE_COOLDOWN_S = 20; // minimum seconds between summons
 // Bounded by probability + cooldown so it stays a dreamlike echo, not a slideshow.
 const FLASH_FRAME_PROB = 0.035; // per ghost beat (classic) / per swap beat (wake)
 const FLASH_FRAME_COOLDOWN_S = 18; // minimum seconds between flash-frames
+
+// "Dream turns to colour" (the Wizard-of-Oz moment). Rare + long-cooled so it stays an event, not
+// a mode; only fires on gentle low-intensity beats over a clip that carries a colorized variant.
+const COLOR_TURN_PROB = 0.25; // per eligible gentle beat (already narrowed by preferColor)
+const COLOR_TURN_COOLDOWN_S = 75; // minimum seconds between colour turns
+const COLOR_HOLD_S = 8; // duration of the bloom (a sine ease in and back out)
 const WAKE_FLASH_HOLD_S = 0.9; // how long a wake-mode flash-frame stays on the overlay
 
 // Hypnagogic onset (sleep-onset research: imagery begins as fragmentary flashes before cohering
@@ -128,6 +135,12 @@ export class DreamConductor implements DreamRuntime {
   private readonly flowTex = new Map<string, THREE.Texture>();
   private readonly flowLoading = new Set<string>();
   private flashCooldownUntil = 0;
+  // "Dream turns to colour" — a rare seeded moment where a gentle beat's colorized clip
+  // (Asset.colorSrc) blooms into colour, then relaxes back. A dedicated stream + cooldown keep it
+  // reproducible per seed and special; colorHoldUntil is the clock end of the current bloom.
+  private colorRng!: Rng;
+  private colorCooldownUntil = 0;
+  private colorHoldUntil = 0;
   private seed: string;
   private surreality: number;
   private tempoMul: number;
@@ -214,6 +227,7 @@ export class DreamConductor implements DreamRuntime {
     this.shotRng = makeRng(`${this.seed}:shots`);
     this.spriteRng = makeRng(`${this.seed}:sprites`);
     this.flashRng = makeRng(`${this.seed}:flash`);
+    this.colorRng = makeRng(`${this.seed}:color`);
     // Index the entity cutout pool by entity for memory-triggered summoning, and overlay the field.
     for (const sp of manifest.entitySprites ?? []) {
       const list = this.spritePool.get(sp.entity);
@@ -326,6 +340,9 @@ export class DreamConductor implements DreamRuntime {
     this.spriteRng = makeRng(`${seed}:sprites`);
     this.flashRng = makeRng(`${seed}:flash`);
     this.flashCooldownUntil = 0;
+    this.colorRng = makeRng(`${seed}:color`);
+    this.colorCooldownUntil = 0;
+    this.colorHoldUntil = 0;
     this.spriteField.dispose();
     this.spriteCooldownUntil = 0;
     this.walker = this.buildWalker();
@@ -613,6 +630,20 @@ export class DreamConductor implements DreamRuntime {
     // escalation, not the resting baseline. Classic mode never calls this and keeps full energy.
     this.postfx.setWakeEnergy(falseAwake ? 0 : intensity);
 
+    // "Dream turns to colour": while a colour turn is held, ease the desaturating grade (desat +
+    // sepia) away and lift a gentle bloom on a sine hump, so the colorized clip's colour blooms in
+    // and relaxes back. Branch-agnostic — reads back the grade the block above just set and scales
+    // it, so it works over both the videoFocus and non-focus film. No-op when no turn is active.
+    if (this.colorHoldUntil > this.clock && !falseAwake) {
+      const env = Math.sin(Math.PI * ((COLOR_HOLD_S - (this.colorHoldUntil - this.clock)) / COLOR_HOLD_S));
+      const p = this.postfx.params;
+      this.postfx.setParams({
+        desat: p.desat * (1 - env),
+        sepia: p.sepia * (1 - 0.85 * env),
+        bloom: p.bloom + env * 0.12,
+      });
+    }
+
     // Datamosh: at the peak of a frenzy the feedback trail re-samples itself displaced along the
     // hero clip's baked flow (or a procedural swirl) — the image dissolving along its own motion.
     stack.setMosh(
@@ -776,12 +807,26 @@ export class DreamConductor implements DreamRuntime {
         }
       });
     } else if (asset.type === 'video' && asset.src) {
+      // Rare "dream turns to colour": on a gentle low-intensity beat, a clip with a baked colorized
+      // variant may bloom into colour. Seeded + cooldown-gated so it stays a special moment; the
+      // continuous grade section eases the desaturation away for COLOR_HOLD_S. Takes precedence
+      // over the slow-motion pick (both are gentle-register, colour is the rarer event).
+      const colorTurn =
+        !!asset.colorSrc &&
+        preferColor(mood, intensity) &&
+        this.clock >= this.colorCooldownUntil &&
+        this.colorRng.next() < COLOR_TURN_PROB;
+      if (colorTurn) {
+        this.colorCooldownUntil = this.clock + COLOR_TURN_COOLDOWN_S;
+        this.colorHoldUntil = this.clock + COLOR_HOLD_S;
+      }
       // Gentle-register beats prefer the clip's slow-motion variant when one is baked. The pick
       // is deterministic (mood + intensity are logical state); shot windows don't apply to the
-      // time-stretched variant, so the slow clip plays whole.
-      const slow = asset.slowSrc && preferSlow(mood, intensity) ? asset.slowSrc : undefined;
+      // time-stretched/colorized variants, so they play whole.
+      const slow = !colorTurn && asset.slowSrc && preferSlow(mood, intensity) ? asset.slowSrc : undefined;
+      const variant = colorTurn ? asset.colorSrc : slow;
       void this.compositor
-        .showVideo(slow ?? asset.src, asset.grade, slow ? undefined : this.pickShot(asset))
+        .showVideo(variant ?? asset.src, asset.grade, variant ? undefined : this.pickShot(asset))
         .then((res) => {
         if (res.ok) {
           stack.setLayerTexture(slot, res.texture);

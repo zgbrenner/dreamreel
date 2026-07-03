@@ -110,6 +110,11 @@ export interface Asset {
   // minterpolate, pipeline/embed/retime.py). The runtime deterministically prefers it on
   // tender/nostalgic low-intensity beats. Absent → the normal-speed src plays (graceful).
   slowSrc?: string;
+  // Optional R2 URL of a COLORIZED variant of a vintage clip (DeOldify, pipeline/embed/colorize.py).
+  // The runtime stages a rare, seeded "dream turns to color" moment on a gentle beat: it plays this
+  // variant and drops the desaturating film grade so the world blooms into colour, then relaxes
+  // back. Absent → no colour turn for this asset (graceful).
+  colorSrc?: string;
   // Optional baked MOTION metadata (RAFT, pipeline/embed/flow.py): overall motion energy plus
   // compact in/out motion signatures (8-bin direction histogram + mean magnitude) used for
   // MOTION-MATCHED CUTS — the walk leans toward a next clip whose opening motion continues the
