@@ -30,6 +30,12 @@ const BLEND_MAP: Record<BlendName, THREE.Blending> = {
 
 const half = (n: number): number => Math.max(1, Math.floor(n / 2));
 
+// Ken Burns bounds: the zoom-in caps at KEN_ZOOM_MAX; the pan grows at a fraction of the zoom
+// rate and is additionally capped below zoom/2, so the zoomed sample window never reaches outside
+// the texture (no edge smear) — see setKenBurns / the material's uKen invariant.
+const KEN_ZOOM_MAX = 0.14;
+const KEN_PAN_FRAC = 0.33;
+
 export class LayerStack {
   private readonly quad = new THREE.PlaneGeometry(2, 2);
   private readonly layers: THREE.Mesh[] = [];
@@ -38,6 +44,13 @@ export class LayerStack {
   // eases it 0.5 → 1 so the opening imagery reads as translucent fragments cohering into a scene.
   private heroCap = 1;
   private fadeRate = 3; // per-second cross-fade ease; mood-shaped via setFadeRate
+  // Per-slot Ken Burns: a slow zoom-in + drift so a held frame breathes cinematically. Each entry
+  // is a unit pan direction, a zoom rate (per second, mood-shaped), and elapsed seconds since the
+  // slot's texture was (re)set. Advanced in update(); written into each DepthLayerMaterial's uKen.
+  private readonly kenDirX = new Array<number>(MAX_LAYERS).fill(0);
+  private readonly kenDirY = new Array<number>(MAX_LAYERS).fill(0);
+  private readonly kenRate = new Array<number>(MAX_LAYERS).fill(0);
+  private readonly kenElapsed = new Array<number>(MAX_LAYERS).fill(0);
   private feedbackTrail = 0; // melancholy echo-trail strength, 0..1 (set by the conductor)
   // Per-slot write order, so applyPlan can show the MOST RECENT images (the newest is the
   // opaque "hero"; older ones fan behind it) rather than a fixed slot range — otherwise a
@@ -260,6 +273,19 @@ export class LayerStack {
   }
 
   /**
+   * Start a Ken Burns push on a slot: a slow zoom-in along a seeded pan angle at `rate` (per
+   * second, mood-shaped). Resets the slot's elapsed clock so a fresh hero starts its own drift.
+   * `rate` 0 disables the effect for the slot (identity — bit-identical to before).
+   */
+  setKenBurns(slot: number, angle: number, rate: number): void {
+    if (slot < 0 || slot >= MAX_LAYERS) return;
+    this.kenDirX[slot] = Math.cos(angle);
+    this.kenDirY[slot] = Math.sin(angle);
+    this.kenRate[slot] = Math.max(0, rate);
+    this.kenElapsed[slot] = 0;
+  }
+
+  /**
    * Apply a LayerPlan. Shows the `layerCount` MOST-RECENTLY-written layers (by writeSeq): the
    * newest is a near-opaque NormalBlending "hero" so the current image always reads clearly;
    * older ones fan behind it, additively/blended and fading with age, for the dense collage.
@@ -318,6 +344,13 @@ export class LayerStack {
     for (let i = 0; i < MAX_LAYERS; i++) {
       this.fadeOpacity[i] += (this.fadeTarget[i] - this.fadeOpacity[i]) * factor;
       this.mats[i].opacity = this.fadeOpacity[i];
+      // Ken Burns: advance the slow zoom+drift for any visible slot that has one armed.
+      if (this.kenRate[i] > 0 && this.layers[i].visible) {
+        this.kenElapsed[i] += dtSec;
+        const z = Math.min(KEN_ZOOM_MAX, this.kenRate[i] * this.kenElapsed[i]);
+        const panMag = Math.min(this.kenRate[i] * KEN_PAN_FRAC * this.kenElapsed[i], z * 0.49);
+        this.mats[i].setKen(this.kenDirX[i] * panMag, this.kenDirY[i] * panMag, z);
+      }
     }
     // Advance the gl-transition overlay (calm hero swaps); the underlying fade also runs so the
     // settled hero is already at full opacity when the overlay hides — a seamless handoff.

@@ -69,3 +69,40 @@ describe('LayerStack gl-transition overlay', () => {
     expect(() => stack.dispose()).not.toThrow();
   });
 });
+
+describe('LayerStack Ken Burns drift', () => {
+  it('advances zoom + pan on a visible slot, keeping |pan| < zoom/2 (no edge sampling)', () => {
+    const stack = new LayerStack(stubCompositor() as never);
+    stack.setLayerTexture(0, tex());
+    stack.applyPlan({ layerCount: 1, blends: ['normal'], feedback: 0, warp: 0 } as never);
+    stack.setKenBurns(0, 0, 0.012); // pan along +x
+    const mat = (stack as unknown as { mats: { uKen?: unknown }[] }).mats[0] as unknown as {
+      setKen: (x: number, y: number, z: number) => void;
+    } & { [k: string]: unknown };
+    // Reach into the material's uKen via a spy: drive several seconds and read the last write.
+    let last = { x: 0, y: 0, z: 0 };
+    (mat as unknown as { setKen: (x: number, y: number, z: number) => void }).setKen = (x, y, z) => {
+      last = { x, y, z };
+    };
+    for (let i = 0; i < 200; i++) stack.update(0.05); // ~10 s
+    expect(last.z).toBeGreaterThan(0); // zoomed in
+    expect(last.z).toBeLessThanOrEqual(0.14); // capped
+    expect(Math.abs(last.x)).toBeLessThan(last.z / 2); // pan stays inside the frame
+  });
+
+  it('rate 0 leaves the slot at identity (no Ken Burns, no regression)', () => {
+    const stack = new LayerStack(stubCompositor() as never);
+    stack.setLayerTexture(0, tex());
+    stack.applyPlan({ layerCount: 1, blends: ['normal'], feedback: 0, warp: 0 } as never);
+    stack.setKenBurns(0, 1.2, 0); // rate 0 → disabled
+    let touched = false;
+    const mat = (stack as unknown as { mats: unknown[] }).mats[0] as {
+      setKen: (x: number, y: number, z: number) => void;
+    };
+    mat.setKen = () => {
+      touched = true;
+    };
+    for (let i = 0; i < 40; i++) stack.update(0.05);
+    expect(touched).toBe(false);
+  });
+});

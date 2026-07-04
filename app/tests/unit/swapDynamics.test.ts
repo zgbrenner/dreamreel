@@ -1,6 +1,6 @@
 // swapFadeRate + preferSlow: mood-shaped swap dynamics and the slow-variant pick (look brain).
 import { describe, it, expect } from 'vitest';
-import { swapFadeRate, preferSlow, preferColor } from '../../src/dream/filterDirector';
+import { swapFadeRate, preferSlow, preferColor, kenBurnsRate } from '../../src/dream/filterDirector';
 import { MOOD_AXES, type MoodAxis } from '../../src/manifest/types';
 
 function moodWith(overrides: Partial<Record<MoodAxis, number>>): Record<MoodAxis, number> {
@@ -60,5 +60,19 @@ describe('preferColor (the colour-turn mood gate)', () => {
     expect(preferColor(moodWith({ fear: 0.9, ominous: 0.9 }), 0.1)).toBe(false);
     expect(preferColor(moodWith({}), 0.1)).toBe(false);
     expect(preferColor(null, 0.1)).toBe(false);
+  });
+});
+
+describe('kenBurnsRate (cinematic push)', () => {
+  it('is a slow contemplative push at baseline, faster as intensity climbs', () => {
+    const base = kenBurnsRate(0.16, false);
+    const hot = kenBurnsRate(0.9, false);
+    expect(base).toBeGreaterThan(0);
+    expect(hot).toBeGreaterThan(base);
+    expect(hot).toBeLessThanOrEqual(0.018);
+  });
+
+  it('is zero under reduced motion (drift suppressed)', () => {
+    expect(kenBurnsRate(0.9, true)).toBe(0);
   });
 });

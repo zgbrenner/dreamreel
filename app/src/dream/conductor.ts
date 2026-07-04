@@ -25,6 +25,7 @@ import {
   swapFadeRate,
   preferSlow,
   preferColor,
+  kenBurnsRate,
   capDistortion,
   pickTransition,
   proceduralParams,
@@ -791,6 +792,10 @@ export class DreamConductor implements DreamRuntime {
     const beginHeroTransition = (to: THREE.Texture): void => {
       if (useTransition) stack.beginTransition(heroFrom, to, transitionName, transitionDurSec);
     };
+    // Ken Burns: arm a seeded slow zoom + drift on the new hero slot so the held frame breathes
+    // cinematically (a mood/intensity-shaped rate; suppressed under reduced motion). Deterministic
+    // per seed (a presRng angle); a no-op when the rate is 0.
+    stack.setKenBurns(slot, this.presRng.next() * Math.PI * 2, kenBurnsRate(intensity, reduce));
 
     if (beat.titleCard || asset.type === 'titlecard') {
       const tex = this.makeTitleCard(asset.text ?? '', mood);
