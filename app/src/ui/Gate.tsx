@@ -7,6 +7,7 @@ import { PostFX } from '../render/postfx';
 import { AudioEngine } from '../audio/engine';
 import { DreamConductor } from '../dream/conductor';
 import { deriveSeedParams } from '../dream/seedParams';
+import { deriveDreamName } from '../dream/dreamName';
 import { readShareState } from '../state/url';
 import { composePoster, downloadBlob, posterFilename, shareUrlFor } from './poster';
 import { recordDreamLoop, loopFilename } from './loop';
@@ -20,6 +21,8 @@ export function Gate({ manifest }: { manifest: Manifest }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const playing = useStore((s) => s.playing);
+  // The seed names its own dream — a pure, deterministic poetic title shown on the gate.
+  const seed = useStore((s) => s.seed);
   // Ambient/TV mode engage hook — set by the engine effect, invoked from the gate click (a real
   // user gesture, which fullscreen requires). No-op when ?ambient=1 is not set.
   const ambientEngageRef = useRef<(() => void) | null>(null);
@@ -92,6 +95,7 @@ export function Gate({ manifest }: { manifest: Manifest }) {
         void composePoster({
           frame,
           seed,
+          name: deriveDreamName(seed),
           whisper: caption.whisper,
           shareUrl: shareUrlFor(seed, window.location.origin, window.location.pathname),
         })
@@ -119,7 +123,11 @@ export function Gate({ manifest }: { manifest: Manifest }) {
       if (loopInFlight) return;
       loopInFlight = true;
       const { seed } = useStore.getState();
-      recordDreamLoop({ source: compositor.renderer.domElement, seed })
+      recordDreamLoop({
+        source: compositor.renderer.domElement,
+        seed,
+        name: deriveDreamName(seed),
+      })
         .then((blob) => {
           if (blob) downloadBlob(blob, loopFilename(seed));
         })
@@ -232,6 +240,9 @@ export function Gate({ manifest }: { manifest: Manifest }) {
           <h1 className="animate-flicker font-title text-6xl uppercase tracking-intertitle text-lamp text-shadow-glow sm:text-8xl">
             Dreamreel
           </h1>
+          <p className="font-drift text-2xl italic tracking-wide text-amber/90 sm:text-3xl">
+            {deriveDreamName(seed)}
+          </p>
           <p className="max-w-md font-drift text-lg italic text-bone/70">
             a projection from the public domain — press play and let it dream
           </p>

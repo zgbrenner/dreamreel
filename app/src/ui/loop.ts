@@ -7,12 +7,15 @@
 // requestAnimationFrame loop for its lifetime and never touches the compositor's render loop.
 // All layout math lives in pure exported helpers so it can be unit-tested without a real canvas.
 //
-// Palette (CLAUDE.md aesthetic tokens, mirroring poster.ts): ink #0E0B08, silver-bone #D8D2C4.
-// Type: Courier Prime (the archival-caption face) with a monospace fallback.
+// Palette (CLAUDE.md aesthetic tokens, mirroring poster.ts): ink #0E0B08, silver-bone #D8D2C4,
+// lamp glow #E8C887. Type: Courier Prime (the archival-caption face, for the seed) and EB Garamond
+// italic (the drifting face, for the poetic name) — both with generic fallbacks.
 
 const INK = '#0E0B08';
 const BONE = '#D8D2C4';
+const LAMP = '#E8C887';
 const FONT_MONO = '"Courier Prime", monospace';
+const FONT_DRIFT = '"EB Garamond", serif';
 
 export const LOOP_DURATION_MS = 4000;
 export const LOOP_WIDTH = 960;
@@ -93,10 +96,32 @@ export function loopOverlayLayout(w: number, h: number, captionChars: number): L
   };
 }
 
+/**
+ * Position for the dream's poetic name (EB Garamond italic), sitting just above the seed scrim and
+ * right-aligned to it, in a slightly smaller face. Pure — derived from the seed-caption layout so
+ * the two burn-ins stack cleanly at any capture size. Drawn with textAlign='right' at `x`.
+ */
+export function loopNameLayout(
+  layout: LoopOverlayLayout,
+  h: number,
+): { x: number; y: number; fontPx: number } {
+  const fontPx = Math.max(11, Math.round(layout.fontPx * 0.82));
+  const gap = Math.round(layout.fontPx * 0.5);
+  return {
+    // Right edge of the seed scrim — the caption is drawn right-aligned to it.
+    x: layout.scrim.x + layout.scrim.w,
+    // Baseline sits above the scrim, clamped to stay on-frame.
+    y: Math.min(h, Math.max(fontPx, layout.scrim.y - gap)),
+    fontPx,
+  };
+}
+
 export interface LoopOpts {
   /** The live WebGL compositor canvas to record. */
   source: HTMLCanvasElement;
   seed: string;
+  /** The dream's poetic name (deriveDreamName), burned in above the seed caption. */
+  name?: string;
   durationMs?: number;
   width?: number;
   fps?: number;
@@ -138,12 +163,22 @@ export async function recordDreamLoop(opts: LoopOpts): Promise<Blob | null> {
 
   const caption = `?seed=${opts.seed}`;
   const layout = loopOverlayLayout(w, h, caption.length);
+  const nameText = opts.name?.trim() ? opts.name.trim() : null;
+  const nameLayout = nameText ? loopNameLayout(layout, h) : null;
 
   const drawFrame = (): void => {
     try {
       ctx2d.drawImage(opts.source, 0, 0, w, h);
     } catch {
       /* tainted/broken source — keep the last frame (or the ink base) */
+    }
+    // The dream's poetic name, EB Garamond italic, lamp glow — above the seed caption, right-aligned.
+    if (nameText && nameLayout) {
+      ctx2d.font = `italic ${nameLayout.fontPx}px ${FONT_DRIFT}`;
+      ctx2d.textAlign = 'right';
+      ctx2d.textBaseline = 'alphabetic';
+      ctx2d.fillStyle = LAMP;
+      ctx2d.fillText(nameText, nameLayout.x, nameLayout.y);
     }
     // Subtle ink scrim + seed caption, bottom-right, Courier Prime.
     ctx2d.fillStyle = 'rgba(14, 11, 8, 0.6)'; // INK at 60%

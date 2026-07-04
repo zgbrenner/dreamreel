@@ -39,6 +39,8 @@ export const POSTER_LAYOUT = {
   whisper: { topY: 1088, lineHeightPx: 54, fontPx: 38, maxWidth: 840, maxLines: 3 },
   /** The seed, LARGE — Bodoni Moda caps with wide tracking, tungsten amber. */
   seed: { baselineY: 1368, maxWidth: 900, maxFontPx: 118, minFontPx: 36, trackingEm: 0.28 },
+  /** The dream's poetic name — EB Garamond italic, centered, lamp glow — a subtitle below the seed. */
+  name: { baselineY: 1440, maxWidth: 900, fontPx: 34, minFontPx: 18 },
   /** Small DREAMREEL wordmark, Courier Prime. */
   wordmark: { baselineY: 1486, fontPx: 24, trackingEm: 0.6 },
   /** The share URL, Courier Prime, sepia. */
@@ -127,6 +129,8 @@ export interface PosterOpts {
   /** The captured dream frame: a CanvasImageSource, or a (data) URL to load. */
   frame: CanvasImageSource | string;
   seed: string;
+  /** The dream's poetic name (deriveDreamName), printed as a subtitle beneath the seed. */
+  name?: string;
   /** The current drifting whisper line, if any. */
   whisper?: string;
   /** The share URL text printed at the foot of the poster. */
@@ -195,6 +199,19 @@ export async function composePoster(opts: PosterOpts): Promise<Blob | null> {
     minFontPx: sl.minFontPx,
     trackingEm: sl.trackingEm,
   });
+
+  // Dream name — EB Garamond italic, centered, lamp glow, a subtitle beneath the seed. Shrunk to
+  // fit if a long title runs wide.
+  if (opts.name && opts.name.trim()) {
+    const nl = POSTER_LAYOUT.name;
+    const name = opts.name.trim();
+    ctx.font = `italic ${nl.fontPx}px ${FONT_DRIFT}`;
+    const px = fitFontPx(ctx.measureText(name).width, nl.fontPx, nl.maxWidth, nl.minFontPx);
+    ctx.font = `italic ${px}px ${FONT_DRIFT}`;
+    ctx.fillStyle = LAMP;
+    const w = ctx.measureText(name).width;
+    ctx.fillText(name, (POSTER_W - w) / 2, nl.baselineY);
+  }
 
   // DREAMREEL wordmark — Courier Prime, small, lamp glow.
   const wm = POSTER_LAYOUT.wordmark;
