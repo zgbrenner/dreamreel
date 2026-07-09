@@ -25,14 +25,22 @@
 import * as THREE from 'three';
 
 function injectUvPrelude(shader: { fragmentShader: string }, uniformDecls: string, prelude: string): void {
+  // `vMapUv` is only declared by three.js under USE_MAP — a material with no texture bound (e.g.
+  // the feedback quad at the coherent baseline) compiles WITHOUT it, so the whole displaced-UV
+  // prelude must be guarded on USE_MAP. The stock `#include <map_fragment>` stays unconditional
+  // (it no-ops when USE_MAP is undefined); only our additions are gated.
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <map_fragment>',
     [
+      '#ifdef USE_MAP',
       'vec2 dreamMapUv = vMapUv;',
       prelude,
       '#define vMapUv dreamMapUv',
+      '#endif',
       '#include <map_fragment>',
+      '#ifdef USE_MAP',
       '#undef vMapUv',
+      '#endif',
     ].join('\n'),
   );
   shader.fragmentShader = uniformDecls + '\n' + shader.fragmentShader;
@@ -42,6 +50,9 @@ export class DepthLayerMaterial extends THREE.MeshBasicMaterial {
   private readonly uDepthMap = { value: null as THREE.Texture | null };
   private readonly uParallax = { value: new THREE.Vector2(0, 0) };
   private readonly uHasDepth = { value: 0 };
+  // Ken Burns: xy = pan offset, z = zoom-in amount (0 = identity/no-op). The caller keeps
+  // |pan| < z/2 so the zoomed-in sample window never reaches outside the texture (no edge smear).
+  private readonly uKen = { value: new THREE.Vector3(0, 0, 0) };
 
   constructor(params?: THREE.MeshBasicMaterialParameters) {
     super(params);
@@ -49,14 +60,17 @@ export class DepthLayerMaterial extends THREE.MeshBasicMaterial {
       shader.uniforms.uDepthMap = this.uDepthMap;
       shader.uniforms.uParallax = this.uParallax;
       shader.uniforms.uHasDepth = this.uHasDepth;
+      shader.uniforms.uKen = this.uKen;
       injectUvPrelude(
         shader,
-        'uniform sampler2D uDepthMap;\nuniform vec2 uParallax;\nuniform float uHasDepth;',
+        'uniform sampler2D uDepthMap;\nuniform vec2 uParallax;\nuniform float uHasDepth;\nuniform vec3 uKen;',
         `#ifdef USE_MAP
         if (uHasDepth > 0.5) {
           float dreamDepth = texture2D(uDepthMap, vMapUv).r - 0.5;
           dreamMapUv = clamp(vMapUv + dreamDepth * uParallax, 0.0, 1.0);
         }
+        // Ken Burns push + drift: zoom in around centre and pan, composed atop parallax.
+        dreamMapUv = (dreamMapUv - 0.5) * (1.0 - uKen.z) + 0.5 + uKen.xy;
         #endif`,
       );
     };
@@ -72,6 +86,11 @@ export class DepthLayerMaterial extends THREE.MeshBasicMaterial {
 
   get depthTexture(): THREE.Texture | null {
     return this.uDepthMap.value;
+  }
+
+  /** Ken Burns transform for this layer: pan (UV units) + zoom-in amount (0 = none). */
+  setKen(panX: number, panY: number, zoom: number): void {
+    this.uKen.value.set(panX, panY, zoom);
   }
 
   /** Parallax offset in UV units (small — ±0.03 reads as gentle dimensional drift). */

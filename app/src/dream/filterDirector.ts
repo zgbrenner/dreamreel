@@ -121,6 +121,17 @@ export function preferColor(mood: Record<MoodAxis, number> | null, intensity: nu
 }
 
 /**
+ * Ken Burns zoom rate (per second) for a held hero frame — a slow cinematic push so stills and
+ * clips breathe instead of sitting static. Contemplative at the coherent baseline, a touch faster
+ * as intensity climbs; zero under reduced motion (the drift is suppressed entirely). Pure — part
+ * of the look brain; the LayerStack caps the total zoom + keeps the pan inside the frame.
+ */
+export function kenBurnsRate(intensity: number, reduceMotion: boolean): number {
+  if (reduceMotion) return 0;
+  return 0.006 + clamp01(intensity) * 0.012; // ~0.006..0.018 /s
+}
+
+/**
  * Datamosh smear strength for the LayerStack feedback trail (0..~0.8) — a NIGHTMARE-SURGE
  * treatment only: zero at the coherent baseline, in troughs, and under reduced motion; ramps in
  * quadratically above ~0.7 intensity inside a frenzy so the image dissolves along its own motion

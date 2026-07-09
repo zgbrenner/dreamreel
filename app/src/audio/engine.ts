@@ -7,7 +7,15 @@
 //   start(), setMood(), setVolume(), setTempo(), suspend(), resume(), dispose().
 
 import * as Tone from 'tone';
-import { bedParamsFor, bellShotFor, type Mood } from './params';
+import {
+  bedParamsFor,
+  bellShotFor,
+  deriveSynthCharacter,
+  DEFAULT_SYNTH_CHARACTER,
+  type Mood,
+  type SynthCharacter,
+} from './params';
+import { makeRng, type Rng } from '../dream/prng';
 
 const PENTATONIC = ['C', 'D', 'E', 'G', 'A'];
 const RAMP = 1.5; // seconds for smooth parameter glides
@@ -33,6 +41,13 @@ export class AudioEngine {
   private muted = false;
   private tempoMul = 1;
   private mood: Mood | null = null;
+
+  // Per-seed timbral identity (the INSTRUMENT). Defaults to the original hand-tuned bed so a
+  // missing/empty seed reproduces the legacy sound bit-for-bit. See params.deriveSynthCharacter.
+  private character: SynthCharacter = DEFAULT_SYNTH_CHARACTER;
+  // Seeded generative stream for the bell voice — replaces Math.random so the bed obeys the
+  // seed (no non-seeded randomness in the audio path). Reseeded by setSeed().
+  private bellRng: Rng = makeRng('dreamreel:bells');
 
   // graph nodes (created on start)
   private master?: Tone.Gain;
@@ -95,36 +110,51 @@ export class AudioEngine {
   }
 
   private build(): void {
-    this.master = new Tone.Gain(0).toDestination();
-    this.reverb = new Tone.Reverb({ decay: 7, wet: 0.5, preDelay: 0.02 }).connect(this.master);
+    // The character is the INSTRUMENT: oscillator types, harmonic interval, filter/LFO shape,
+    // noise colour and room size all come from the per-seed character. Mood (setMood) still
+    // reshapes how it's PLAYED on top. DEFAULT_SYNTH_CHARACTER reproduces the legacy bed exactly.
+    const c = this.character;
 
-    // Drone: two detuned oscillators through a slow-LFO lowpass.
-    this.droneGain = new Tone.Gain(0.22).connect(this.reverb);
-    this.droneFilter = new Tone.Filter({ type: 'lowpass', frequency: 600, Q: 1 }).connect(
+    this.master = new Tone.Gain(0).toDestination();
+    this.reverb = new Tone.Reverb({ decay: c.reverbDecay, wet: 0.5, preDelay: 0.02 }).connect(
+      this.master,
+    );
+
+    // Drone: two oscillators (character timbres), stacked at the character's harmonic interval,
+    // through a slow-LFO filter (character shape).
+    this.droneGain = new Tone.Gain(c.droneGain).connect(this.reverb);
+    this.droneFilter = new Tone.Filter({ type: c.filterType, frequency: 600, Q: c.filterQ }).connect(
       this.droneGain,
     );
-    this.oscA = new Tone.Oscillator({ frequency: 55, type: 'sine' }).connect(this.droneFilter);
-    this.oscB = new Tone.Oscillator({ frequency: 55, type: 'triangle', detune: 8 }).connect(
-      this.droneFilter,
-    );
-    this.droneLfo = new Tone.LFO({ frequency: 0.05, min: 320, max: 900 });
+    this.oscA = new Tone.Oscillator({ frequency: 55, type: c.oscAType }).connect(this.droneFilter);
+    this.oscB = new Tone.Oscillator({
+      frequency: 55 * c.intervalRatio,
+      type: c.oscBType,
+      detune: 8 + c.detuneSpread,
+    }).connect(this.droneFilter);
+    this.droneLfo = new Tone.LFO({
+      frequency: c.lfoRateHz,
+      min: c.lfoMin,
+      max: c.lfoMax,
+      type: c.lfoType,
+    });
     this.droneLfo.connect(this.droneFilter.frequency);
     this.oscA.start();
     this.oscB.start();
     this.droneLfo.start();
 
-    // Tape hiss / static: filtered pink noise.
+    // Tape hiss / static: filtered noise (character colour).
     this.hissGain = new Tone.Gain(0.05).connect(this.master);
     this.noiseFilter = new Tone.Filter({ type: 'lowpass', frequency: 2600, Q: 0.6 }).connect(
       this.hissGain,
     );
-    this.noise = new Tone.Noise('pink').connect(this.noiseFilter);
+    this.noise = new Tone.Noise(c.noiseColor).connect(this.noiseFilter);
     this.noise.start();
 
-    // Bells: a soft sine synth with long release, into reverb.
+    // Bells: a soft synth (character timbre) with long release, into reverb.
     this.bellGain = new Tone.Gain(0.18).connect(this.reverb);
     this.bell = new Tone.Synth({
-      oscillator: { type: 'sine' },
+      oscillator: { type: c.bellType },
       envelope: { attack: 0.005, decay: 1.2, sustain: 0, release: 2.5 },
       volume: -6,
     }).connect(this.bellGain);
@@ -140,9 +170,11 @@ export class AudioEngine {
     // Scheduled generative events.
     this.bellLoop = new Tone.Loop((time) => {
       const { prob, octave } = bellShotFor(this.mood ?? NEUTRAL_MOOD);
-      if (Math.random() < prob) {
-        const note = PENTATONIC[Math.floor(Math.random() * PENTATONIC.length)];
-        this.bell?.triggerAttackRelease(`${note}${octave}`, '2n', time, 0.4 + Math.random() * 0.3);
+      // Seeded, not Math.random: the bell pattern belongs to the dream's seed (CLAUDE.md forbids
+      // non-seeded randomness in the audio path). A passive same-seed viewer hears the same shots.
+      if (this.bellRng.next() < prob) {
+        const note = PENTATONIC[this.bellRng.int(PENTATONIC.length)];
+        this.bell?.triggerAttackRelease(`${note}${octave}`, '2n', time, 0.4 + this.bellRng.next() * 0.3);
       }
     }, '2n').start(0);
 
@@ -162,10 +194,12 @@ export class AudioEngine {
     const p = bedParamsFor(mood, this.tempoMul);
 
     // Drone: pitch down for ominous/melancholy, up for tender; uncanny widens the beating.
+    // The character owns the harmonic interval (which chord the drone stacks), the extra detune
+    // "width", and the room's brightness bias — the mood targets ride on top of those.
     this.oscA?.frequency.rampTo(p.droneRootHz, RAMP);
-    this.oscB?.frequency.rampTo(p.droneFifthHz, RAMP);
-    this.oscB?.detune.rampTo(p.beatDetune, RAMP);
-    this.droneFilter?.frequency.rampTo(p.droneCutoffHz, RAMP);
+    this.oscB?.frequency.rampTo(p.droneRootHz * this.character.intervalRatio, RAMP);
+    this.oscB?.detune.rampTo(p.beatDetune + this.character.detuneSpread, RAMP);
+    this.droneFilter?.frequency.rampTo(p.droneCutoffHz * this.character.cutoffScale, RAMP);
 
     // Hiss: more for ominous + mechanical, brighter for mechanical.
     this.hissGain?.gain.rampTo(p.hissGain, RAMP);
@@ -180,6 +214,41 @@ export class AudioEngine {
     // Ticks louder/faster with mechanical.
     this.tickGain?.gain.rampTo(p.tickGain, RAMP);
     this.updateTickRate();
+  }
+
+  /**
+   * Give the bed a per-seed timbral identity (the INSTRUMENT). Safe to call before or after
+   * start(): before, the graph is built with the character; after (e.g. on "New dream"), the live
+   * graph is re-tuned toward it. A missing/empty seed reproduces the default bed. Best-effort —
+   * this must never throw into the dream, so callers can wrap it in their audio-safe path.
+   */
+  setSeed(seed: string): void {
+    this.character = deriveSynthCharacter(seed);
+    this.bellRng = makeRng(`${seed.trim() ? seed : 'dreamreel'}:bells`);
+    if (this.started) this.applyCharacter();
+  }
+
+  /** Re-tune the already-built graph toward the current character (used on reseed). */
+  private applyCharacter(): void {
+    const c = this.character;
+    if (this.oscA) this.oscA.type = c.oscAType;
+    if (this.oscB) this.oscB.type = c.oscBType;
+    if (this.droneFilter) {
+      this.droneFilter.type = c.filterType;
+      this.droneFilter.Q.rampTo(c.filterQ, RAMP);
+    }
+    this.droneGain?.gain.rampTo(c.droneGain, RAMP);
+    if (this.droneLfo) {
+      this.droneLfo.type = c.lfoType;
+      this.droneLfo.frequency.rampTo(c.lfoRateHz, RAMP);
+      this.droneLfo.min = c.lfoMin;
+      this.droneLfo.max = c.lfoMax;
+    }
+    if (this.noise) this.noise.type = c.noiseColor;
+    if (this.reverb) this.reverb.decay = c.reverbDecay; // regenerates the impulse response async
+    if (this.bell) this.bell.oscillator.type = c.bellType;
+    // Re-apply mood so the interval/detune/cutoff that depend on the new character take effect.
+    if (this.mood) this.setMood(this.mood);
   }
 
   setTempo(mul: number): void {

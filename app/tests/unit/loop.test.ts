@@ -5,6 +5,7 @@ import {
   pickMimeType,
   loopFilename,
   loopOverlayLayout,
+  loopNameLayout,
   recordDreamLoop,
 } from '../../src/ui/loop';
 
@@ -105,6 +106,30 @@ describe('loopOverlayLayout', () => {
     const absurd = loopOverlayLayout(200, 112, 500);
     expect(absurd.scrim.w).toBeLessThanOrEqual(200);
     expect(absurd.scrim.x).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('loopNameLayout', () => {
+  const h = 540;
+  const layout = loopOverlayLayout(LOOP_WIDTH, h, '?seed=velvet-owl'.length);
+
+  it('sits above the seed scrim, right-aligned to it, in a smaller face', () => {
+    const nl = loopNameLayout(layout, h);
+    // Baseline above the scrim's top edge (so the two burn-ins stack, not overlap).
+    expect(nl.y).toBeLessThan(layout.scrim.y);
+    // Right-aligned to the scrim's right edge, on-frame.
+    expect(nl.x).toBe(layout.scrim.x + layout.scrim.w);
+    expect(nl.x).toBeLessThanOrEqual(LOOP_WIDTH);
+    // Smaller than the seed caption, never below its legibility floor.
+    expect(nl.fontPx).toBeLessThan(layout.fontPx);
+    expect(nl.fontPx).toBeGreaterThanOrEqual(11);
+  });
+
+  it('keeps the baseline on-frame even for a shallow frame', () => {
+    const shallow = loopOverlayLayout(240, 60, 10);
+    const nl = loopNameLayout(shallow, 60);
+    expect(nl.y).toBeGreaterThanOrEqual(nl.fontPx);
+    expect(nl.y).toBeLessThanOrEqual(60);
   });
 });
 

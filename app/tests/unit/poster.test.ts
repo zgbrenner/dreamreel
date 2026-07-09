@@ -34,6 +34,15 @@ describe('poster layout constants', () => {
     expect(POSTER_LAYOUT.url.baselineY).toBeGreaterThan(POSTER_LAYOUT.wordmark.baselineY);
     expect(POSTER_LAYOUT.url.baselineY).toBeLessThan(POSTER_H);
   });
+
+  it('slots the dream name as a subtitle between the seed and the wordmark', () => {
+    const n = POSTER_LAYOUT.name;
+    expect(n.baselineY).toBeGreaterThan(POSTER_LAYOUT.seed.baselineY);
+    expect(n.baselineY).toBeLessThan(POSTER_LAYOUT.wordmark.baselineY);
+    expect(n.maxWidth).toBeLessThanOrEqual(POSTER_W);
+    expect(n.minFontPx).toBeGreaterThan(0);
+    expect(n.minFontPx).toBeLessThanOrEqual(n.fontPx);
+  });
 });
 
 describe('fitRect', () => {

@@ -43,6 +43,19 @@ describe('DepthLayerMaterial', () => {
     expect(has.value).toBe(0);
   });
 
+  it('setKen writes the uKen uniform (pan + zoom), default identity (0,0,0)', () => {
+    const mat = new DepthLayerMaterial();
+    const shader = compile(mat);
+    const ken = shader.uniforms.uKen as { value: { x: number; y: number; z: number } };
+    expect(ken.value.x).toBe(0);
+    expect(ken.value.z).toBe(0);
+    mat.setKen(0.02, -0.01, 0.08);
+    expect(ken.value.x).toBeCloseTo(0.02);
+    expect(ken.value.y).toBeCloseTo(-0.01);
+    expect(ken.value.z).toBeCloseTo(0.08);
+    expect(shader.fragmentShader).toContain('uniform vec3 uKen;');
+  });
+
   it('behaves as a MeshBasicMaterial (opacity/blending/map plumbing intact)', () => {
     const mat = new DepthLayerMaterial({ transparent: true, opacity: 0 });
     expect(mat).toBeInstanceOf(THREE.MeshBasicMaterial);
